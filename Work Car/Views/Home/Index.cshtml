@@ -226,137 +226,86 @@
         }
 
         // 下拉選單：3 秒防抖、錯誤顯示、方向鍵/Enter 操作
-        function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 3000){
+        function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 1000){
           const input = document.getElementById(inputId);
           const drop  = document.getElementById(dropdownId);
           if (!input || !drop) return;
 
           let timer = null;
 
-          function showLoading(){
-            drop.innerHTML = '<div class="ac-empty">搜尋中…</div>';
-            drop.style.display = "block";
-          }
-          function showEmpty(msg = "找不到建議"){
-            drop.innerHTML = `<div class="ac-empty">${msg}</div>`;
-            drop.style.display = "block";
-          }
-          function hide(){
-            drop.style.display = "none";
-            drop.innerHTML = "";
-          }
-          function render(items, onPick){
-            drop.innerHTML = "";
-            if (!items || !items.length){
-              showEmpty();
-              return;
-            }
-            items.forEach((it, idx)=>{
-              const div = document.createElement("div");
-              div.className = "ac-item" + (idx===0? " active" : "");
-              div.textContent = it.text;
-              div.dataset.id = it.id || "";
-              div.addEventListener("mousedown", (e)=>{
-                e.preventDefault();
-                onPick(it);
-              });
-              drop.appendChild(div);
-            });
-            drop.style.display = "block";
-          }
-          function moveActive(dir){
-            const items = Array.from(drop.querySelectorAll(".ac-item"));
-            if (!items.length) return;
-            let idx = items.findIndex(x=>x.classList.contains("active"));
-            idx = (idx + dir + items.length) % items.length;
-            items.forEach(x=>x.classList.remove("active"));
-            items[idx].classList.add("active");
-          }
-          function pickActive(onPick){
-            const el = drop.querySelector(".ac-item.active");
-            if (!el) return;
-            onPick({ id: el.dataset.id || "", text: el.textContent });
-          }
-          function pick(item){
-            input.value = item.text;
-            hide();
-            if (typeof callback === "function"){
-              callback({ id: item.id || "", text: item.text });
-            }
-            input.dispatchEvent(new Event("change", { bubbles:true }));
-          }
-
           input.addEventListener("input", ()=>{
             const q = input.value.trim();
-            clearTimeout(timer);
-            hide();
+            clearTimeout(timer);   // 先清掉舊的計時器
+            drop.style.display = "none";
 
-            if (!q || q.length < 2){
+            if (!q || q.length < 1){
               return;
             }
 
-            showLoading();
-
+            // 👉 停頓 idleMs 毫秒才查
             timer = setTimeout(async ()=>{
               const parsed = parseLatLngText(q);
               if (parsed){
-                hide();
                 if (typeof callback === "function"){
                   callback({ id:"", text:q, lat:parsed.lat, lng:parsed.lng });
                 }
                 return;
               }
 
-              try{
-                const res  = await fetch("/api/places/autocomplete", {
+              try {
+                const res = await fetch("/api/places/autocomplete", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ input: q })
                 });
-                const raw  = await res.text();
-                let data;
-                try { data = JSON.parse(raw); } catch { data = null; }
+
+                const raw = await res.text();
+                let data = null;
+                try { data = JSON.parse(raw); } catch {}
 
                 if (!res.ok){
                   console.error("[places autocomplete] 非 200：", res.status, raw);
-                  drop.innerHTML =
-                    `<div class="ac-empty">⚠ 服務錯誤：HTTP ${res.status}</div>`+
-                    `<div class="ac-empty" style="white-space:pre-wrap;max-height:160px;overflow:auto">${(raw||"").slice(0,800)}</div>`;
+                  drop.innerHTML = `<div class="ac-empty">⚠ 錯誤：HTTP ${res.status}</div>`;
                   drop.style.display = "block";
                   return;
                 }
 
                 const items = (data?.suggestions || []).map(s=>{
-                  const pp = s.placePrediction?.place;
-                  const qp = s.queryPrediction?.text;
-                  const text = pp?.formattedAddress || qp || "";
-                  const id   = pp?.id || "";
-                  return text ? { id, text } : null;
+                  const pp = s.placePrediction;
+                  return pp?.text?.text ? { id: pp.placeId, text: pp.text.text } : null;
                 }).filter(Boolean);
 
-                render(items, pick);
-              }catch(err){
+                if (items.length){
+                  drop.innerHTML = "";
+                  items.forEach((it, idx)=>{
+                    const div = document.createElement("div");
+                    div.className = "ac-item" + (idx===0? " active" : "");
+                    div.textContent = it.text;
+                    div.dataset.id = it.id || "";
+                    div.addEventListener("mousedown", (e)=>{
+                      e.preventDefault();
+                      input.value = it.text;
+                      drop.style.display = "none";
+                      if (typeof callback === "function"){
+                        callback(it);
+                      }
+                      input.dispatchEvent(new Event("change", { bubbles:true }));
+                    });
+                    drop.appendChild(div);
+                  });
+                  drop.style.display = "block";
+                } else {
+                  drop.innerHTML = '<div class="ac-empty">找不到建議</div>';
+                  drop.style.display = "block";
+                }
+
+              } catch(err) {
                 console.error("[places autocomplete] 例外：", err);
-                showEmpty("⚠ 連線異常，請稍後再試");
+                drop.innerHTML = '<div class="ac-empty">⚠ 連線異常</div>';
+                drop.style.display = "block";
               }
-            }, idleMs);
-          });
 
-          input.addEventListener("keydown", (e)=>{
-            if (e.key === "Enter"){
-              e.preventDefault();
-              if (drop.style.display === "block"){ pickActive(pick); }
-              return false;
-            }
-            if (e.key === "ArrowDown"){ e.preventDefault(); moveActive(+1); }
-            else if (e.key === "ArrowUp"){ e.preventDefault(); moveActive(-1); }
-            else if (e.key === "Escape"){ hide(); }
-          });
-
-          document.addEventListener("click", (e)=>{
-            if (!drop.contains(e.target) && e.target !== input){
-              hide();
-            }
+            }, idleMs); // 停頓 idleMs 毫秒再查
           });
         }
 
@@ -453,7 +402,7 @@
               initPlacesAutocompleteDebounced({
                 onOrigin:      (p)=>{ origin.value      = p.text; },
                 onDestination: (p)=>{ destination.value = p.text; }
-              }, { idleMs: 1000 }); // 停 1秒再查
+              }, { idleMs: 2000 }); // 停 1秒再查
             });
 
             async function calcDistance(){
@@ -475,13 +424,34 @@
 
 
 
-                  singleDistance.value = data.rows[0].elements[0].distance.text;
-                  singleDuration.value = data.rows[0].elements[0].duration.text;
+                                 function formatDuration(seconds) {
+            let hours = Math.floor(seconds / 3600);
+            let mins = Math.round((seconds % 3600) / 60);
 
-                  roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + " 公里";
-                  const hours = Math.floor((durSecs * 2) / 3600);
-                  const mins  = Math.round(((durSecs * 2) % 3600) / 60);
-                  roundTripDuration.value = (hours > 0 ? hours + " 小時 " : "") + mins + " 分鐘";
+            // 如果 mins 變成 60，就進位成 1 小時
+            if (mins === 60) {
+                hours += 1;
+                mins = 0;
+            }
+
+            let result = "";
+            if (hours > 0) {
+                result += hours + " 小時";
+            }
+            if (mins > 0) {
+                result += (hours > 0 ? " " : "") + mins + " 分鐘";
+            }
+            return result;
+        }
+
+        // 單程
+        singleDistance.value = (distMeters / 1000).toFixed(1) + " 公里";
+        singleDuration.value = formatDuration(durSecs);
+
+        // 來回
+        roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + " 公里";
+        roundTripDuration.value = formatDuration(durSecs * 2);
+
                 } else {
                   alert("⚠️ 查無路線，請確認地點是否正確");
                   singleDistance.value = '';

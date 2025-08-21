@@ -46,7 +46,8 @@ namespace Cars.Controllers
 
             // ✅ 修改 FieldMask
             req.Headers.Add("X-Goog-FieldMask",
-                "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text");
+     "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat");
+
 
             var res = await client.SendAsync(req);
             var body = await res.Content.ReadAsStringAsync();
