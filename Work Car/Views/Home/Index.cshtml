@@ -1,0 +1,519 @@
+﻿@{
+    ViewData["Title"] = "用車申請";
+}
+<head>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+            .card h2, .card h3 {
+                margin: 0 0 10px;
+                font-size: 18px;
+            }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        input, select, button {
+            padding: 6px 10px;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+            .row > div {
+                flex: 1;
+                min-width: 240px;
+            }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid #999;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: #fff;
+            border: none;
+        }
+
+        .btn-danger {
+            background: #d9534f;
+            color: #fff;
+            border: none;
+        }
+
+        /* Autocomplete dropdown */
+        .ac-wrap {
+            position: relative;
+        }
+
+        .ac-dropdown {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: calc(100% + 4px);
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            z-index: 1000;
+            display: none;
+            max-height: 280px;
+            overflow: auto;
+        }
+
+        .ac-item {
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+
+            .ac-item:hover, .ac-item.active {
+                background: #f0f6ff;
+            }
+
+        .ac-empty {
+            padding: 8px 10px;
+            color: #666;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <form @@submit.prevent="onSubmit" @@keydown.enter.prevent>
+            <!-- 用車申請 -->
+            <div class="card">
+                <h2>用車申請</h2>
+                <div>
+                    <label><input type="radio" value="self" v-model="applyFor" /> 本人申請</label>
+                    <label><input type="radio" value="other" v-model="applyFor" /> 代他人申請</label>
+                </div>
+
+                <div class="row">
+                    <div class="card">
+                        <h3>{{ applicant.name }} ({{ applicant.empId }})</h3>
+                        <p>{{ applicant.dept }}</p>
+                        <p>☎ {{ applicant.ext }}</p>
+                        <p>✉ {{ applicant.email }}</p>
+                    </div>
+
+                    <div>
+                        <div class="form-group">
+                            <label>車輛類別 *</label>
+                            <select v-model="vehicleType">
+                                <option>汽車</option>
+                                <option>貨車</option>
+                                <option>廂型車</option>
+                                <option>其他</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>事由 *</label>
+                            <select v-model="purposeType">
+                                <option>公務車(不可攜車)</option>
+                                <option>公務車(可攜車)</option>
+                                <option>其他</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>起始時間 *</label>
+                            <input type="datetime-local" v-model="useStart" />
+                        </div>
+                        <div class="form-group">
+                            <label>結束時間 *</label>
+                            <input type="datetime-local" v-model="useEnd" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 行程 -->
+            <div class="card">
+                <h3>出發與目的地</h3>
+                <div class="row">
+                    <div class="ac-wrap">
+                        <input id="orig" placeholder="出發地 *" v-model="origin" />
+                        <div class="ac-dropdown" id="ac-orig"></div>
+                    </div>
+                    <div class="ac-wrap">
+                        <input id="dest" placeholder="目的地 *" v-model="destination" />
+                        <div class="ac-dropdown" id="ac-dest"></div>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary" @@click="calcDistance">查詢</button>
+                    </div>
+                </div>
+
+                <!-- 查詢結果：單程 / 來回 -->
+                <div v-if="singleDistance && singleDuration" style="margin-top:10px; padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
+                    <h4>單程</h4>
+                    🚗 距離：約 <b>{{ singleDistance }}</b><br />
+                    ⏱ 時間：約 <b>{{ singleDuration }}</b>
+
+                    <h4 style="margin-top:10px;">來回</h4>
+                    🚗 距離：約 <b>{{ roundTripDistance }}</b><br />
+                    ⏱ 時間：約 <b>{{ roundTripDuration }}</b>
+                </div>
+            </div>
+
+            <!-- 人員 -->
+            <div class="card">
+                <h3>人員與單位</h3>
+                <div class="form-group">
+                    <label>搭乘人數 *</label>
+                    <input type="number" v-model.number="passengerCount" />
+                </div>
+                <div>
+                    <h4>搭乘人員</h4>
+                    <div v-for="(p,i) in passengers" :key="i" class="row">
+                        <input v-model="p.name" placeholder="姓名" />
+                        <button type="button" class="btn btn-danger" @@click="removePassenger(i)">刪除</button>
+                    </div>
+                    <button type="button" class="btn" @@click="addPassenger">+ 新增</button>
+                </div>
+            </div>
+
+            <!-- 送出 -->
+            <div style="text-align:right; margin-top:20px;">
+                <button type="button" class="btn" @@click="onCancel">取消</button>
+                <button type="submit" class="btn btn-primary">送出申請</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // 解析 "(lat,lng)" 或 "lat,lng"
+        function parseLatLngText(text){
+          if (!text) return null;
+          const s = String(text).trim().replace(/[()]/g, "").replace(/[，\s]+/g, ",");
+          const parts = s.split(",");
+          if (parts.length !== 2) return null;
+          const lat = Number(parts[0]), lng = Number(parts[1]);
+          if (!isFinite(lat) || !isFinite(lng)) return null;
+          if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+          return { lat, lng };
+        }
+
+        // 下拉選單：3 秒防抖、錯誤顯示、方向鍵/Enter 操作
+        function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 3000){
+          const input = document.getElementById(inputId);
+          const drop  = document.getElementById(dropdownId);
+          if (!input || !drop) return;
+
+          let timer = null;
+
+          function showLoading(){
+            drop.innerHTML = '<div class="ac-empty">搜尋中…</div>';
+            drop.style.display = "block";
+          }
+          function showEmpty(msg = "找不到建議"){
+            drop.innerHTML = `<div class="ac-empty">${msg}</div>`;
+            drop.style.display = "block";
+          }
+          function hide(){
+            drop.style.display = "none";
+            drop.innerHTML = "";
+          }
+          function render(items, onPick){
+            drop.innerHTML = "";
+            if (!items || !items.length){
+              showEmpty();
+              return;
+            }
+            items.forEach((it, idx)=>{
+              const div = document.createElement("div");
+              div.className = "ac-item" + (idx===0? " active" : "");
+              div.textContent = it.text;
+              div.dataset.id = it.id || "";
+              div.addEventListener("mousedown", (e)=>{
+                e.preventDefault();
+                onPick(it);
+              });
+              drop.appendChild(div);
+            });
+            drop.style.display = "block";
+          }
+          function moveActive(dir){
+            const items = Array.from(drop.querySelectorAll(".ac-item"));
+            if (!items.length) return;
+            let idx = items.findIndex(x=>x.classList.contains("active"));
+            idx = (idx + dir + items.length) % items.length;
+            items.forEach(x=>x.classList.remove("active"));
+            items[idx].classList.add("active");
+          }
+          function pickActive(onPick){
+            const el = drop.querySelector(".ac-item.active");
+            if (!el) return;
+            onPick({ id: el.dataset.id || "", text: el.textContent });
+          }
+          function pick(item){
+            input.value = item.text;
+            hide();
+            if (typeof callback === "function"){
+              callback({ id: item.id || "", text: item.text });
+            }
+            input.dispatchEvent(new Event("change", { bubbles:true }));
+          }
+
+          input.addEventListener("input", ()=>{
+            const q = input.value.trim();
+            clearTimeout(timer);
+            hide();
+
+            if (!q || q.length < 2){
+              return;
+            }
+
+            showLoading();
+
+            timer = setTimeout(async ()=>{
+              const parsed = parseLatLngText(q);
+              if (parsed){
+                hide();
+                if (typeof callback === "function"){
+                  callback({ id:"", text:q, lat:parsed.lat, lng:parsed.lng });
+                }
+                return;
+              }
+
+              try{
+                const res  = await fetch("/api/places/autocomplete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ input: q })
+                });
+                const raw  = await res.text();
+                let data;
+                try { data = JSON.parse(raw); } catch { data = null; }
+
+                if (!res.ok){
+                  console.error("[places autocomplete] 非 200：", res.status, raw);
+                  drop.innerHTML =
+                    `<div class="ac-empty">⚠ 服務錯誤：HTTP ${res.status}</div>`+
+                    `<div class="ac-empty" style="white-space:pre-wrap;max-height:160px;overflow:auto">${(raw||"").slice(0,800)}</div>`;
+                  drop.style.display = "block";
+                  return;
+                }
+
+                const items = (data?.suggestions || []).map(s=>{
+                  const pp = s.placePrediction?.place;
+                  const qp = s.queryPrediction?.text;
+                  const text = pp?.formattedAddress || qp || "";
+                  const id   = pp?.id || "";
+                  return text ? { id, text } : null;
+                }).filter(Boolean);
+
+                render(items, pick);
+              }catch(err){
+                console.error("[places autocomplete] 例外：", err);
+                showEmpty("⚠ 連線異常，請稍後再試");
+              }
+            }, idleMs);
+          });
+
+          input.addEventListener("keydown", (e)=>{
+            if (e.key === "Enter"){
+              e.preventDefault();
+              if (drop.style.display === "block"){ pickActive(pick); }
+              return false;
+            }
+            if (e.key === "ArrowDown"){ e.preventDefault(); moveActive(+1); }
+            else if (e.key === "ArrowUp"){ e.preventDefault(); moveActive(-1); }
+            else if (e.key === "Escape"){ hide(); }
+          });
+
+          document.addEventListener("click", (e)=>{
+            if (!drop.contains(e.target) && e.target !== input){
+              hide();
+            }
+          });
+        }
+
+        // 初始化：避免重複綁定，可自訂 idleMs 與回呼
+        function initPlacesAutocompleteDebounced(bindings = {}, opts = {}) {
+          if (window.__AC_DEBOUNCED_INITED__) {
+            console.warn("[autocomplete] 已初始化，略過重複綁定");
+            return;
+          }
+          window.__AC_DEBOUNCED_INITED__ = true;
+
+          if (typeof attachPlacesAutocomplete !== "function") {
+            console.error("[autocomplete] attachPlacesAutocomplete 尚未定義；請先載入該函式");
+            return;
+          }
+
+          const idleMs = Number.isFinite(opts.idleMs) ? opts.idleMs : 3000;
+
+          function safeAttach(inputId, dropdownId, onPick) {
+            const input = document.getElementById(inputId);
+            const drop  = document.getElementById(dropdownId);
+            if (!input || !drop) {
+              console.warn(`[autocomplete] 找不到元素 #${inputId} 或 #${dropdownId}，略過綁定`);
+              return;
+            }
+            attachPlacesAutocomplete(inputId, dropdownId, onPick, idleMs);
+          }
+
+          // 起點
+          safeAttach("orig", "ac-orig", (picked) => {
+            if (typeof bindings.onOrigin === "function") {
+              bindings.onOrigin(picked);
+            } else {
+              const el = document.getElementById("orig");
+              if (el) el.value = picked.text;
+              window.origin = picked.text;
+            }
+          });
+
+          // 終點
+          safeAttach("dest", "ac-dest", (picked) => {
+            if (typeof bindings.onDestination === "function") {
+              bindings.onDestination(picked);
+            } else {
+              const el = document.getElementById("dest");
+              if (el) el.value = picked.text;
+              window.destination = picked.text;
+            }
+          });
+
+          // 途經點（若存在）
+          if (document.getElementById("waypoint-input")) {
+            safeAttach("waypoint-input", "ac-wp", (picked) => {
+              if (typeof bindings.onWaypoint === "function") {
+                bindings.onWaypoint(picked);
+              } else {
+                const loc = (picked.lat != null && picked.lng != null)
+                  ? { lat: picked.lat, lng: picked.lng }
+                  : picked.text;
+                if (!Array.isArray(window.waypoints)) window.waypoints = [];
+                window.waypoints.push({ location: loc, stopover: true });
+              }
+            });
+          }
+        }
+    </script>
+
+    <script>
+        const { createApp, ref, reactive, onMounted } = Vue;
+
+        createApp({
+          setup() {
+            const applyFor = ref('self');
+            const applicant = reactive({
+              name: 'XXX',
+              empId: 'XXXX.XX.X',
+              dept: '臺東分署 / 森林管理處 / 休憩管理科',
+              ext: '212',
+              email: 'XXXXX@forest.gov.tw'
+            });
+
+            const vehicleType = ref('汽車');
+            const purposeType = ref('公務車(不可攜車)');
+            const useStart = ref('');
+            const useEnd = ref('');
+            const origin = ref('');
+            const destination = ref('');
+            const singleDistance = ref('');
+            const singleDuration = ref('');
+            const roundTripDistance = ref('');
+            const roundTripDuration = ref('');
+
+            onMounted(()=>{
+              initPlacesAutocompleteDebounced({
+                onOrigin:      (p)=>{ origin.value      = p.text; },
+                onDestination: (p)=>{ destination.value = p.text; }
+              }, { idleMs: 1000 }); // 停 1秒再查
+            });
+
+            async function calcDistance(){
+              if (!origin.value || !destination.value){
+                alert("請輸入出發地與目的地");
+                return;
+              }
+              try{
+                const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
+                const data = await res.json();
+                console.log("📦 Distance API 回傳：", data);
+
+                if (data && data.rows && data.rows.length > 0 &&
+                    data.rows[0].elements && data.rows[0].elements.length > 0 &&
+                    data.rows[0].elements[0].status === 'OK') {
+
+                  const distMeters = data.rows[0].elements[0].distance.value;
+                  const durSecs    = data.rows[0].elements[0].duration.value;
+
+
+
+                  singleDistance.value = data.rows[0].elements[0].distance.text;
+                  singleDuration.value = data.rows[0].elements[0].duration.text;
+
+                  roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + " 公里";
+                  const hours = Math.floor((durSecs * 2) / 3600);
+                  const mins  = Math.round(((durSecs * 2) % 3600) / 60);
+                  roundTripDuration.value = (hours > 0 ? hours + " 小時 " : "") + mins + " 分鐘";
+                } else {
+                  alert("⚠️ 查無路線，請確認地點是否正確");
+                  singleDistance.value = '';
+                  singleDuration.value = '';
+                  roundTripDistance.value = '';
+                  roundTripDuration.value = '';
+                }
+              }catch(err){
+                console.error("❌ 取得距離失敗", err);
+              }
+            }
+
+            const passengerCount = ref(1);
+            const passengers = ref([{ name: 'XXX' }]);
+            function addPassenger(){ passengers.value.push({ name: '' }); }
+            function removePassenger(i){ passengers.value.splice(i, 1); }
+            function onCancel(){ alert('已取消'); }
+            function onSubmit(){
+              alert("表單送出:\n" + JSON.stringify({
+                applicant, vehicleType: vehicleType.value, useStart: useStart.value,
+                origin: origin.value, destination: destination.value, passengers: passengers.value
+              }, null, 2));
+            }
+
+            return {
+              applyFor, applicant, vehicleType, purposeType, useStart, useEnd,
+              origin, destination,
+              singleDistance, singleDuration, roundTripDistance, roundTripDuration,
+              passengerCount, passengers, addPassenger, removePassenger,
+              onCancel, onSubmit, calcDistance
+            };
+          }
+        }).mount('#app');
+    </script>
+</body>
