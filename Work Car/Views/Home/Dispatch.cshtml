@@ -466,6 +466,7 @@ createApp({
     const loadData = async () => {
       try {
         const res = await axios.get('/api/dispatch/list'); // 🚨 後端 API
+        console.log("📌 後端回傳：", res.data);
         rows.value = res.data;
 
         // 順便整理篩選下拉選單 (去重)

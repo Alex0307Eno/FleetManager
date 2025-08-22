@@ -9,8 +9,7 @@
         public string? Ext { get; set; }
         public string? Email { get; set; }
 
-        // 🔗 關聯
-        public ICollection<Dispatch>? CarApplications { get; set; }
-        public ICollection<Dispatch>? DispatchOrders { get; set; }
+        // 🔗 關聯 (一個駕駛可以有多筆派車單)
+        public virtual ICollection<Dispatch>? Dispatches { get; set; }
     }
 }

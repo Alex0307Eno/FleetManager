@@ -429,40 +429,68 @@
         const isToday = d => (yearAD.value===today.getFullYear() && month.value===today.getMonth()+1 && d===today.getDate());
 
         // 月曆主格（42 格）
-        const monthGrid = computed(()=>{
-          const total = 42; // 6 週
-          const arr = [];
-          const dim = daysInMonth.value;
-          const startPad = firstOfMonth.value.getDay(); 
-          for(let i=0;i<total;i++){
-            const dateNum = i-startPad+1;
-            const valid = dateNum>=1 && dateNum<=dim;
-            const jsDate = valid ? new Date(yearAD.value, month.value-1, dateNum) : null;
-            const dow = valid ? jsDate.getDay() : 0; // Mon=1..Sun=7
-            arr.push({
-              d: valid ? dateNum : '',
-              isToday: valid && isToday(dateNum),
-              isWeekday: valid && dow>=1 && dow<=5,
-              weekIdx: valid ? (dow-1) : 0   // 0..4 對應週一..週五
-            });
-          }
-          return arr;
+             const monthGrid = computed(()=>{
+      const arr = [];
+      const dim = daysInMonth.value; // 這個月有幾天
+      const startDay = firstOfMonth.value.getDay(); // 0=Sun..6=Sat
+
+      // 1️⃣ 前面補空白
+      for (let i = 0; i < startDay; i++) {
+        arr.push({ d: '', isToday:false, isWeekday:false, weekIdx:0 });
+      }
+
+      // 2️⃣ 當月日期
+      for (let d = 1; d <= dim; d++) {
+        const jsDate = new Date(yearAD.value, month.value-1, d);
+        const dow = jsDate.getDay(); // 0=Sun..6=Sat
+        arr.push({
+          d,
+          isToday: isToday(d),
+          isWeekday: dow >= 1 && dow <= 5,
+          weekIdx: dow-1  // 0=Mon,1=Tue… → 對應到你的 codes 索引
         });
+      }
+
+      // 3️⃣ 後面補空白，總格數固定 42
+      while (arr.length < 42) {
+        arr.push({ d: '', isToday:false, isWeekday:false, weekIdx:0 });
+      }
+
+      return arr;
+    });
+
+
 
         // 週檢視（目前即當月第 selectedWeek 週）
-        const weeksOfMonth = computed(()=>{
-          const res=[];
-          const dim = daysInMonth.value;
-          let d = 1;
-          // 找到第一個週一
-          const w0 = (firstOfMonth.value.getDay()+6)%7; // 0=Mon
-          if(w0!==0) d += (7-w0);
-          while(d<=dim){
-            res.push([d, Math.min(d+4, dim)]); // Mon..Fri
-            d+=7;
-          }
-          return res;
-        });
+           const weeksOfMonth = computed(()=>{
+      const res = [];
+      const year = yearAD.value;
+      const m = month.value - 1; // JS 月份 0-based
+
+      // 先找到這個月第一天
+      let d = new Date(year, m, 1);
+
+      // 調整到當週的週一
+      const dow = (d.getDay() + 6) % 7; // 0=Mon
+      d.setDate(d.getDate() - dow);
+
+      // 逐週推算，直到超過當月天數
+      while (true) {
+        const start = new Date(d); // 週一
+        const end   = new Date(d); end.setDate(d.getDate() + 4); // 週五
+
+        // 只收錄有碰到這個月的週
+        if (start.getMonth() === m || end.getMonth() === m) {
+          res.push([start, end]);
+        }
+
+        d.setDate(d.getDate() + 7); // 下週一
+        if (d.getMonth() > m && d.getDate() >= 7) break; // 超出本月就停
+      }
+
+      return res;
+    });
+
         const selectedWeek = ref(0);
         // 進場定位到包含今天的那一週
         const initWeekIdx = (()=> {
@@ -472,36 +500,57 @@
           }
         })();
 
-        const weekDays = computed(()=>{
-          const w = weeksOfMonth.value[selectedWeek.value] || [1,5];
-          const days=[];
-          for(let i=0;i<5;i++){
-            const d = w[0]+i;
-            days.push({ label:['週一','週二','週三','週四','週五'][i], date:`${month.value}/${d}` });
-          }
-          return days;
+           const weekDays = computed(()=>{
+      const w = weeksOfMonth.value[selectedWeek.value];
+      if (!w) return [];
+      const days=[];
+      let d = new Date(w[0]); // 從週一開始
+
+      for (let i=0;i<5;i++){
+        days.push({
+          label:['週一','週二','週三','週四','週五'][i],
+          date:`${d.getMonth()+1}/${d.getDate()}`
         });
+        d.setDate(d.getDate()+1);
+      }
+      return days;
+    });
+
 
         function who(code){ return assign[code] || '—'; }
 
         // 月/週切換 + 上下月/週
         const viewMode = ref('month');
-        function prev(){
-          if(viewMode.value==='month'){
-            month.value = month.value>1 ? month.value-1 : 12;
-          }else{
-            if(selectedWeek.value>0) selectedWeek.value--;
-            else { month.value = month.value>1 ? month.value-1 : 12; selectedWeek.value=0; }
-          }
+            function prev(){
+      if(viewMode.value==='month'){
+        month.value = month.value>1 ? month.value-1 : 12;
+      }else{
+        if(selectedWeek.value > 0) {
+          selectedWeek.value--;
+        } else {
+          // 切換到上個月
+          month.value = month.value>1 ? month.value-1 : 12;
+          // ⚠️ 等待 weeksOfMonth 更新後再選最後一週
+          Vue.nextTick(()=>{
+            selectedWeek.value = weeksOfMonth.value.length - 1;
+          });
         }
-        function next(){
-          if(viewMode.value==='month'){
-            month.value = month.value<12 ? month.value+1 : 1;
-          }else{
-            if(selectedWeek.value < weeksOfMonth.value.length-1) selectedWeek.value++;
-            else { month.value = month.value<12 ? month.value+1 : 1; selectedWeek.value=0; }
-          }
+      }
+        }function next(){
+      if(viewMode.value==='month'){
+        month.value = month.value<12 ? month.value+1 : 1;
+      }else{
+        if(selectedWeek.value < weeksOfMonth.value.length-1) {
+          selectedWeek.value++;
+        } else {
+          // 切換到下個月
+          month.value = month.value<12 ? month.value+1 : 1;
+          Vue.nextTick(()=>{
+            selectedWeek.value = 0;
+          });
         }
+      }
+    }
 
         // 匯出 CSV（取當前週）
         function exportCSV(){
