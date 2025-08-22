@@ -3,13 +3,21 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Cars</title>
+    <title>@ViewData["Title"] - 公務車派車系統</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-       
+    <header class="topbar">
+        <a href="/" class="brand">公務車派車系統</a>
+        <nav class="nav">
+            <a href="/Home/CarApply">派車管理</a>
+            <a href="#">車輛管理</a>
+            <a href="#">駕駛人管理</a>
+            <a href="/Home/Schedule">值勤排班</a>
+            <a href="/Home/Dispatch">派車單</a>
+
+        </nav>
     </header>
     <div class="container">
         <main role="main" class="pb-3">

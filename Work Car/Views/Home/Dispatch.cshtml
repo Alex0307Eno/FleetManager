@@ -1,0 +1,535 @@
+﻿@{
+    ViewData["Title"] = "派車單";
+}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>派車單</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --card: #fff;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --chip: #eef2f7;
+            --primary: #1e6fb8;
+            --primary-600: #2b83d4;
+            --shadow: 0 1px 3px rgba(16,24,40,.08);
+            --ok: #16a34a;
+            --ok-bg: #ecfdf5;
+            --ok-br: #a7f3d0;
+            --warn: #92400e;
+            --warn-bg: #fffbeb;
+            --warn-br: #fde68a;
+            --info: #1e3a8a;
+            --info-bg: #eef2ff;
+            --info-br: #c7d2fe;
+            --danger: #b91c1c;
+            --danger-bg: #fef2f2;
+            --danger-br: #fecaca;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
+            background: var(--bg);
+            color: var(--text)
+        }
+
+        .wrap {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px
+        }
+
+        /* top nav */
+        .topnav {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            padding: 12px 10px;
+            color: #64748b
+        }
+
+            .topnav a {
+                color: inherit;
+                text-decoration: none;
+                padding: 8px 12px;
+                border-radius: 8px
+            }
+
+                .topnav a.active {
+                    background: #e8f0fb;
+                    color: #1e3a8a;
+                    font-weight: 700
+                }
+
+        /* card */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow)
+        }
+
+        .card-hd {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border)
+        }
+
+            .card-hd .title {
+                font-weight: 700
+            }
+
+        .card-bd {
+            padding: 12px 16px
+        }
+
+        /* toolbar buttons */
+        .btn {
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff
+        }
+
+        .btn-ghost {
+            background: #fff
+        }
+
+        .btn-warning {
+            background: #facc15;
+            color: #111;
+            border-color: #eab308
+        }
+
+        /* filters bar */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: #f3f4f6;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px
+        }
+
+        .f-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 8px
+        }
+
+            .f-item label {
+                font-size: 13px;
+                color: #374151
+            }
+
+            .f-item input, .f-item select {
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 6px 8px;
+                background: #fff
+            }
+
+        .f-search {
+            display: flex;
+            align-items: center;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            overflow: hidden
+        }
+
+            .f-search input {
+                border: 0;
+                outline: none;
+                padding: 8px 10px
+            }
+
+            .f-search button {
+                border: 0;
+                background: #fff;
+                padding: 8px 10px;
+                cursor: pointer
+            }
+
+        /* table */
+        .table-wrap {
+            overflow: auto
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            padding: 10px
+        }
+
+        tbody td {
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            padding: 10px;
+            vertical-align: top
+        }
+
+            thead th:first-child, tbody td:first-child {
+                border-left: 1px solid var(--border)
+            }
+
+            thead th:last-child, tbody td:last-child {
+                border-right: 1px solid var(--border)
+            }
+
+        tbody tr:first-child td {
+            border-top: 1px solid var(--border)
+        }
+
+        .mono {
+            font-variant-numeric: tabular-nums
+        }
+
+        /* status chips */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 2px 8px;
+            font-size: 12px;
+            background: #fff;
+            color: #111
+        }
+
+            .badge.s-approved {
+                background: var(--ok-bg);
+                border-color: var(--ok-br);
+                color: var(--ok)
+            }
+
+            .badge.s-review {
+                background: var(--info-bg);
+                border-color: var(--info-br);
+                color: var(--info)
+            }
+
+            .badge.s-wait {
+                background: var(--warn-bg);
+                border-color: var(--warn-br);
+                color: var(--warn)
+            }
+
+            .badge.s-muted {
+                background: #f1f5f9;
+                border-color: #e5e7eb;
+                color: #6b7280
+            }
+
+        /* row actions (svg icons) */
+        .row-actions {
+            display: flex;
+            gap: 6px
+        }
+
+        .icon-btn {
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer
+        }
+
+            .icon-btn.danger {
+                border-color: var(--danger-br);
+                background: var(--danger-bg);
+                color: var(--danger)
+            }
+
+        .icon {
+            width: 16px;
+            height: 16px;
+            stroke: #334155
+        }
+
+        .footer-dots {
+            display: grid;
+            gap: 10px;
+            margin: 18px 0
+        }
+
+            .footer-dots .dotline {
+                height: 8px;
+                border-radius: 999px;
+                background: #eef2f7;
+                border: 1px solid var(--border)
+            }
+    </style>
+</head>
+<body>
+    <div id="app" class="wrap">
+        <nav class="topnav">
+            <a href="#" class="active">派車管理</a>
+            <a href="#">車輛管理</a>
+            <a href="#">駕駛人管理</a>
+        </nav>
+
+        <section class="card">
+            <div class="card-hd">
+                <div class="title">派車管理 ＞ 派車單</div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn" @@click="onCreate">新增</button>
+                    <button class="btn btn-primary" @@click="exportCSV">匯出</button>
+                </div>
+            </div>
+
+            <!-- filter bar -->
+            <div class="card-bd">
+                <div class="filters">
+                    <div class="f-item">
+                        <label>用車日期</label>
+                        <input type="date" v-model="filters.date">
+                    </div>
+                    <div class="f-item">
+                        <label>駕駛人</label>
+                        <select v-model="filters.driver">
+                            <option value="">全部</option>
+                            <option v-for="d in drivers" :key="d" :value="d">{{ d }}</option>
+                        </select>
+                    </div>
+                    <div class="f-item">
+                        <label>申請人</label>
+                        <select v-model="filters.applicant">
+                            <option value="">全部</option>
+                            <option v-for="a in applicants" :key="a" :value="a">{{ a }}</option>
+                        </select>
+                    </div>
+                    <div class="f-item">
+                        <label>車輛</label>
+                        <select v-model="filters.car">
+                            <option value="">全部</option>
+                            <option v-for="c in cars" :key="c" :value="c">{{ c }}</option>
+                        </select>
+                    </div>
+
+                    <div class="f-search" style="margin-left:auto">
+                        <input v-model.trim="filters.q" placeholder="搜尋目的地 / 事由">
+                        <button @@click="applyFilters" title="搜尋">
+                            <!-- magnifier -->
+                            <svg class="icon" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke-width="2" /><path d="M20 20l-3.5-3.5" stroke-width="2" stroke-linecap="round" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- table -->
+            <div class="card-bd table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:110px">用車日期</th>
+                            <th style="width:120px">用車時間</th>
+                            <th style="width:260px">目的地</th>
+                            <th>事由</th>
+                            <th style="width:80px">申請人</th>
+                            <th style="width:60px">人數</th>
+                            <th style="width:90px">行駛里程</th>
+                            <th style="width:100px">審核狀態</th>
+                            <th style="width:90px">駕駛人</th>
+                            <th style="width:80px">車輛</th>
+                            <th style="width:110px">功能</th>
+                        </tr>
+                    </thead>
+                   <tbody>
+                      <tr v-for="r in rows" :key="r.dispatchId">
+                        <!-- 用車日期 -->
+                        <td class="mono">{{ r.useDate }}</td>
+                        <!-- 用車時間 -->
+                        <td class="mono">{{ r.useTime }}</td>
+                        <!-- 路線 -->
+                        <td>{{ r.route }}</td>
+                        <!-- 用途 -->
+                        <td style="color:#374151">{{ r.applyReason }}</td>
+                        <!-- 申請人 -->
+                        <td>{{ r.applicantName }}</td>
+                        <!-- 人數 -->
+                        <td class="mono">{{ r.passengerCount }}</td>
+                        <!-- 距離 -->
+                        <td class="mono">{{ r.tripDistance }}</td>
+                        <!-- 狀態 -->
+                        <td>
+                          <span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span>
+                        </td>
+                        <!-- 駕駛 -->
+                        <td>
+                          <span class="badge" :class="r.driverName ? '' : 's-muted'">
+                            {{ r.driverName || '未指派' }}
+                          </span>
+                        </td>
+                        <!-- 車輛 -->
+                        <td>
+                          <span class="badge" :class="r.plateNo ? '' : 's-muted'">
+                            {{ r.plateNo || '未指派' }}
+                          </span>
+                        </td>
+                        <!-- 動作 -->
+                        <td class="row-actions">
+                          <button class="icon-btn" title="檢視" @@click="viewRow(r)">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none">
+                              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke-width="2" />
+                              <circle cx="12" cy="12" r="3" stroke-width="2" />
+                            </svg>
+                          </button>
+                          <button class="icon-btn" title="編輯" @@click="editRow(r)">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none">
+                              <path d="M15 3l6 6M4 20l4-1 11-11-3-3L5 16l-1 4z" stroke-width="2" stroke-linejoin="round" />
+                            </svg>
+                          </button>
+                          <button class="icon-btn danger" title="刪除" @@click="removeRow(r)">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none">
+                              <path d="M3 6h18M8 6l1-2h6l1 2M6 6l1 14h10l1-14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+
+                </table>
+
+                <!-- 下方淡淡的占位點（視覺上像設計稿） -->
+                <div class="footer-dots">
+                    <div class="dotline"></div>
+                    <div class="dotline"></div>
+                    <div class="dotline"></div>
+                    <div class="dotline"></div>
+                    <div class="dotline"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+  setup(){
+    const rows = ref([]);  // 改成空陣列，等 API 填資料進來
+    const loading = ref(true);
+
+    // 篩選條件
+    const filters = ref({ date:'', driver:'', applicant:'', car:'', q:'' });
+
+    const drivers = ref([]);
+    const applicants = ref([]);
+    const cars = ref([]);
+
+    // 載入資料
+    const loadData = async () => {
+      try {
+        const res = await axios.get('/api/dispatch/list'); // 🚨 後端 API
+        rows.value = res.data;
+
+        // 順便整理篩選下拉選單 (去重)
+        drivers.value = [...new Set(res.data.map(r=> r.driverName).filter(Boolean))];
+        applicants.value = [...new Set(res.data.map(r=> r.applicantName).filter(Boolean))];
+        cars.value = [...new Set(res.data.map(r=> r.plateNo).filter(Boolean))];
+      } catch(err){
+        console.error('讀取失敗:', err);
+        alert('讀取派車單失敗');
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    onMounted(loadData);
+
+    // 篩選資料
+    const filtered = computed(()=>{
+      return rows.value.filter(r=>{
+        if(filters.value.date && r.useDate !== filters.value.date) return false;
+        if(filters.value.driver && r.driverName !== filters.value.driver) return false;
+        if(filters.value.applicant && r.applicantName !== filters.value.applicant) return false;
+        if(filters.value.car && r.plateNo !== filters.value.car) return false;
+        if(filters.value.q){
+          const q = filters.value.q.toLowerCase();
+          const hay = (r.route + ' ' + r.applyReason).toLowerCase();
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    });
+
+    // 狀態顯示
+    const statusText = (s)=> s==='approved'?'完成審核': s==='review'?'審核中':'待審核';
+    const statusClass = (s)=> s==='approved'?'s-approved': s==='review'?'s-review':'s-wait';
+
+    // row actions
+    const viewRow = (r)=> alert('查看：\n' + JSON.stringify(r,null,2));
+    const editRow = (r)=> alert('編輯（示意）ID=' + r.id);
+    const removeRow = (r)=> { if(confirm('確定刪除？')) rows.value = rows.value.filter(x=>x.id!==r.id); };
+
+    const onCreate = ()=> alert('導向到新增派車單頁（示意）');
+
+    const exportCSV = ()=>{
+      const head = '用車日期,用車時間,目的地,事由,申請人,人數,行駛里程,審核狀態,駕駛人,車輛\n';
+      const body = filtered.value.map(r =>
+        [r.useDate, r.useTime, `"${r.route}"`, `"${r.applyReason}"`,
+         r.applicantName, r.passengerCount, r.tripDistance,
+         statusText(r.status), r.driverName||'未指派', r.plateNo||'未指派'
+        ].join(',')).join('\n');
+      const blob = new Blob([head+body], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = '派車單.csv';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    };
+
+    return { rows, filters, filtered, drivers, applicants, cars, loading,
+             statusText, statusClass,
+             viewRow, editRow, removeRow, onCreate, exportCSV };
+  }
+}).mount('#app');
+</script>
+
+
+</body>
+</html>

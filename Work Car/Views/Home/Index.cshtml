@@ -1,489 +1,334 @@
-﻿@{
-    ViewData["Title"] = "用車申請";
-}
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
 <head>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>公務車派車系統</title>
     <style>
+        :root {
+            --bg: #f7f8fa;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --muted: #6b7280;
+            --chip: #eef2f7;
+            --primary: #1e6fb8;
+            --shadow: 0 1px 3px rgba(16,24,40,.08);
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html, body {
+            height: 100%
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
+            margin: 0;
+            font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
+            background: var(--bg);
+            color: var(--text)
         }
 
-        .card {
-            background: #fff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 16px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-            .card h2, .card h3 {
-                margin: 0 0 10px;
-                font-size: 18px;
-            }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 4px;
-            font-size: 14px;
-        }
-
-        input, select, button {
-            padding: 6px 10px;
-            border: 1px solid #aaa;
-            border-radius: 4px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .row {
+        /* Top bar */
+        .topbar {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 22px;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10
         }
 
-            .row > div {
-                flex: 1;
-                min-width: 240px;
+        
+
+        .nav {
+            display: flex;
+            gap: 22px;
+            color: #6b7280
+        }
+
+            .nav a {
+                color: inherit;
+                text-decoration: none
             }
+
+        .wrap {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow)
+        }
+
+        .card-hd {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700
+        }
+
+        .card-bd {
+            padding: 12px 16px
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px
+        }
+        @@media (max-width: 1000px) {
+            .grid
+
+        {
+            grid-template-columns: 1fr
+        }
+
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 6px
+        }
+
+        thead th {
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+            text-align: left;
+            padding: 8px 10px
+        }
+
+        tbody tr {
+            background: #fff;
+            border: 1px solid var(--border)
+        }
+
+        tbody td {
+            padding: 10px 10px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border)
+        }
+
+        tbody tr:first-child td {
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px
+        }
+
+        tbody tr:last-child td {
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--chip);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: #475569
+        }
+
+        .pin {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px
+        }
+
+            .pin svg {
+                width: 16px;
+                height: 16px
+            }
+
+        .mono {
+            font-variant-numeric: tabular-nums
+        }
+
+        /* Two right columns stacked */
+        .stack {
+            display: grid;
+            gap: 16px
+        }
+
+        .list {
+            display: grid;
+            gap: 8px
+        }
+
+        .list-row {
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            background: #fff
+        }
+
+        /* Map */
+        .map-card {
+            width: 100%;
+            height: 400px;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .map {
+            height: 360px;
+            border-top: 1px solid var(--border);
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            background: linear-gradient(0deg,#e5e7eb 1px,transparent 1px), linear-gradient(90deg,#e5e7eb 1px,transparent 1px), #fafafa;
+            background-size: 24px 24px, 24px 24px;
+            position: relative
+        }
+
+            .map::after {
+                content: "地圖";
+                position: absolute;
+                right: 12px;
+                bottom: 10px;
+                color: #9ca3af;
+                font-size: 12px
+            }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center
+        }
 
         .btn {
-            padding: 8px 16px;
-            border-radius: 4px;
-            border: 1px solid #999;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: #007bff;
-            color: #fff;
-            border: none;
-        }
-
-        .btn-danger {
-            background: #d9534f;
-            color: #fff;
-            border: none;
-        }
-
-        /* Autocomplete dropdown */
-        .ac-wrap {
-            position: relative;
-        }
-
-        .ac-dropdown {
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: calc(100% + 4px);
+            border: 1px solid var(--border);
             background: #fff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-            z-index: 1000;
-            display: none;
-            max-height: 280px;
-            overflow: auto;
+            border-radius: 8px;
+            padding: 4px 8px;
+            cursor: pointer
         }
 
-        .ac-item {
-            padding: 8px 10px;
-            cursor: pointer;
+        .btn-yes {
+            color: #0f766e;
+            border-color: #99f6e4;
+            background: #ecfeff
         }
 
-            .ac-item:hover, .ac-item.active {
-                background: #f0f6ff;
-            }
-
-        .ac-empty {
-            padding: 8px 10px;
-            color: #666;
-            font-size: 13px;
+        .btn-no {
+            color: #b91c1c;
+            border-color: #fecaca;
+            background: #fff1f2
         }
     </style>
 </head>
-
 <body>
-    <div id="app">
-        <form @@submit.prevent="onSubmit" @@keydown.enter.prevent>
-            <!-- 用車申請 -->
-            <div class="card">
-                <h2>用車申請</h2>
-                <div>
-                    <label><input type="radio" value="self" v-model="applyFor" /> 本人申請</label>
-                    <label><input type="radio" value="other" v-model="applyFor" /> 代他人申請</label>
-                </div>
+    
 
-                <div class="row">
-                    <div class="card">
-                        <h3>{{ applicant.name }} ({{ applicant.empId }})</h3>
-                        <p>{{ applicant.dept }}</p>
-                        <p>☎ {{ applicant.ext }}</p>
-                        <p>✉ {{ applicant.email }}</p>
+    <main class="wrap">
+        <div class="grid">
+            <!-- Left column -->
+            <section>
+                <div class="card">
+                    <div class="card-hd">
+                        今日排班情形（@DateTime.Now.ToString("yyyy/M/d dddd", new System.Globalization.CultureInfo("zh-TW"))）
                     </div>
-
-                    <div>
-                        <div class="form-group">
-                            <label>車輛類別 *</label>
-                            <select v-model="vehicleType">
-                                <option>汽車</option>
-                                <option>貨車</option>
-                                <option>廂型車</option>
-                                <option>其他</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>事由 *</label>
-                            <select v-model="purposeType">
-                                <option>公務車(不可攜車)</option>
-                                <option>公務車(可攜車)</option>
-                                <option>其他</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>起始時間 *</label>
-                            <input type="datetime-local" v-model="useStart" />
-                        </div>
-                        <div class="form-group">
-                            <label>結束時間 *</label>
-                            <input type="datetime-local" v-model="useEnd" />
-                        </div>
+                    <div class="card-bd">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>駕駛人</th>
+                                    <th>排班狀態</th>
+                                    <th>目前任務</th>
+                                    <th>組室</th>
+                                    <th>申請人</th>
+                                    <th>人數</th>
+                                    <th>累計行駛里程</th>
+                                    <th>目前位置</th>
+                                    <th>車輛</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="map-card">
+                        <div id="map"class="map"></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- 行程 -->
-            <div class="card">
-                <h3>出發與目的地</h3>
-                <div class="row">
-                    <div class="ac-wrap">
-                        <input id="orig" placeholder="出發地 *" v-model="origin" />
-                        <div class="ac-dropdown" id="ac-orig"></div>
-                    </div>
-                    <div class="ac-wrap">
-                        <input id="dest" placeholder="目的地 *" v-model="destination" />
-                        <div class="ac-dropdown" id="ac-dest"></div>
-                    </div>
-                    <div>
-                        <button type="button" class="btn btn-primary" @@click="calcDistance">查詢</button>
+            <!-- Right column -->
+            <aside class="stack">
+                <div class="card">
+                    <div class="card-hd">今日未完成任務</div>
+                    <div class="card-bd list">
+                        
                     </div>
                 </div>
 
-                <!-- 查詢結果：單程 / 來回 -->
-                <div v-if="singleDistance && singleDuration" style="margin-top:10px; padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
-                    <h4>單程</h4>
-                    🚗 距離：約 <b>{{ singleDistance }}</b><br />
-                    ⏱ 時間：約 <b>{{ singleDuration }}</b>
-
-                    <h4 style="margin-top:10px;">來回</h4>
-                    🚗 距離：約 <b>{{ roundTripDistance }}</b><br />
-                    ⏱ 時間：約 <b>{{ roundTripDuration }}</b>
-                </div>
-            </div>
-
-            <!-- 人員 -->
-            <div class="card">
-                <h3>人員與單位</h3>
-                <div class="form-group">
-                    <label>搭乘人數 *</label>
-                    <input type="number" v-model.number="passengerCount" />
-                </div>
-                <div>
-                    <h4>搭乘人員</h4>
-                    <div v-for="(p,i) in passengers" :key="i" class="row">
-                        <input v-model="p.name" placeholder="姓名" />
-                        <button type="button" class="btn btn-danger" @@click="removePassenger(i)">刪除</button>
+                <div class="card">
+                    <div class="card-hd">今日待審核派車申請</div>
+                    <div class="card-bd">
+                        <table style="border-collapse: collapse; width:100%">
+                            <thead>
+                                <tr style="color:#374151;font-size:14px">
+                                    <th style="text-align:left;padding:6px 8px">申請人</th>
+                                    <th style="text-align:left;padding:6px 8px">派車時間</th>
+                                    <th style="text-align:left;padding:6px 8px">派車地點</th>
+                                    <th style="text-align:center;padding:6px 8px">審核</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="background:#fff;border-top:1px solid var(--border)">
+                                    <td style="padding:8px 8px">游ＯＯ</td>
+                                    <td style="padding:8px 8px" class="mono">16:30</td>
+                                    <td style="padding:8px 8px">農業部</td>
+                                    <td style="padding:8px 8px" class="actions">
+                                        <button class="btn btn-yes">✓</button>
+                                        <button class="btn btn-no">✕</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <button type="button" class="btn" @@click="addPassenger">+ 新增</button>
                 </div>
-            </div>
-
-            <!-- 送出 -->
-            <div style="text-align:right; margin-top:20px;">
-                <button type="button" class="btn" @@click="onCancel">取消</button>
-                <button type="submit" class="btn btn-primary">送出申請</button>
-            </div>
-        </form>
-    </div>
-
+            </aside>
+        </div>
+    </main>
     <script>
-        // 解析 "(lat,lng)" 或 "lat,lng"
-        function parseLatLngText(text){
-          if (!text) return null;
-          const s = String(text).trim().replace(/[()]/g, "").replace(/[，\s]+/g, ",");
-          const parts = s.split(",");
-          if (parts.length !== 2) return null;
-          const lat = Number(parts[0]), lng = Number(parts[1]);
-          if (!isFinite(lat) || !isFinite(lng)) return null;
-          if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-          return { lat, lng };
-        }
-
-        // 下拉選單：3 秒防抖、錯誤顯示、方向鍵/Enter 操作
-        function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 1000){
-          const input = document.getElementById(inputId);
-          const drop  = document.getElementById(dropdownId);
-          if (!input || !drop) return;
-
-          let timer = null;
-
-          input.addEventListener("input", ()=>{
-            const q = input.value.trim();
-            clearTimeout(timer);   // 先清掉舊的計時器
-            drop.style.display = "none";
-
-            if (!q || q.length < 1){
-              return;
-            }
-
-            // 👉 停頓 idleMs 毫秒才查
-            timer = setTimeout(async ()=>{
-              const parsed = parseLatLngText(q);
-              if (parsed){
-                if (typeof callback === "function"){
-                  callback({ id:"", text:q, lat:parsed.lat, lng:parsed.lng });
-                }
-                return;
-              }
-
-              try {
-                const res = await fetch("/api/places/autocomplete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ input: q })
-                });
-
-                const raw = await res.text();
-                let data = null;
-                try { data = JSON.parse(raw); } catch {}
-
-                if (!res.ok){
-                  console.error("[places autocomplete] 非 200：", res.status, raw);
-                  drop.innerHTML = `<div class="ac-empty">⚠ 錯誤：HTTP ${res.status}</div>`;
-                  drop.style.display = "block";
-                  return;
-                }
-
-                const items = (data?.suggestions || []).map(s=>{
-                  const pp = s.placePrediction;
-                  return pp?.text?.text ? { id: pp.placeId, text: pp.text.text } : null;
-                }).filter(Boolean);
-
-                if (items.length){
-                  drop.innerHTML = "";
-                  items.forEach((it, idx)=>{
-                    const div = document.createElement("div");
-                    div.className = "ac-item" + (idx===0? " active" : "");
-                    div.textContent = it.text;
-                    div.dataset.id = it.id || "";
-                    div.addEventListener("mousedown", (e)=>{
-                      e.preventDefault();
-                      input.value = it.text;
-                      drop.style.display = "none";
-                      if (typeof callback === "function"){
-                        callback(it);
-                      }
-                      input.dispatchEvent(new Event("change", { bubbles:true }));
-                    });
-                    drop.appendChild(div);
-                  });
-                  drop.style.display = "block";
-                } else {
-                  drop.innerHTML = '<div class="ac-empty">找不到建議</div>';
-                  drop.style.display = "block";
-                }
-
-              } catch(err) {
-                console.error("[places autocomplete] 例外：", err);
-                drop.innerHTML = '<div class="ac-empty">⚠ 連線異常</div>';
-                drop.style.display = "block";
-              }
-
-            }, idleMs); // 停頓 idleMs 毫秒再查
-          });
-        }
-
-        // 初始化：避免重複綁定，可自訂 idleMs 與回呼
-        function initPlacesAutocompleteDebounced(bindings = {}, opts = {}) {
-          if (window.__AC_DEBOUNCED_INITED__) {
-            console.warn("[autocomplete] 已初始化，略過重複綁定");
-            return;
-          }
-          window.__AC_DEBOUNCED_INITED__ = true;
-
-          if (typeof attachPlacesAutocomplete !== "function") {
-            console.error("[autocomplete] attachPlacesAutocomplete 尚未定義；請先載入該函式");
-            return;
-          }
-
-          const idleMs = Number.isFinite(opts.idleMs) ? opts.idleMs : 3000;
-
-          function safeAttach(inputId, dropdownId, onPick) {
-            const input = document.getElementById(inputId);
-            const drop  = document.getElementById(dropdownId);
-            if (!input || !drop) {
-              console.warn(`[autocomplete] 找不到元素 #${inputId} 或 #${dropdownId}，略過綁定`);
-              return;
-            }
-            attachPlacesAutocomplete(inputId, dropdownId, onPick, idleMs);
-          }
-
-          // 起點
-          safeAttach("orig", "ac-orig", (picked) => {
-            if (typeof bindings.onOrigin === "function") {
-              bindings.onOrigin(picked);
-            } else {
-              const el = document.getElementById("orig");
-              if (el) el.value = picked.text;
-              window.origin = picked.text;
-            }
-          });
-
-          // 終點
-          safeAttach("dest", "ac-dest", (picked) => {
-            if (typeof bindings.onDestination === "function") {
-              bindings.onDestination(picked);
-            } else {
-              const el = document.getElementById("dest");
-              if (el) el.value = picked.text;
-              window.destination = picked.text;
-            }
-          });
-
-          // 途經點（若存在）
-          if (document.getElementById("waypoint-input")) {
-            safeAttach("waypoint-input", "ac-wp", (picked) => {
-              if (typeof bindings.onWaypoint === "function") {
-                bindings.onWaypoint(picked);
-              } else {
-                const loc = (picked.lat != null && picked.lng != null)
-                  ? { lat: picked.lat, lng: picked.lng }
-                  : picked.text;
-                if (!Array.isArray(window.waypoints)) window.waypoints = [];
-                window.waypoints.push({ location: loc, stopover: true });
-              }
+        function initMap() {
+            const center = { lat: 25.0330, lng: 121.5654 }; // 台北101
+            const map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 14,
+                center: center
             });
-          }
+
+            new google.maps.Marker({
+                position: center,
+                map: map,
+                title: "台北101"
+            });
         }
     </script>
 
-    <script>
-        const { createApp, ref, reactive, onMounted } = Vue;
-
-        createApp({
-          setup() {
-            const applyFor = ref('self');
-            const applicant = reactive({
-              name: 'XXX',
-              empId: 'XXXX.XX.X',
-              dept: '臺東分署 / 森林管理處 / 休憩管理科',
-              ext: '212',
-              email: 'XXXXX@forest.gov.tw'
-            });
-
-            const vehicleType = ref('汽車');
-            const purposeType = ref('公務車(不可攜車)');
-            const useStart = ref('');
-            const useEnd = ref('');
-            const origin = ref('');
-            const destination = ref('');
-            const singleDistance = ref('');
-            const singleDuration = ref('');
-            const roundTripDistance = ref('');
-            const roundTripDuration = ref('');
-
-            onMounted(()=>{
-              initPlacesAutocompleteDebounced({
-                onOrigin:      (p)=>{ origin.value      = p.text; },
-                onDestination: (p)=>{ destination.value = p.text; }
-              }, { idleMs: 2000 }); // 停 1秒再查
-            });
-
-            async function calcDistance(){
-              if (!origin.value || !destination.value){
-                alert("請輸入出發地與目的地");
-                return;
-              }
-              try{
-                const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
-                const data = await res.json();
-                console.log("📦 Distance API 回傳：", data);
-
-                if (data && data.rows && data.rows.length > 0 &&
-                    data.rows[0].elements && data.rows[0].elements.length > 0 &&
-                    data.rows[0].elements[0].status === 'OK') {
-
-                  const distMeters = data.rows[0].elements[0].distance.value;
-                  const durSecs    = data.rows[0].elements[0].duration.value;
-
-
-
-                                 function formatDuration(seconds) {
-            let hours = Math.floor(seconds / 3600);
-            let mins = Math.round((seconds % 3600) / 60);
-
-            // 如果 mins 變成 60，就進位成 1 小時
-            if (mins === 60) {
-                hours += 1;
-                mins = 0;
-            }
-
-            let result = "";
-            if (hours > 0) {
-                result += hours + " 小時";
-            }
-            if (mins > 0) {
-                result += (hours > 0 ? " " : "") + mins + " 分鐘";
-            }
-            return result;
-        }
-
-        // 單程
-        singleDistance.value = (distMeters / 1000).toFixed(1) + " 公里";
-        singleDuration.value = formatDuration(durSecs);
-
-        // 來回
-        roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + " 公里";
-        roundTripDuration.value = formatDuration(durSecs * 2);
-
-                } else {
-                  alert("⚠️ 查無路線，請確認地點是否正確");
-                  singleDistance.value = '';
-                  singleDuration.value = '';
-                  roundTripDistance.value = '';
-                  roundTripDuration.value = '';
-                }
-              }catch(err){
-                console.error("❌ 取得距離失敗", err);
-              }
-            }
-
-            const passengerCount = ref(1);
-            const passengers = ref([{ name: 'XXX' }]);
-            function addPassenger(){ passengers.value.push({ name: '' }); }
-            function removePassenger(i){ passengers.value.splice(i, 1); }
-            function onCancel(){ alert('已取消'); }
-            function onSubmit(){
-              alert("表單送出:\n" + JSON.stringify({
-                applicant, vehicleType: vehicleType.value, useStart: useStart.value,
-                origin: origin.value, destination: destination.value, passengers: passengers.value
-              }, null, 2));
-            }
-
-            return {
-              applyFor, applicant, vehicleType, purposeType, useStart, useEnd,
-              origin, destination,
-              singleDistance, singleDuration, roundTripDistance, roundTripDuration,
-              passengerCount, passengers, addPassenger, removePassenger,
-              onCancel, onSubmit, calcDistance
-            };
-          }
-        }).mount('#app');
-    </script>
 </body>
+</html>
+@* <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=@ViewBag.GoogleMapsKey&callback=initMap">
+</script> *@

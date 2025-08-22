@@ -18,5 +18,21 @@ namespace Cars.Controllers
             ViewBag.GoogleMapsKey = _config["GoogleMaps:ApiKey"];
             return View();
         }
+
+        public IActionResult CarApply()
+        {
+            ViewBag.GoogleMapsKey = _config["GoogleMaps:ApiKey"];
+            return View();
+        }
+
+        public IActionResult Schedule()
+        {
+            return View();
+        }
+
+        public IActionResult Dispatch()
+        {
+            return View();  
+        }
     }
 }

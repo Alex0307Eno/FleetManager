@@ -1,4 +1,6 @@
+using Cars.Data;
 using Cars.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cars
 {
@@ -7,19 +9,24 @@ namespace Cars
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // 加入 DbContext (使用 appsettings.json 的連線字串)
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));
             builder.Services.AddHttpClient();
 
-            // Add services to the container.
+            // 加入 MVC
             builder.Services.AddControllersWithViews();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
+            // pipeline 設定
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Home/Error");
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
 
