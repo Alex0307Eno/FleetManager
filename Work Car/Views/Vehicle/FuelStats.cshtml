@@ -1,0 +1,237 @@
+﻿@{
+    ViewData["Title"] = "油耗統計";
+}
+<style>
+    :root {
+        --bg: #f6f7fb;
+        --card: #fff;
+        --border: #e5e7eb;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --primary: #1e6fb8;
+        --shadow: 0 1px 3px rgba(16,24,40,.08)
+    }
+
+    body {
+        background: var(--bg);
+        font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif
+    }
+
+    .wrap {
+        max-width: 1280px;
+        margin: 24px auto;
+        padding: 0 16px
+    }
+
+    .card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow)
+    }
+
+    .card-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border)
+    }
+
+    .card-bd {
+        padding: 12px 16px
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center
+    }
+
+    .btn {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer
+    }
+
+    .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary)
+    }
+
+    .input, select {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 6px 10px;
+        background: #fff
+    }
+
+    .table-wrap {
+        overflow: auto
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        background: #f3f4f6;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        padding: 10px
+    }
+
+    tbody td {
+        background: #fff;
+        border-bottom: 1px solid var(--border);
+        padding: 10px
+    }
+
+        thead th:first-child, tbody td:first-child {
+            border-left: 1px solid var(--border)
+        }
+
+        thead th:last-child, tbody td:last-child {
+            border-right: 1px solid var(--border)
+        }
+
+    tbody tr:first-child td {
+        border-top: 1px solid var(--border)
+    }
+
+    .mono {
+        font-variant-numeric: tabular-nums
+    }
+
+    .muted {
+        color: var(--muted)
+    }
+</style>
+
+<div id="app" class="wrap">
+    <h2 style="margin:0 0 12px 4px; color:#475569">車輛管理 ＞ 油耗統計</h2>
+
+    <section class="card">
+        <div class="card-hd">
+            <div class="toolbar">
+                <select v-model="filters.category" class="input" style="min-width:140px">
+                    <option value="">種類</option>
+                    <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+                </select>
+
+                <input class="input" style="min-width:160px" v-model.trim="filters.plate" placeholder="車輛號牌">
+                <input type="date" class="input" v-model="filters.from">
+                <input type="date" class="input" v-model="filters.to">
+
+                <button class="btn" @@click="load">🔍</button>
+            </div>
+            <div>
+                <button class="btn" @@click="onExit">匯出</button>
+            </div>
+        </div>
+
+        <div class="card-bd table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="width:120px">種類</th>
+                        <th rowspan="2" style="width:120px">車輛號牌</th>
+                        <th rowspan="2" style="width:120px">行駛里程</th>
+                        <th colspan="3" style="text-align:center">耗油量（公升）</th>
+                        <th rowspan="2" style="width:160px">每公升行駛公里數</th>
+                        <th rowspan="2" style="width:120px">平均公里數</th>
+                    </tr>
+                    <tr>
+                        <th style="width:90px">汽油</th>
+                        <th style="width:90px">柴油</th>
+                        <th style="width:90px">機油</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="r in rows" :key="r.plate">
+                        <td>{{ r.category }}</td>
+                        <td>{{ r.plate }}</td>
+                        <td class="mono">{{ fmtInt(r.mileageKm) }}</td>
+                        <td class="mono">{{ fmtNum(r.gasL) }}</td>
+                        <td class="mono">{{ fmtNum(r.dieselL) }}</td>
+                        <td class="mono">{{ fmtNum(r.oilL) }}</td>
+                        <td class="mono">{{ r.kmPerL == null ? '—' : fmtNum(r.kmPerL) }}</td>
+                        <td class="mono">{{ r.avgKm  == null ? '—' : fmtNum(r.avgKm) }}</td>
+                    </tr>
+                    <tr v-if="!rows.length">
+                        <td colspan="8" class="muted" style="text-align:center">尚無資料</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup(){
+        const categories = ref([]);
+        const rows = ref([]);
+
+        const today = new Date();
+        const yyyy_mm_dd = d => d.toISOString().slice(0,10);
+
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        const filters = ref({
+          category: '',
+          plate: '',
+          from: yyyy_mm_dd(firstDay),
+          to:   yyyy_mm_dd(today)
+        });
+
+        const fmtNum = v => Number(v).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        const fmtInt = v => Number(v ?? 0).toLocaleString('zh-TW');
+
+        async function load(){
+          const params = {
+            category: filters.value.category || undefined,
+            plate: filters.value.plate || undefined,
+            from: filters.value.from || undefined,
+            to: filters.value.to || undefined
+          };
+          const res = await axios.get('/api/fuel/stats', { params });
+          rows.value = res.data;
+        }
+
+        async function loadCategories(){
+          const res = await axios.get('/api/fuel/categories');
+          categories.value = res.data;
+        }
+
+        function onExit(){
+          // 這裡我先做成 CSV 匯出
+          const head = ['種類','車輛號牌','行駛里程','汽油(L)','柴油(L)','機油(L)','每公升行駛公里數','平均公里數'];
+          const body = rows.value.map(r => [
+            r.category, r.plate, r.mileageKm, r.gasL, r.dieselL, r.oilL, r.kmPerL ?? '', r.avgKm ?? ''
+          ]);
+          const csv = [head, ...body].map(a => a.join(',')).join('\n');
+          const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = '油耗統計.csv';
+          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        }
+
+        onMounted(async ()=>{ await loadCategories(); await load(); });
+
+        return { categories, rows, filters, fmtNum, fmtInt, load, onExit };
+      }
+    }).mount('#app');
+</script>

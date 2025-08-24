@@ -21,7 +21,7 @@ namespace Cars.Models
         public DateTime UseStart { get; set; }
         public DateTime UseEnd { get; set; }
 
-        public int DriverId { get; set; }  
+        public int? DriverId { get; set; }  
         public string? ReasonType { get; set; }
         public string? ApplyReason { get; set; }
         public int Seats { get; set; }

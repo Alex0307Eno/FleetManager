@@ -513,22 +513,33 @@
                 <!-- 輸入列 -->
                 <div class="section-bd">
 
-                    <div v-for="(p,i) in passengers" :key="i" class="row align-items-center mb-2">
-                        <div class="col-2">
-                            <input type="number" v-model.number="passengerCount" min="1" class="form-control" />
-                        </div>
-                        <div class="col-3">
-                            <input v-model="p.name" placeholder="姓名" class="form-control" />
+                    <div v-for="(p, x) in passengers" :key="x" class="row mb-2">
+                        <div class="col-1 text-center">
+                            <span>{{ x + 1 }}</span>
                         </div>
                         <div class="col-4">
-                            <input v-model="p.aprt" placeholder="所屬單位" class="form-control" />
+                            <input type="text" v-model="p.name" class="form-control" placeholder="姓名">
+                        </div>
+                        <div class="col-4">
+                            <input type="text" v-model="p.deptTitle" class="form-control" placeholder="單位與職稱">
                         </div>
                         <div class="col-2 text-center">
-                            <button type="button" title="刪除" class="btn btn-danger btn-icon" @@click="removePassenger(i)">－</button>
+                            <button type="button" class="btn btn-danger" @@click ="removePassenger(x)">刪除</button>
+                        </div>
+                    </div>
+                    <div class="row mb-2 align-items-end">
+                        <!-- 搭乘人數 -->
+                        <div class="col-3">
+                            <label>搭乘人數 *</label>
+                            <input type="number" class="form-control" :value="passengers.length" readonly>
+                        </div>
+
+                        <!-- 新增乘客按鈕 -->
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-primary" @@click="addPassenger">新增乘客</button>
                         </div>
                     </div>
 
-                    <button type="button" class="btn btn-ghost" @@click="addPassenger">＋ 新增人員</button>
                 </div>
             </div>
 
@@ -687,6 +698,7 @@
               const day = pad(date.getDate());
               const hour = pad(date.getHours());
               const minute = pad(date.getMinutes());
+              
 
               // `datetime-local` 欄位格式：YYYY-MM-DDTHH:mm
               return `${year}-${month}-${day}T${hour}:${minute}`;
@@ -721,9 +733,11 @@
             const roundTripDuration = ref("");
 
             // 搭乘人員
-            const passengers = ref([{ name: 'XXX' }]);
-            function addPassenger() { passengers.value.push({ name:'' }); }
-            function removePassenger(i) { passengers.value.splice(i,1); }
+            const passengers = ref([{ name: "", deptTitle: "" }]);
+            function syncPassengerCount() { passengerCount.value = passengers.value.length; }
+
+            function addPassenger() { passengers.value.push({ name: "", deptTitle: "" }); syncPassengerCount(); }
+            function removePassenger(i) { passengers.value.splice(i, 1); syncPassengerCount(); }
 
             function onCancel() { alert('已取消'); }
 
@@ -738,7 +752,7 @@
               applyFor: applyFor.value,
               vehicleType: vehicleType.value,
               purposeType: purposeType.value,
-              passengerCount: passengerCount.value,
+              passengerCount: passengers.value.length,
               useStart: useStart.value,
               useEnd: useEnd.value,
               reasonType: reasonType.value,
@@ -751,13 +765,20 @@
               roundTripDistance: roundTripDistance.value,
               roundTripDuration: roundTripDuration.value,
             };
-
+                const dto = {
+          // ASP.NET Core 模型繫結對大小寫不敏感；你也可以改成 Application / Passengers
+                application: payload,
+                passengers: passengers.value.map(p => ({
+                  name: p.name,
+                  deptTitle: p.deptTitle
+                }))
+              };
             console.log("📤 準備送出資料：", payload);
 
             const res = await fetch('/api/CarApplications', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify(dto)
             });
 
             console.log("📥 Response 狀態：", res.status);
@@ -808,7 +829,8 @@
             });
 
             return { applyFor, vehicleType, purposeType, passengerCount, useStart, useEnd, reasonType, applyReason,
-                     origin, destination, tripType, applicant,
+                     origin, destination, 
+                     tripType, applicant,
                      singleDistance, singleDuration, roundTripDistance, roundTripDuration,
                      passengers, addPassenger, removePassenger, onCancel, onSubmit, calcDistance };
           }

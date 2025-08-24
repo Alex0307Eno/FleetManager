@@ -13,6 +13,7 @@ namespace Cars.Models
 
         // 外鍵 (指向 CarApply)
         public int ApplyId { get; set; }
+        public string? DeptTitle { get; set; } 
 
         [ForeignKey("ApplyId")]
         public CarApply? CarApply { get; set; }

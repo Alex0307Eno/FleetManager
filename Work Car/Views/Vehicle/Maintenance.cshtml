@@ -1,0 +1,420 @@
+﻿@{
+    ViewData["Title"] = "車輛維護";
+}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap">
+<style>
+    :root {
+        --bg: #f6f7fb;
+        --card: #fff;
+        --border: #e5e7eb;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --primary: #1e6fb8;
+        --primary-600: #2b83d4;
+        --shadow: 0 1px 3px rgba(16,24,40,.08);
+    }
+
+    body {
+        background: var(--bg);
+        font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
+    }
+
+    .wrap {
+        max-width: 1280px;
+        margin: 24px auto;
+        padding: 0 16px
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 16px
+    }
+
+    .card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow)
+    }
+
+    .card-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border)
+    }
+
+    .card-bd {
+        padding: 12px 16px
+    }
+
+    .title {
+        font-weight: 700
+    }
+
+    .btn {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer
+    }
+
+    .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary)
+    }
+
+    .btn-ghost {
+        background: #fff
+    }
+
+    .left .field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0
+    }
+
+        .left .field label {
+            width: 110px;
+            color: #334155
+        }
+
+    .left .fake {
+        flex: 1;
+        background: #f3f4f6;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        color: #64748b
+    }
+
+    .tabs {
+        display: flex;
+        gap: 6px;
+        border-bottom: 1px solid var(--border);
+        padding: 0 16px
+    }
+
+    .tab {
+        padding: 10px 12px;
+        cursor: pointer
+    }
+
+        .tab.active {
+            border-bottom: 2px solid var(--primary);
+            color: var(--primary);
+            font-weight: 700
+        }
+
+    .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center
+    }
+
+        .toolbar .select {
+            min-width: 140px
+        }
+
+    .table-wrap {
+        overflow: auto
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        background: #f9fafb;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        padding: 10px
+    }
+
+    tbody td {
+        background: #fff;
+        border-bottom: 1px solid var(--border);
+        padding: 10px;
+        vertical-align: top
+    }
+
+        thead th:first-child, tbody td:first-child {
+            border-left: 1px solid var(--border)
+        }
+
+        thead th:last-child, tbody td:last-child {
+            border-right: 1px solid var(--border)
+        }
+
+    tbody tr:first-child td {
+        border-top: 1px solid var(--border)
+    }
+
+    .mono {
+        font-variant-numeric: tabular-nums
+    }
+
+    .row-actions {
+        display: flex;
+        gap: 6px
+    }
+
+    .icon-btn {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(8,1fr);
+        gap: 8px;
+        margin: 8px 0
+    }
+
+        .form-row input, .form-row select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff
+        }
+</style>
+
+<div id="app" class="wrap">
+    <h2 style="margin:0 0 12px 4px; color:#475569">車輛管理 ＞ 車輛維護</h2>
+    <div class="grid">
+
+        <!-- 左側：車籍卡 -->
+        <section class="card left">
+            <div class="card-hd">
+                <div class="title">汽車車歷登記卡</div>
+                <div class="toolbar">
+                    <select v-model="selectedVehicleId" class="select" @@change="loadMaintenance">
+                        <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">{{ v.plate }}</option>
+                    </select>
+                    <button class="btn">＋</button>
+                </div>
+            </div>
+            <div class="card-bd">
+                <div class="field"><label>來源</label><div class="fake">—</div></div>
+                <div class="field"><label>核准文號</label><div class="fake">—</div></div>
+                <div class="field"><label>購置日期</label><div class="fake">—</div></div>
+                <div class="field"><label>價值</label><div class="fake">—</div></div>
+                <div class="field"><label>請領牌照日期</label><div class="fake">—</div></div>
+                <div class="field"><label>開始使用日期</label><div class="fake">—</div></div>
+                <div class="field"><label>定期檢驗日期</label><div class="fake">—</div></div>
+                <div class="field"><label>排氣量</label><div class="fake">—</div></div>
+                <div class="field"><label>引擎號碼</label><div class="fake">—</div></div>
+                <div class="field"><label>廠牌</label><div class="fake">—</div></div>
+                <div class="field"><label>年份</label><div class="fake">—</div></div>
+                <div class="field"><label>型式</label><div class="fake">—</div></div>
+                <div class="field"><label>(移轉)報停報廢</label><div class="fake">—</div></div>
+            </div>
+        </section>
+
+        <!-- 右側：保養紀錄 / 報修申請 -->
+        <section class="card">
+            <div class="tabs">
+                <div class="tab" :class="{active: tab==='maint'}" @@click="tab='maint'">保養紀錄</div>
+                <div class="tab" :class="{active: tab==='repair'}" @@click="tab='repair'">報修申請</div>
+            </div>
+
+            <!-- 保養紀錄 -->
+            <div v-if="tab==='maint'">
+                <div class="card-hd">
+                    <div class="title">保養修配零件紀錄</div>
+                    <div class="toolbar">
+                        <button class="btn btn-primary" @@click="showAdd = !showAdd">{{ showAdd ? '取消' : '新增' }}</button>
+                    </div>
+                </div>
+
+                <!-- 新增表單 -->
+                <div class="card-bd" v-if="showAdd">
+                    <div class="form-row">
+                        <input type="date" v-model="form.date" />
+                        <input type="number" v-model.number="form.odometer" placeholder="里程" />
+                        <input type="text" v-model="form.item" placeholder="保養項目" />
+                        <input type="text" v-model="form.unit" placeholder="單位" />
+                        <input type="number" v-model.number="form.qty" step="0.01" placeholder="數量" />
+                        <input type="number" v-model.number="form.amount" step="0.01" placeholder="單價" />
+                        <input type="text" v-model="form.vendor" placeholder="承修廠商" />
+                        <input type="text" v-model="form.note" placeholder="備註" />
+                    </div>
+                    <div style="text-align:right">
+                        <button class="btn" @@click="showAdd=false">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="create()">儲存</button>
+                    </div>
+                </div>
+
+                <div class="card-bd table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:110px">日期</th>
+                                <th style="width:80px">里程</th>
+                                <th style="width:220px">保養項目</th>
+                                <th style="width:60px">單位</th>
+                                <th style="width:70px">數量</th>
+                                <th style="width:90px">單價</th>
+                                <th style="width:100px">金額</th>
+                                <th style="width:160px">承修廠商</th>
+                                <th style="width:120px">備註</th>
+                                <th style="width:80px">動作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in rows" :key="r.id">
+                                <td class="mono">{{ r.date }}</td>
+                                <td class="mono">{{ r.odometer ?? '' }}</td>
+                                <td>{{ r.item }}</td>
+                                <td>{{ r.unit || '' }}</td>
+                                <td class="mono">{{ fmtNum(r.qty) }}</td>
+                                <td class="mono">{{ fmtMoney(r.amount) }}</td>
+                                <td class="mono">{{ fmtMoney(r.subtotal) }}</td>
+                                <td>{{ r.vendor || '' }}</td>
+                                <td>{{ r.note || '' }}</td>
+                                <td class="row-actions">
+                                    <button class="icon-btn" title="刪除" @@click="remove(r)">
+                                        🗑️
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="!rows.length">
+                                <td colspan="10" style="text-align:center; color:#64748b">尚無資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 報修申請（先做版型） -->
+            <div v-else>
+                <div class="card-hd">
+                    <div class="title">報修申請</div>
+                </div>
+                <div class="card-bd">
+                    <div class="form-row" style="grid-template-columns:1fr 1fr 2fr 1fr 2fr;">
+                        <input type="date" v-model="repair.date" />
+                        <input type="text" v-model="repair.place" placeholder="送修地點" />
+                        <input type="text" v-model="repair.desc" placeholder="故障描述" />
+                        <input type="number" v-model.number="repair.cost" step="0.01" placeholder="估計費用" />
+                        <input type="text" v-model="repair.contact" placeholder="聯絡人/電話" />
+                    </div>
+                    <div style="text-align:right">
+                        <button class="btn btn-primary" @@click="submitRepair">送出申請</button>
+                    </div>
+                    <p class="muted" style="margin-top:8px">（此分頁示意；可依你流程串審核/上傳附件…）</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup(){
+        const vehicles = ref([]);
+        const selectedVehicleId = ref(0);
+
+        const tab = ref('maint');
+        const rows = ref([]);
+        const showAdd = ref(false);
+
+        const today = new Date();
+        const toISO = d => d.toISOString().slice(0,10);
+
+        const form = ref({
+          date: toISO(today),
+          odometer: null,
+          item: '',
+          unit: '',
+          qty: null,
+          amount: null,
+          vendor: '',
+          note: ''
+        });
+
+        const repair = ref({ date: toISO(today), place:'', desc:'', cost:null, contact:'' });
+
+        const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
+        const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
+
+        async function loadVehicles(){
+          const res = await axios.get('/api/maintenance/vehicles');
+          vehicles.value = res.data;
+          if (vehicles.value.length && !selectedVehicleId.value){
+            selectedVehicleId.value = vehicles.value[0].vehicleId;
+          }
+        }
+
+        async function loadMaintenance(){
+          if(!selectedVehicleId.value) return;
+          const res = await axios.get('/api/maintenance', { params:{ vehicleId: selectedVehicleId.value }});
+          rows.value = res.data;
+        }
+
+        async function create(){
+          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+          if(!form.value.item.trim()){ alert('請輸入保養項目'); return; }
+          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+          const payload = {
+            vehicleId: selectedVehicleId.value,
+            vehiclePlate: plate,
+            date: form.value.date,
+            odometer: form.value.odometer,
+            item: form.value.item,
+            unit: form.value.unit,
+            qty: form.value.qty,
+            amount: form.value.amount,
+            vendor: form.value.vendor,
+            note: form.value.note
+          };
+          await axios.post('/api/maintenance', payload);
+          showAdd.value = false;
+          // 清空一部分欄位但保留日期
+          form.value.item=''; form.value.unit=''; form.value.qty=null; form.value.amount=null; form.value.vendor=''; form.value.note='';
+          await loadMaintenance();
+        }
+
+        async function remove(r){
+          if(!confirm('確定刪除這筆保養紀錄？')) return;
+          await axios.delete('/api/maintenance/' + r.id);
+          await loadMaintenance();
+        }
+
+        function submitRepair(){
+          alert('（示意）送出報修申請：\n' + JSON.stringify(repair.value,null,2));
+        }
+
+        onMounted(async ()=>{
+          await loadVehicles();
+          await loadMaintenance();
+        });
+
+        return { vehicles, selectedVehicleId, tab, rows, showAdd, form, repair,
+                 loadMaintenance, create, remove, submitRepair, fmtNum, fmtMoney };
+      }
+    }).mount('#app');
+</script>

@@ -21,30 +21,30 @@ namespace Cars.Controllers
         [HttpGet("list")]
         public IActionResult GetList()
         {
-            var data = (from d in _db.Dispatches
-                        join v in _db.Vehicles on d.VehicleId equals v.VehicleId into dv
-                        from v in dv.DefaultIfEmpty()
-                        join r in _db.Drivers on d.DriverId equals r.DriverId into dr
-                        from r in dr.DefaultIfEmpty()
-                        join a in _db.CarApplications on d.ApplyId equals a.ApplyId
-                        select new
-                        {
-                            id = d.DispatchId,
-                            date = a.UseStart,
-                            start = a.UseStart.ToString("HH:mm"),
-                            end = a.UseEnd.ToString("HH:mm"),
-                            destination = a.Origin + "-" + a.Destination,
-                            reason = a.ApplyReason,
-                            applicant = a.ApplicantName,
-                            people = a.Seats,
-                            km = a.TripType == "單程" ? a.SingleDistance : a.RoundTripDistance,
-                            status = a.Status,
-                            driver = r != null ? r.DriverName : null,
-                            car = v != null ? v.PlateNo : null
-                        }).ToList();
+            var data = _db.DispatchOrders
+                .Select(o => new
+                {
+                    vehicleId = o.VehicleId,
+                    plateNo = o.PlateNo,
+                    driverId = o.DriverId,
+                    driverName = o.DriverName,
+                    applyId = o.ApplyId,
+                    applicantName = o.ApplicantName,
+                    applicantDept = o.ApplicantDept,
+                    passengerCount = o.PassengerCount,
+                    useDate = o.UseDate,
+                    useTime = o.UseTime,
+                    route = o.Route,
+                    reason = o.Reason,
+                    tripDistance = o.TripDistance,
+                    tripType = o.TripType,
+                    status = o.Status
+                })
+                .ToList();
 
             return Ok(data);
         }
+
 
         // 指派駕駛與車輛
         [HttpPost("assign")]

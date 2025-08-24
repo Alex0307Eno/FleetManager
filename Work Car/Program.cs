@@ -1,5 +1,6 @@
 using Cars.Data;
 using Cars.Models;
+using Cars.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cars
@@ -16,10 +17,13 @@ namespace Cars
 
             // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));
+            builder.Services.AddScoped<AutoDispatcher>();
+
             builder.Services.AddHttpClient();
 
             // 加入 MVC
             builder.Services.AddControllersWithViews();
+            Console.WriteLine("Connection string = " + builder.Configuration.GetConnectionString("DefaultConnection"));
 
             var app = builder.Build();
 

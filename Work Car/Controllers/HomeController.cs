@@ -29,10 +29,10 @@ namespace Cars.Controllers
         {
             return View();
         }
-
-        public IActionResult Dispatch()
+       
+        public IActionResult FuelStats()
         {
-            return View();  
+            return View();
         }
     }
 }

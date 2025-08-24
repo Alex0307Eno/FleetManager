@@ -1,4 +1,4 @@
-html {
+﻿html {
   font-size: 14px;
 }
 
@@ -26,24 +26,66 @@ body {
 }
 
 .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 22px;
-    background: #fff;
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10
+    background: #ffffff; /* 白底 */
+    border-bottom: 1px solid #e5e7eb;
 }
 
-.nav {
-    display: flex;
-    gap: 22px;
-    color: #6b7280
-}
-
-    .nav a {
-        color: inherit;
-        text-decoration: none
+    .topbar .brand {
+        font-size: 20px;
+        color: #0d6efd; /* 藍色 */
+        text-decoration: none;
     }
+
+.nav .nav-link {
+    color: #374151; /* 深灰文字 */
+    font-weight: 500;
+    padding: 8px 14px;
+}
+
+    .nav .nav-link:hover {
+        color: #0d6efd; /* 藍色 hover */
+        background: #f3f4f6;
+        border-radius: 6px;
+    }
+
+.dropdown-menu {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+/* 讓 dropdown 和上方按鈕對齊同寬 */
+.nav-item {
+    position: relative;
+}
+
+    /* 讓下拉選單寬度和上方按鈕一致 */
+    .nav-item .dropdown-menu {
+        min-width: 100%;
+        width: 100%;
+        left: 0;
+        right: auto;
+        box-sizing: border-box;
+    }
+
+/* 美化導覽列 */
+.topbar {
+    font-size: 15px;
+    z-index: 1050; /* 確保永遠浮在最上層 */
+}
+
+    .topbar .nav-link {
+        color: #333;
+        font-weight: 500;
+    }
+
+        .topbar .nav-link:hover,
+        .topbar .dropdown-menu .dropdown-item:hover {
+            background-color: #f1f5f9;
+            color: #1e40af;
+        }
+
+/* 下拉選單圓角 + 陰影 */
+.dropdown-menu {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+}
+

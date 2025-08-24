@@ -377,58 +377,58 @@
                             <th style="width:110px">功能</th>
                         </tr>
                     </thead>
-                   <tbody>
-                      <tr v-for="r in rows" :key="r.dispatchId">
-                        <!-- 用車日期 -->
-                        <td class="mono">{{ r.useDate }}</td>
-                        <!-- 用車時間 -->
-                        <td class="mono">{{ r.useTime }}</td>
-                        <!-- 路線 -->
-                        <td>{{ r.route }}</td>
-                        <!-- 用途 -->
-                        <td style="color:#374151">{{ r.applyReason }}</td>
-                        <!-- 申請人 -->
-                        <td>{{ r.applicantName }}</td>
-                        <!-- 人數 -->
-                        <td class="mono">{{ r.passengerCount }}</td>
-                        <!-- 距離 -->
-                        <td class="mono">{{ r.tripDistance }}</td>
-                        <!-- 狀態 -->
-                        <td>
-                          <span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span>
-                        </td>
-                        <!-- 駕駛 -->
-                        <td>
-                          <span class="badge" :class="r.driverName ? '' : 's-muted'">
-                            {{ r.driverName || '未指派' }}
-                          </span>
-                        </td>
-                        <!-- 車輛 -->
-                        <td>
-                          <span class="badge" :class="r.plateNo ? '' : 's-muted'">
-                            {{ r.plateNo || '未指派' }}
-                          </span>
-                        </td>
-                        <!-- 動作 -->
-                        <td class="row-actions">
-                          <button class="icon-btn" title="檢視" @@click="viewRow(r)">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none">
-                              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke-width="2" />
-                              <circle cx="12" cy="12" r="3" stroke-width="2" />
-                            </svg>
-                          </button>
-                          <button class="icon-btn" title="編輯" @@click="editRow(r)">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none">
-                              <path d="M15 3l6 6M4 20l4-1 11-11-3-3L5 16l-1 4z" stroke-width="2" stroke-linejoin="round" />
-                            </svg>
-                          </button>
-                          <button class="icon-btn danger" title="刪除" @@click="removeRow(r)">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none">
-                              <path d="M3 6h18M8 6l1-2h6l1 2M6 6l1 14h10l1-14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                          </button>
-                        </td>
-                      </tr>
+                    <tbody>
+                        <tr v-for="r in rows" :key="r.dispatchId">
+                            <!-- 用車日期 -->
+                            <td class="mono">{{ r.useDate }}</td>
+                            <!-- 用車時間 -->
+                            <td class="mono">{{ r.useTime }}</td>
+                            <!-- 路線 -->
+                            <td>{{ r.route }}</td>
+                            <!-- 用途 -->
+                            <td style="color:#374151">{{ r.applyReason }}</td>
+                            <!-- 申請人 -->
+                            <td>{{ r.applicantName }}</td>
+                            <!-- 人數 -->
+                            <td class="mono">{{ r.passengerCount }}</td>
+                            <!-- 距離 -->
+                            <td class="mono">{{ r.tripDistance }}</td>
+                            <!-- 狀態 -->
+                            <td>
+                                <span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span>
+                            </td>
+                            <!-- 駕駛 -->
+                            <td>
+                                <span class="badge" :class="r.driverName ? '' : 's-muted'">
+                                    {{ r.driverName || '未指派' }}
+                                </span>
+                            </td>
+                            <!-- 車輛 -->
+                            <td>
+                                <span class="badge" :class="r.plateNo ? '' : 's-muted'">
+                                    {{ r.plateNo || '未指派' }}
+                                </span>
+                            </td>
+                            <!-- 動作 -->
+                            <td class="row-actions">
+                                <button class="icon-btn" title="檢視" @@click="viewRow(r)">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none">
+                                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke-width="2" />
+                                        <circle cx="12" cy="12" r="3" stroke-width="2" />
+                                    </svg>
+                                </button>
+                                <button class="icon-btn" title="編輯" @@click="editRow(r)">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none">
+                                        <path d="M15 3l6 6M4 20l4-1 11-11-3-3L5 16l-1 4z" stroke-width="2" stroke-linejoin="round" />
+                                    </svg>
+                                </button>
+                                <button class="icon-btn danger" title="刪除" @@click="removeRow(r)">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none">
+                                        <path d="M3 6h18M8 6l1-2h6l1 2M6 6l1 14h10l1-14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
                     </tbody>
 
                 </table>
@@ -445,91 +445,91 @@
         </section>
     </div>
 
-   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-<script>
-const { createApp, ref, computed, onMounted } = Vue;
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
 
-createApp({
-  setup(){
-    const rows = ref([]);  // 改成空陣列，等 API 填資料進來
-    const loading = ref(true);
+        createApp({
+          setup(){
+            const rows = ref([]);  // 改成空陣列，等 API 填資料進來
+            const loading = ref(true);
 
-    // 篩選條件
-    const filters = ref({ date:'', driver:'', applicant:'', car:'', q:'' });
+            // 篩選條件
+            const filters = ref({ date:'', driver:'', applicant:'', car:'', q:'' });
 
-    const drivers = ref([]);
-    const applicants = ref([]);
-    const cars = ref([]);
+            const drivers = ref([]);
+            const applicants = ref([]);
+            const cars = ref([]);
 
-    // 載入資料
-    const loadData = async () => {
-      try {
-        const res = await axios.get('/api/dispatch/list'); // 🚨 後端 API
-        console.log("📌 後端回傳：", res.data);
-        rows.value = res.data;
+            // 載入資料
+            const loadData = async () => {
+              try {
+                const res = await axios.get('/api/dispatch/list'); // 🚨 後端 API
+                console.log("📌 後端回傳：", res.data);
+                rows.value = res.data;
 
-        // 順便整理篩選下拉選單 (去重)
-        drivers.value = [...new Set(res.data.map(r=> r.driverName).filter(Boolean))];
-        applicants.value = [...new Set(res.data.map(r=> r.applicantName).filter(Boolean))];
-        cars.value = [...new Set(res.data.map(r=> r.plateNo).filter(Boolean))];
-      } catch(err){
-        console.error('讀取失敗:', err);
-        alert('讀取派車單失敗');
-      } finally {
-        loading.value = false;
-      }
-    };
+                // 順便整理篩選下拉選單 (去重)
+                drivers.value = [...new Set(res.data.map(r=> r.driverName).filter(Boolean))];
+                applicants.value = [...new Set(res.data.map(r=> r.applicantName).filter(Boolean))];
+                cars.value = [...new Set(res.data.map(r=> r.plateNo).filter(Boolean))];
+              } catch(err){
+                console.error('讀取失敗:', err);
+                alert('讀取派車單失敗');
+              } finally {
+                loading.value = false;
+              }
+            };
 
-    onMounted(loadData);
+            onMounted(loadData);
 
-    // 篩選資料
-    const filtered = computed(()=>{
-      return rows.value.filter(r=>{
-        if(filters.value.date && r.useDate !== filters.value.date) return false;
-        if(filters.value.driver && r.driverName !== filters.value.driver) return false;
-        if(filters.value.applicant && r.applicantName !== filters.value.applicant) return false;
-        if(filters.value.car && r.plateNo !== filters.value.car) return false;
-        if(filters.value.q){
-          const q = filters.value.q.toLowerCase();
-          const hay = (r.route + ' ' + r.applyReason).toLowerCase();
-          if(!hay.includes(q)) return false;
-        }
-        return true;
-      });
-    });
+            // 篩選資料
+            const filtered = computed(()=>{
+              return rows.value.filter(r=>{
+                if(filters.value.date && r.useDate !== filters.value.date) return false;
+                if(filters.value.driver && r.driverName !== filters.value.driver) return false;
+                if(filters.value.applicant && r.applicantName !== filters.value.applicant) return false;
+                if(filters.value.car && r.plateNo !== filters.value.car) return false;
+                if(filters.value.q){
+                  const q = filters.value.q.toLowerCase();
+                  const hay = (r.route + ' ' + r.applyReason).toLowerCase();
+                  if(!hay.includes(q)) return false;
+                }
+                return true;
+              });
+            });
 
-    // 狀態顯示
-    const statusText = (s)=> s==='approved'?'完成審核': s==='review'?'審核中':'待審核';
-    const statusClass = (s)=> s==='approved'?'s-approved': s==='review'?'s-review':'s-wait';
+            // 狀態顯示
+            const statusText = (s)=> s==='approved'?'完成審核': s==='review'?'審核中':'待審核';
+            const statusClass = (s)=> s==='approved'?'s-approved': s==='review'?'s-review':'s-wait';
 
-    // row actions
-    const viewRow = (r)=> alert('查看：\n' + JSON.stringify(r,null,2));
-    const editRow = (r)=> alert('編輯（示意）ID=' + r.id);
-    const removeRow = (r)=> { if(confirm('確定刪除？')) rows.value = rows.value.filter(x=>x.id!==r.id); };
+            // row actions
+            const viewRow = (r)=> alert('查看：\n' + JSON.stringify(r,null,2));
+            const editRow = (r)=> alert('編輯（示意）ID=' + r.id);
+            const removeRow = (r)=> { if(confirm('確定刪除？')) rows.value = rows.value.filter(x=>x.id!==r.id); };
 
-    const onCreate = ()=> alert('導向到新增派車單頁（示意）');
+            const onCreate = ()=> alert('導向到新增派車單頁（示意）');
 
-    const exportCSV = ()=>{
-      const head = '用車日期,用車時間,目的地,事由,申請人,人數,行駛里程,審核狀態,駕駛人,車輛\n';
-      const body = filtered.value.map(r =>
-        [r.useDate, r.useTime, `"${r.route}"`, `"${r.applyReason}"`,
-         r.applicantName, r.passengerCount, r.tripDistance,
-         statusText(r.status), r.driverName||'未指派', r.plateNo||'未指派'
-        ].join(',')).join('\n');
-      const blob = new Blob([head+body], {type:'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = '派車單.csv';
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    };
+            const exportCSV = ()=>{
+              const head = '用車日期,用車時間,目的地,事由,申請人,人數,行駛里程,審核狀態,駕駛人,車輛\n';
+              const body = filtered.value.map(r =>
+                [r.useDate, r.useTime, `"${r.route}"`, `"${r.applyReason}"`,
+                 r.applicantName, r.passengerCount, r.tripDistance,
+                 statusText(r.status), r.driverName||'未指派', r.plateNo||'未指派'
+                ].join(',')).join('\n');
+              const blob = new Blob([head+body], {type:'text/csv;charset=utf-8;'});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = '派車單.csv';
+              document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            };
 
-    return { rows, filters, filtered, drivers, applicants, cars, loading,
-             statusText, statusClass,
-             viewRow, editRow, removeRow, onCreate, exportCSV };
-  }
-}).mount('#app');
-</script>
+            return { rows, filters, filtered, drivers, applicants, cars, loading,
+                     statusText, statusClass,
+                     viewRow, editRow, removeRow, onCreate, exportCSV };
+          }
+        }).mount('#app');
+    </script>
 
 
 </body>

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Cars.Models
 {
@@ -15,9 +16,17 @@ namespace Cars.Models
         // 派車狀態
         public string DispatchStatus { get; set; } = "待派車";
 
+        // 時間
+        public DateTime? StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
         // 導覽屬性
+        [ForeignKey("ApplyId")]
         public virtual CarApply? Application { get; set; }
+
         public virtual Vehicle? Vehicle { get; set; }
         public virtual Driver? Driver { get; set; }
     }
 }
+
