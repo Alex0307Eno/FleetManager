@@ -4,7 +4,7 @@ namespace Cars.Models
 {
     public class RepairRequest
     {
-        [Key] public int Id { get; set; }
+        [Key] public int RepairRequestId { get; set; }
         public int VehicleId { get; set; }
         public string PlateNo { get; set; } = "";
         public DateTime Date { get; set; }

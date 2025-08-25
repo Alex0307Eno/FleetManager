@@ -5,7 +5,7 @@ namespace Cars.Models
     public class VehicleMaintenance
     {
         [Key]
-        public int Id { get; set; }
+        public int VehicleMaintenanceId { get; set; }
 
         // 車輛
         public int VehicleId { get; set; }

@@ -545,7 +545,11 @@
 
             <!-- 動作列 -->
             <div class="actions" style="margin-top:16px">
-                <button type="button" class="btn" @@click="onCancel">取消</button>
+                <a asp-action="Dispatch" asp-controller="Dispatch"
+                   class="btn"
+                   style="background:#6b7280; color:#fff; border-color:#6b7280;">
+                    返回清單
+                </a>
                 <form id="car-form">
                     <!-- 其他欄位 -->
                     <button type="button" class="btn btn-primary" @@click="onSubmit">送出申請</button>
@@ -739,7 +743,6 @@
             function addPassenger() { passengers.value.push({ name: "", deptTitle: "" }); syncPassengerCount(); }
             function removePassenger(i) { passengers.value.splice(i, 1); syncPassengerCount(); }
 
-            function onCancel() { alert('已取消'); }
 
         async function onSubmit() {
           try {
@@ -832,7 +835,7 @@
                      origin, destination, 
                      tripType, applicant,
                      singleDistance, singleDuration, roundTripDistance, roundTripDuration,
-                     passengers, addPassenger, removePassenger, onCancel, onSubmit, calcDistance };
+                     passengers, addPassenger, removePassenger, onSubmit, calcDistance };
           }
         }).mount('#app');
     </script>

@@ -33,10 +33,24 @@
                 <ul class="navbar-nav">
                     <!-- 派車管理 -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">派車管理</a>
+                        <a class="nav-link " href="/Dispatch/Dispatch">用車申請</a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/Dispatch/CarApply">派車單</a></li>
                             <li><a class="dropdown-item" href="/Dispatch/Dispatch">派車紀錄</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a class="nav-link " href="/Dispatch/Record" >派車紀錄</a>
+                    </li>
+
+                    <!-- 駕駛人管理 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">駕駛員管理</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/Driver/Schedule">值勤排班</a></li>
+                            <li><a class="dropdown-item" href="/Driver/Driver">駕駛員基本資料</a></li>
+                            <li><a class="dropdown-item" href="/Driver/Schedule">代理人員</a></li>
+
                         </ul>
                     </li>
 
@@ -44,16 +58,8 @@
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">車輛管理</a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/Vehicle/Maintenance">維修單</a></li>
-                            <li><a class="dropdown-item" href="/Vehicle/FuelStats">油耗統計</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- 駕駛人管理 -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">駕駛人管理</a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/Driver/Schedule">值勤排班</a></li>
+                            <li><a class="dropdown-item" href="/Vehicle/Maintenance">車輛維護</a></li>
+                            <li><a class="dropdown-item" href="/Vehicle/FuelStats">行車歷程統計</a></li>
                         </ul>
                     </li>
                 </ul>

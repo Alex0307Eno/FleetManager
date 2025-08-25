@@ -1,0 +1,58 @@
+﻿@model Cars.Models.Driver
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<div class="mb-3">
+    <label asp-for="DriverName" class="form-label">姓名</label>
+    <input asp-for="DriverName" class="form-control" />
+    <span asp-validation-for="DriverName" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="NationalId" class="form-label">身分證字號</label>
+    <input asp-for="NationalId" class="form-control" />
+    <span asp-validation-for="NationalId" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="BirthDate" class="form-label">出生年月日</label>
+    <input asp-for="BirthDate" class="form-control" type="date" />
+    <span asp-validation-for="BirthDate" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="HouseholdAddress" class="form-label">戶籍地址</label>
+    <input asp-for="HouseholdAddress" class="form-control" />
+    <span asp-validation-for="HouseholdAddress" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="ContactAddress" class="form-label">聯絡地址</label>
+    <input asp-for="ContactAddress" class="form-control" />
+    <span asp-validation-for="ContactAddress" class="text-danger"></span>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="Phone" class="form-label">市話</label>
+        <input asp-for="Phone" class="form-control" />
+        <span asp-validation-for="Phone" class="text-danger"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="Mobile" class="form-label">行動電話</label>
+        <input asp-for="Mobile" class="form-control" />
+        <span asp-validation-for="Mobile" class="text-danger"></span>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="EmergencyContactName" class="form-label">緊急聯絡人</label>
+        <input asp-for="EmergencyContactName" class="form-control" />
+        <span asp-validation-for="EmergencyContactName" class="text-danger"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="EmergencyContactPhone" class="form-label">緊急聯絡人電話</label>
+        <input asp-for="EmergencyContactPhone" class="form-control" />
+        <span asp-validation-for="EmergencyContactPhone" class="text-danger"></span>
+    </div>
+</div>

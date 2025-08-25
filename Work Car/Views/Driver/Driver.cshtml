@@ -1,0 +1,242 @@
+﻿@{
+    ViewData["Title"] = "駕駛員基本資料";
+}
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        :root {
+            --bg1: #e8f0fb;
+            --bg2: #f6f9fe;
+            --panel: #fff;
+            --border: #dbeafe;
+            --muted: #64748b;
+            --text: #0f172a;
+            --shadow: 0 1px 3px rgba(16,24,40,.08);
+            --row-alt: #f9fbff;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;
+            background: linear-gradient(180deg,var(--bg1),var(--bg2) 1200px);
+            color: var(--text);
+        }
+
+        .wrap {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 16px
+        }
+
+        .page-bar {
+            background: linear-gradient(180deg,#3b82f6,#2563eb);
+            color: #fff;
+            padding: 14px 0;
+            box-shadow: var(--shadow);
+        }
+
+            .page-bar .wrap {
+                display: flex;
+                justify-content: space-between;
+                align-items: center
+            }
+
+        .title {
+            font-size: 20px;
+            font-weight: 800
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer
+        }
+
+        .btn-warning {
+            background: #ffb020;
+            border-color: #ffb020;
+            color: #111827;
+            font-weight: 700
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            margin-top: 16px
+        }
+
+        .card-hd {
+            padding: 14px 16px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .table-wrap {
+            padding: 10px 12px 14px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0
+        }
+
+        thead th {
+            background: #e7f1ff;
+            color: #334155;
+            font-size: 14px;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        tbody td {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+            font-size: 14px
+        }
+
+        tbody tr:nth-child(2n) {
+            background: var(--row-alt)
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer
+        }
+
+            .icon-btn.view {
+                color: #0ea5e9
+            }
+
+            .icon-btn.edit {
+                color: #22c55e
+            }
+    </style>
+</head>
+<body>
+    <!-- 頁首 -->
+    <div class="page-bar">
+        <div class="wrap">
+            <div class="title">駕駛員基本資料</div>
+            <div class="right" style="display:flex;gap:10px;">
+                <a class="btn btn-warning" href="/Driver/Create">
+                    <i class="fa-solid fa-plus"></i> 新增
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vue app -->
+    <main id="app" class="wrap">
+        <div class="card">
+            <div class="card-hd">清單</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>身分證字號</th>
+                            <th>出生年月日</th>
+                            <th>戶籍地址</th>
+                            <th>聯絡地址</th>
+                            <th>市話</th>
+                            <th>行動電話</th>
+                            <th>緊急聯絡人</th>
+                            <th style="width:100px;text-align:right;">功能</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="d in drivers" :key="d.driverId">
+                            <td>{{ d.driverName || '—' }}</td>
+                            <td>{{ d.nationalId || '—' }}</td>
+                            <td>{{ rocDate(d.birthDate) }}</td>
+                            <td>{{ d.householdAddress || '—' }}</td>
+                            <td>{{ d.contactAddress || '—' }}</td>
+                            <td>{{ d.phone || '—' }}</td>
+                            <td>{{ d.mobile || '—' }}</td>
+                            <td>
+                                <span v-if="d.emergencyContactName || d.emergencyContactPhone">
+                                    {{ d.emergencyContactName }} {{ d.emergencyContactPhone }}
+                                </span>
+                                <span v-else>—</span>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <a :href="`/Drivers/Details/${d.driverId}`" class="icon-btn view" title="檢視">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </a>
+                                    <a :href="`/Driver/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!drivers.length">
+                            <td colspan="9" style="text-align:center;color:#94a3b8;padding:16px;">目前沒有資料</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue
+        createApp({
+          setup(){
+            const drivers = ref([])
+
+            function rocDate(d){
+              if(!d) return ''
+              const dt = new Date(d)
+              if(isNaN(dt)) return ''
+              return `${dt.getFullYear()-1911}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`
+            }
+
+            async function load(){
+              try{
+                const res = await axios.get('/Drivers/Records')
+                drivers.value = res.data || []
+              }catch(e){
+                console.error("載入失敗", e)
+              }
+            }
+
+            onMounted(load)
+            return { drivers, rocDate }
+          }
+        }).mount('#app')
+    </script>
+</body>
+</html>

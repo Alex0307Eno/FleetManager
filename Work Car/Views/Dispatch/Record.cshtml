@@ -1,0 +1,591 @@
+﻿@* Views/Dispatch/Index.cshtml *@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>派車紀錄</title>
+
+    <!-- Icons / Vue / axios -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        :root {
+            --bg1: #e8f0fb;
+            --bg2: #f6f9fe;
+            --panel: #fff;
+            --border: #dbeafe;
+            --border-2: #e8eefc;
+            --muted: #64748b;
+            --text: #0f172a;
+            --primary: #2563eb;
+            --primary-600: #1d4ed8;
+            --row-alt: #fffdf7;
+            --shadow: 0 1px 3px rgba(16,24,40,.08);
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html, body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
+            color: var(--text);
+            background: linear-gradient(180deg,var(--bg1) 0,var(--bg2) 1200px);
+        }
+
+        /* 頁首條 */
+        .page-bar {
+            background: linear-gradient(180deg,#3b82f6,#2563eb);
+            color: #fff;
+            padding: 14px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,.06);
+        }
+
+            .page-bar .wrap {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page-bar .title {
+                font-size: 20px;
+                font-weight: 800;
+                letter-spacing: .5px;
+            }
+
+        /* 通用按鈕 */
+        .btn {
+            border: 1px solid var(--border);
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+            .btn i {
+                margin-right: 6px;
+            }
+
+        .btn-warning {
+            background: #ffb020;
+            border-color: #ffb020;
+            color: #111827;
+            font-weight: 700;
+        }
+
+        .btn-success {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .btn-outline {
+            background: #fff;
+            border-color: #c7d2fe;
+            color: #4338ca;
+        }
+
+        /* 外框與卡片 */
+        .wrap {
+            max-width: 1200px;
+            margin: 18px auto;
+            padding: 0 16px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        /* === 工具列（像設計圖那條） === */
+        .filters-bar {
+            margin: 12px 0 10px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            background: linear-gradient(180deg,#f5f8ff,#eef4ff);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .filters-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            height: 36px;
+            border: 1px solid #dbeafe;
+            background: #f7faff;
+            color: #1e3a8a;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+            .filters-chip label {
+                font-size: 12px;
+                color: #1e3a8a;
+            }
+
+            .filters-chip input, .filters-chip select {
+                border: 0;
+                outline: 0;
+                background: transparent;
+                font-size: 14px;
+                min-width: 120px;
+            }
+
+                .filters-chip input[type="date"] {
+                    min-width: 150px;
+                }
+
+        .filters-spacer {
+            flex: 1 1 auto;
+        }
+        /* 右推搜尋 */
+
+        .filters-search {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            height: 36px;
+            border: 1px solid #c7d2fe;
+            background: #fff;
+            border-radius: 999px;
+        }
+
+            .filters-search input {
+                border: 0;
+                outline: 0;
+                background: transparent;
+                font-size: 14px;
+                min-width: 220px;
+            }
+
+        .icon-btn-ghost {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid #c7d2fe;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1e40af;
+        }
+
+        /* 表格卡片 */
+        .card.records {
+            padding: 6px 0 10px;
+        }
+
+        .table-wrap {
+            padding: 0 12px 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 12px;
+            font-size: 13px;
+            color: #334155;
+            background: #eaf1ff;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border-2);
+        }
+
+            tbody tr:nth-child(2n) {
+                background: var(--row-alt);
+            }
+
+            tbody tr:hover {
+                background: #fff7e5;
+            }
+
+        tbody td {
+            padding: 12px;
+            vertical-align: top;
+            font-size: 14px;
+        }
+
+        .mono {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 小膠囊 / 狀態 */
+        .pill {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid #c7d2fe;
+            background: #eef2ff;
+            color: #3730a3;
+            font-weight: 600;
+        }
+
+            .pill.blue {
+                background: #eff6ff;
+                border-color: #bfdbfe;
+                color: #1e40af;
+            }
+
+        .chip {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid #e5e7eb;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+            .chip.approved {
+                background: #ecfdf5;
+                border-color: #a7f3d0;
+                color: #065f46;
+            }
+
+            .chip.pending {
+                background: #fff7ed;
+                border-color: #fed7aa;
+                color: #92400e;
+            }
+
+        /* 列操作鈕 */
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            cursor: pointer;
+        }
+
+            .icon-btn:hover {
+                box-shadow: 0 1px 6px rgba(0,0,0,.08);
+            }
+
+            .icon-btn.view {
+                color: #0ea5e9;
+            }
+
+            .icon-btn.clone {
+                color: #6366f1;
+            }
+
+            .icon-btn.edit {
+                color: #22c55e;
+            }
+
+            .icon-btn.delete {
+                color: #ef4444;
+            }
+
+        .hint {
+            color: #94a3b8;
+            text-align: right;
+            font-size: 12px;
+            padding: 6px 2px 0;
+        }
+
+        @@media (max-width:980px) {
+            .filters-bar
+
+        {
+            overflow-x: auto;
+        }
+
+        .filters-chip input, .filters-chip select {
+            min-width: 110px;
+        }
+
+        .filters-search input {
+            min-width: 160px;
+        }
+
+        }
+    </style>
+</head>
+<body>
+    <!-- 頁首條 -->
+    <div class="page-bar">
+        <div class="wrap">
+            <div class="title">派車紀錄</div>
+            <div class="right" style="display:flex; gap:10px;">
+                <a class="btn btn-warning fw-bold ms-auto" asp-controller="Dispatch" asp-action="Dispatch">
+                    用車申請
+                </a>
+                <a class="btn btn-success fw-bold ms-auto" asp-controller="Dispatch" asp-action="Dispatch">
+                    共乘併單
+                </a>
+                <button class="btn btn-outline" @@click="exportCsv"><i class="fa-solid fa-file-export"></i> 匯出</button>
+            </div>
+        </div>
+    </div>
+
+    <main id="app" class="wrap">
+        <!-- 工具列（膠囊條件 + 右側搜尋） -->
+        <div class="filters-bar">
+            <div class="filters-chip">
+                <label>用車日期</label>
+                <input type="date" v-model="q.dateFrom">
+                <span style="color:#64748b;">–</span>
+                <input type="date" v-model="q.dateTo">
+            </div>
+
+            <div class="filters-chip">
+                <label>駕駛員</label>
+                <select v-model="q.driver">
+                    <option value="">全部</option>
+                    <option v-for="d in uniqueDrivers" :key="d" :value="d">{{ d }}</option>
+                </select>
+            </div>
+
+            <div class="filters-chip">
+                <label>申請人</label>
+                <input type="text" placeholder="輸入姓名…" v-model.trim="q.applicant">
+            </div>
+
+            <div class="filters-spacer"></div>
+
+            <div class="filters-search">
+                <input type="text" placeholder="車輛（輸入車牌…）" v-model.trim="q.plate" @@keyup.enter="reload">
+                <button class="icon-btn-ghost" title="搜尋" @@click="reload">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 表格卡片 -->
+        <div class="card records">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:120px">用車日期 <i class="fa-solid fa-caret-down" style="color:#9ca3af"></i></th>
+                            <th style="width:130px">用車時間</th>
+                            <th>目的地</th>
+                            <th style="width:260px">事由</th>
+                            <th style="width:120px">申請人</th>
+                            <th style="width:70px">人數</th>
+                            <th style="width:90px">行駛里程</th>
+                            <th style="width:100px">審核狀態</th>
+                            <th style="width:120px">駕駛員</th>
+                            <th style="width:90px">車輛</th>
+                            <th style="width:70px">長/短差</th>
+                            <th style="width:140px">功能</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="r in shown" :key="r.id">
+                            <td class="mono">{{ rocDate(r.useStart) }}</td>
+                            <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
+                            <td><div>{{ r.route }}</div></td>
+                            <td style="color:#475569">{{ r.reason }}</td>
+                            <td>{{ r.applicant }}</td>
+                            <td class="mono">{{ r.seats }}</td>
+                            <td class="mono">{{ fmtKm(r.km) }}</td>
+                            <td><span class="chip" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
+                            <td><span class="pill">{{ r.driver }}</span></td>
+                            <td><span class="pill blue">{{ r.plate }}</span></td>
+                            <td>
+                                <a href="javascript:;" @@click="toggleLongShort(r)"
+                                   :style="{color: r.longShort==='長差' ? '#2563eb':'#64748b', textDecoration:'none', fontWeight:'600'}">
+                                    {{ r.longShort || '—' }}
+                                </a>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <button class="icon-btn view" title="檢視" @@click="view(r)"><i class="fa-solid fa-eye"></i></button>
+                                    <button class="icon-btn clone" title="複製" @@click="cloneRow(r)"><i class="fa-regular fa-copy"></i></button>
+                                    <button class="icon-btn edit" title="編輯" @@click="edit(r)"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button class="icon-btn delete" title="刪除" @@click="remove(r)"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!shown.length">
+                            <td colspan="12" style="text-align:center;color:#94a3b8;padding:16px">目前沒有資料</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="hint">最後更新時間：{{ lastUpdated }}</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+          const { createApp, ref, computed } = Vue
+
+          createApp({
+            setup(){
+              // 查詢條件
+              const q = ref({ dateFrom:'', dateTo:'', driver:'', applicant:'', plate:'' })
+
+              // 資料
+              const rows = ref([])
+              const lastUpdated = ref(new Date().toLocaleString())
+
+              // 唯一駕駛清單
+              const uniqueDrivers = computed(()=>{
+                const s = new Set(rows.value.map(r=>r.driver).filter(Boolean))
+                return Array.from(s)
+              })
+
+              // 篩選 + 時間排序
+              const shown = computed(()=>{
+                const df = q.value.dateFrom ? new Date(q.value.dateFrom) : null
+                const dt = q.value.dateTo   ? new Date(q.value.dateTo)   : null
+                const driver = (q.value.driver || '').trim()
+                const applicant = (q.value.applicant || '').trim()
+                const plate = (q.value.plate || '').trim()
+
+                return rows.value
+                  .filter(r=>{
+                    const d = new Date(r.useStart)
+                    if (df && d < df) return false
+                    if (dt && d > endOfDay(dt)) return false
+                    if (driver && r.driver !== driver) return false
+                    if (applicant && !String(r.applicant).includes(applicant)) return false
+                    if (plate && !String(r.plate).includes(plate)) return false
+                    return true
+                  })
+                  .sort((a,b)=> new Date(a.useStart) - new Date(b.useStart))
+              })
+
+              // 工具
+              const pad = n => String(n).padStart(2,'0')
+              const rocDate = (d)=>{
+                const x = new Date(d); if (isNaN(x)) return ''
+                const roc = x.getFullYear()-1911
+                return `${roc}/${pad(x.getMonth()+1)}/${pad(x.getDate())}`
+              }
+              const timeSpan = (s,e)=>{
+                const a = new Date(s), b = new Date(e)
+                if (isNaN(a)||isNaN(b)) return ''
+                return `${pad(a.getHours())}:${pad(a.getMinutes())}~${pad(b.getHours())}:${pad(b.getMinutes())}`
+              }
+              const fmtKm = v => (v ?? '-') + (v!=null ? '' : '')
+              const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999)
+
+              // 互動
+              function view(r){ console.log('view', r) }
+              function cloneRow(r){ rows.value.push({...r, id: 'copy_'+Math.random().toString(16).slice(2)}) }
+              function edit(r){ console.log('edit', r) }
+              function remove(r){ rows.value = rows.value.filter(x=>x.id!==r.id) }
+              function toggleLongShort(r){
+                if (!r.longShort) r.longShort = '短差'
+                else if (r.longShort==='短差') r.longShort = '長差'
+                else r.longShort = ''
+              }
+              function exportCsv(){
+                const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差']
+                const lines = shown.value.map(r=>[
+                  rocDate(r.useStart), timeSpan(r.useStart, r.useEnd),
+                  r.route, r.reason, r.applicant, r.seats, r.km ?? '',
+                  r.status, r.driver, r.plate, r.longShort ?? ''
+                ].map(s=>`"${String(s??'').replaceAll('"','""')}"`).join(','))
+                const csv = [headers.join(','), ...lines].join('\r\n')
+                const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url; a.download = '派車紀錄.csv'; a.click()
+                URL.revokeObjectURL(url)
+              }
+
+              // 載入資料（有 API 就打，沒有就用 mock）
+              async function reload(){
+                try{
+                  const params = {
+                    dateFrom: q.value.dateFrom || undefined,
+                    dateTo:   q.value.dateTo   || undefined,
+                    driver:   q.value.driver   || undefined,
+                    applicant:q.value.applicant|| undefined,
+                    plate:    q.value.plate    || undefined
+                  }
+                  const res = await axios.get('/api/dispatch/records', { params })
+                  rows.value = (res.data || []).map(normalize)
+                }catch{
+                  rows.value = mockRows().map(normalize)
+                }
+                lastUpdated.value = new Date().toLocaleString()
+              }
+
+              function normalize(x){
+                return {
+                  id: x.id ?? Math.random().toString(16).slice(2),
+                  useStart: x.useStart ?? x.start ?? new Date(),
+                  useEnd:   x.useEnd   ?? x.end   ?? new Date(Date.now()+60*60*1000),
+                  route:    x.route ?? `${x.origin ?? '林業署'} - ${x.destination ?? '農業部'}`,
+                  reason:   x.reason ?? x.applyReason ?? '(公務用)公文交換',
+                  applicant: x.applicant ?? x.applicantName ?? '何○○、陳○○',
+                  seats: Number(x.seats ?? x.passengerCount ?? 1),
+                  km: Number(x.km ?? x.tripDistance ?? 8),
+                  status: x.status ?? '完成審核',
+                  driver: x.driver ?? x.driverName ?? '吳○祥',
+                  plate: x.plate ?? x.plateNo ?? '2061',
+                  longShort: x.longShort ?? (Math.random()>0.5 ? '長差':'短差')
+                }
+              }
+
+              function mockRows(){
+                const base = new Date(); base.setHours(0,0,0,0)
+                const mk=(h1,m1,mins,o)=>({
+                  useStart:new Date(base.getFullYear(),base.getMonth(),base.getDate(),h1,m1),
+                  useEnd:new Date(base.getFullYear(),base.getMonth(),base.getDate(),h1,m1+mins),
+                  ...o
+                })
+               
+              }
+
+              // init
+              reload()
+
+              return {
+                q, rows, shown, uniqueDrivers, lastUpdated,
+                rocDate, timeSpan, fmtKm,
+                reload, view, edit, remove, cloneRow, toggleLongShort, exportCsv
+              }
+            }
+          }).mount('#app')
+        })
+    </script>
+</body>
+</html>

@@ -305,17 +305,16 @@
 </head>
 <body>
     <div id="app" class="wrap">
-        <nav class="topnav">
-            <a href="#" class="active">派車管理</a>
-            <a href="#">車輛管理</a>
-            <a href="#">駕駛人管理</a>
-        </nav>
+       
 
         <section class="card">
             <div class="card-hd">
-                <div class="title">派車管理 ＞ 派車單</div>
+                <div class="title">用車申請</div>
                 <div style="display:flex;gap:8px">
-                    <button class="btn" @@click="onCreate">新增</button>
+                    <a class="btn btn-warning fw-bold ms-auto"
+                       asp-controller="Dispatch" asp-action="CarApply">
+                        新增
+                    </a>                    
                     <button class="btn btn-primary" @@click="exportCSV">匯出</button>
                 </div>
             </div>

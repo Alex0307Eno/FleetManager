@@ -32,7 +32,7 @@ namespace Cars.Controllers
                 .Where(m => m.VehicleId == vehicleId)
                 .OrderByDescending(m => m.Date)
                 .Select(m => new {
-                    m.Id,
+                    m.VehicleMaintenanceId,
                     date = m.Date.ToString("yyyy-MM-dd"),
                     m.Odometer,
                     m.Item,
@@ -83,7 +83,7 @@ namespace Cars.Controllers
             };
             _db.VehicleMaintenances.Add(entity);
             await _db.SaveChangesAsync();
-            return Ok(new { message = "新增成功", id = entity.Id });
+            return Ok(new { message = "新增成功", id = entity.VehicleMaintenanceId });
         }
 
         // 刪除

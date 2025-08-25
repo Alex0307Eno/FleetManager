@@ -5,7 +5,7 @@ namespace Cars.Models
     /// <summary>加油 / 補機油紀錄</summary>
     public class FuelFillUp
     {
-        [Key] public int Id { get; set; }
+        [Key] public int FuelFillUpId { get; set; }
 
         public int VehicleId { get; set; }
         public string? PlateNo { get; set; }           // 冗餘存車牌，方便查表

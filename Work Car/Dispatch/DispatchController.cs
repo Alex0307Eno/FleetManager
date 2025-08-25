@@ -12,6 +12,9 @@ namespace Cars.Dispatch
         {
             return View();
         }
-
+        public IActionResult Record()
+        {
+            return View();
+        }
     }
 }

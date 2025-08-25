@@ -38,26 +38,26 @@ namespace Cars
                 app.Use(async (ctx, next) =>
                 {
                     ctx.Response.Headers["Content-Security-Policy"] =
-                        "default-src 'self'; " +
+                    "default-src 'self'; " +
 
-                        // 你頁面用到的 CDN / Maps 腳本
-                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://*.google.com https://*.gstatic.com; " +
+                    // JS 腳本（多加 maps.googleapis.com）
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://*.google.com https://*.gstatic.com https://maps.googleapis.com; " +
 
-                        // Google Maps 以 <iframe> 嵌入
-                        "frame-src 'self' https://www.google.com https://www.google.com/maps https://maps.google.com; " +
+                    // Google Maps iframe（多加 maps.googleapis.com）
+                    "frame-src 'self' https://www.google.com https://www.google.com/maps https://maps.google.com https://maps.googleapis.com; " +
 
-                        // 樣式/字體（你有 inline style 與可能的 CDN）
-                        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
-                        "font-src  'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
+                    // 樣式/字體
+                    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
+                    "font-src  'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
 
-                        // 允許所有本機端口與 ws/wss（Browser Link / Hot Reload 會用到變動埠）
-                        "connect-src 'self' http: https: ws: wss: http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*; " +
+                    // 允許本機端口與 ws/wss
+                    "connect-src 'self' http: https: ws: wss: http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*; " +
 
-                        // 圖片（Google 地圖瓦片、快取域名）
-                        "img-src 'self' data: https://*.google.com https://*.ggpht.com https://*.googleapis.com https://*.gstatic.com; " +
+                    // 圖片來源（多加 gstatic）
+                    "img-src 'self' data: https://*.google.com https://*.ggpht.com https://*.googleapis.com https://*.gstatic.com; " +
 
-                        // 更安全：不允許 <object>
-                        "object-src 'none';";
+                    "object-src 'none';";
+
                     await next();
                 });
             }
@@ -67,13 +67,14 @@ namespace Cars
                 app.Use(async (ctx, next) =>
                 {
                     ctx.Response.Headers["Content-Security-Policy"] =
-                        "default-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline' https://*.google.com https://*.gstatic.com; " +
-                        "frame-src 'self' https://www.google.com https://www.google.com/maps https://maps.google.com; " +
-                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-                        "font-src  'self' https://fonts.gstatic.com; " +
-                        "img-src   'self' data: https:; " +
-                        "object-src 'none';";
+                    "default-src 'self'; " +
+                    "script-src 'self' 'unsafe-inline' https://*.google.com https://*.gstatic.com https://maps.googleapis.com; " +
+                    "frame-src 'self' https://www.google.com https://www.google.com/maps https://maps.google.com https://maps.googleapis.com; " +
+                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                    "font-src  'self' https://fonts.gstatic.com; " +
+                    "img-src   'self' data: https:; " +
+                    "object-src 'none';";
+
                     await next();
                 });
             }
