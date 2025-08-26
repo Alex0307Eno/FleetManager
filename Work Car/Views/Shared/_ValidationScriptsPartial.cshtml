@@ -1,2 +1,25 @@
-﻿<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+﻿<!-- jQuery & 驗證套件 -->
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
 <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+
+<!-- 覆蓋 jQuery Validation 預設訊息為中文 -->
+<script>
+    jQuery.extend(jQuery.validator.messages, {
+        required: "此欄位必填",
+        remote: "請修正此欄位",
+        email: "請輸入有效的電子郵件",
+        url: "請輸入有效的網址",
+        date: "請輸入有效的日期",
+        dateISO: "請輸入有效的日期 (YYYY-MM-DD)",
+        number: "請輸入數字",
+        digits: "只能輸入數字",
+        equalTo: "請再次輸入相同的值",
+        maxlength: jQuery.validator.format("最多 {0} 個字"),
+        minlength: jQuery.validator.format("最少 {0} 個字"),
+        rangelength: jQuery.validator.format("長度必須介於 {0} 和 {1} 個字之間"),
+        range: jQuery.validator.format("請輸入介於 {0} 和 {1} 之間的數值"),
+        max: jQuery.validator.format("請輸入小於或等於 {0} 的數值"),
+        min: jQuery.validator.format("請輸入大於或等於 {0} 的數值")
+    });
+</script>

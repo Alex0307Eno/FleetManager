@@ -346,7 +346,7 @@
 </head>
 
 <body>
-    <div id="app" class="container">
+    <div id="app" class="container" v-cloak>
         <form id="car-form">
             <!-- 用車申請（藍條標題 + 兩欄布局，左：申請人/欄位 右：車輛卡） -->
             <div class="section">
@@ -449,12 +449,12 @@
                 <div class="section-bd">
                     <div class="row align-items-center mb-2">
                         <div class="col-3">
-                            <input id="orig" class="form-control" placeholder="請輸入出發地" v-model="origin" />
+                            <input id="orig" class="form-control" placeholder="請輸入出發地" v-model="origin" required />
                             <div class="ac-dropdown" id="ac-orig"></div>
                         </div>
 
                         <div class="col-3">
-                            <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" />
+                            <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" required />
                             <div class="ac-dropdown" id="ac-dest"></div>
                         </div>
 
@@ -469,6 +469,7 @@
                             <button type="button" class="btn btn-primary" @@click="calcDistance">查詢</button>
                         </div>
                     </div>
+
 
                     <!-- 查詢結果 -->
                     <div v-if="singleDistance && singleDuration" class="row mt-3">
@@ -545,7 +546,7 @@
 
             <!-- 動作列 -->
             <div class="actions" style="margin-top:16px">
-                <a asp-action="Dispatch" asp-controller="Dispatch"
+                <a asp-action="Dispatch" asp-controller="Dispatches"
                    class="btn"
                    style="background:#6b7280; color:#fff; border-color:#6b7280;">
                     返回清單
@@ -745,6 +746,10 @@
 
 
         async function onSubmit() {
+            if (!origin.value || !destination.value) {
+                alert('請輸入出發地與目的地');
+                return;
+              }
           try {
             const payload = {
               applicantName:applicant.name,

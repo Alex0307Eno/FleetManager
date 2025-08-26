@@ -18,10 +18,15 @@ namespace Cars.Data
         public DbSet<Cars.Models.Dispatch> Dispatches { get; set; }
         public DbSet<DispatchOrder> DispatchOrders { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
+        public DbSet<DriverDelegation> DriverDelegations { get; set; }
+        public DbSet<DriverAgent> DriverAgents { get; set; }
+
         public DbSet<VehicleMaintenance> VehicleMaintenances { get; set; }
         public DbSet<FuelFillUp> FuelFillUps { get; set; }
         public DbSet<MaintenanceRecord> MaintenanceRecords { get; set; }
         public DbSet<RepairRequest> RepairRequests { get; set; }
+
+        public DbSet<PlaceAlias> PlaceAliases { get; set; }
 
     }
 }

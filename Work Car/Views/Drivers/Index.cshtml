@@ -32,11 +32,29 @@
             color: var(--text);
         }
 
+       
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px
+        }
+
         .wrap {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 20px auto;
             padding: 0 16px
         }
+
+        .topbar .wrap {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
 
         .page-bar {
             background: linear-gradient(180deg,#3b82f6,#2563eb);
@@ -146,70 +164,77 @@
 </head>
 <body>
     <!-- 頁首 -->
-    <div class="page-bar">
-        <div class="wrap">
-            <div class="title">駕駛員基本資料</div>
-            <div class="right" style="display:flex;gap:10px;">
-                <a class="btn btn-warning" href="/Driver/Create">
+
+
+    <div class="wrap">
+        <!-- 頁首工具列 -->
+        <div class="topbar d-flex justify-content-between align-items-center">
+            <!-- 左邊：標題 -->
+            <h1 class="m-0">駕駛員管理 ＞ 駕駛員基本資料</h1>
+
+            <!-- 右邊：操作按鈕 -->
+            <div class="d-flex gap-2">
+                <a class="btn btn-warning" href="/Drivers/Create">
                     <i class="fa-solid fa-plus"></i> 新增
                 </a>
             </div>
         </div>
+
+        <!-- Vue app -->
+        <main id="app" v-cloak>
+            <div >
+                <div class="card-hd">清單</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>身分證字號</th>
+                                <th>出生年月日</th>
+                                <th>戶籍地址</th>
+                                <th>聯絡地址</th>
+                                <th>市話</th>
+                                <th>行動電話</th>
+                                <th>緊急聯絡人</th>
+                                <th style="width:100px;text-align:right;">功能</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="d in drivers" :key="d.driverId">
+                                <td>{{ d.driverName || '—' }}</td>
+                                <td>{{ d.nationalId || '—' }}</td>
+                                <td>{{ rocDate(d.birthDate) }}</td>
+                                <td>{{ d.householdAddress || '—' }}</td>
+                                <td>{{ d.contactAddress || '—' }}</td>
+                                <td>{{ d.phone || '—' }}</td>
+                                <td>{{ d.mobile || '—' }}</td>
+                                <td>
+                                    <span v-if="d.emergencyContactName || d.emergencyContactPhone">
+                                        {{ d.emergencyContactName }} {{ d.emergencyContactPhone }}
+                                    </span>
+                                    <span v-else>—</span>
+                                </td>
+                                <td>
+                                    <div class="actions">
+                                        <a :href="`/Drivers/Details/${d.driverId}`" class="icon-btn view" title="檢視">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </a>
+                                        <a :href="`/Drivers/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!drivers.length">
+                                <td colspan="9" style="text-align:center;color:#94a3b8;padding:16px;">目前沒有資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <!-- Vue app -->
-    <main id="app" class="wrap">
-        <div class="card">
-            <div class="card-hd">清單</div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>姓名</th>
-                            <th>身分證字號</th>
-                            <th>出生年月日</th>
-                            <th>戶籍地址</th>
-                            <th>聯絡地址</th>
-                            <th>市話</th>
-                            <th>行動電話</th>
-                            <th>緊急聯絡人</th>
-                            <th style="width:100px;text-align:right;">功能</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="d in drivers" :key="d.driverId">
-                            <td>{{ d.driverName || '—' }}</td>
-                            <td>{{ d.nationalId || '—' }}</td>
-                            <td>{{ rocDate(d.birthDate) }}</td>
-                            <td>{{ d.householdAddress || '—' }}</td>
-                            <td>{{ d.contactAddress || '—' }}</td>
-                            <td>{{ d.phone || '—' }}</td>
-                            <td>{{ d.mobile || '—' }}</td>
-                            <td>
-                                <span v-if="d.emergencyContactName || d.emergencyContactPhone">
-                                    {{ d.emergencyContactName }} {{ d.emergencyContactPhone }}
-                                </span>
-                                <span v-else>—</span>
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    <a :href="`/Drivers/Details/${d.driverId}`" class="icon-btn view" title="檢視">
-                                        <i class="fa-solid fa-eye"></i>
-                                    </a>
-                                    <a :href="`/Driver/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="!drivers.length">
-                            <td colspan="9" style="text-align:center;color:#94a3b8;padding:16px;">目前沒有資料</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
 
     <script>
         const { createApp, ref, onMounted } = Vue

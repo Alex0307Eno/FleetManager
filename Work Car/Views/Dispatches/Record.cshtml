@@ -41,9 +41,23 @@
             background: linear-gradient(180deg,var(--bg1) 0,var(--bg2) 1200px);
         }
 
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px
+        }
+
+            .topbar .wrap {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 16px;
+            }
+
         /* 頁首條 */
         .page-bar {
-            background: linear-gradient(180deg,#3b82f6,#2563eb);
             color: #fff;
             padding: 14px 0;
             box-shadow: 0 2px 10px rgba(0,0,0,.06);
@@ -59,6 +73,7 @@
             }
 
             .page-bar .title {
+                color: #95B6D1;
                 font-size: 20px;
                 font-weight: 800;
                 letter-spacing: .5px;
@@ -169,6 +184,7 @@
             border: 1px solid #c7d2fe;
             background: #fff;
             border-radius: 999px;
+            
         }
 
             .filters-search input {
@@ -341,114 +357,135 @@
         }
 
         }
+        /* 卡片標題與內容區塊，確保一致內距與分隔線 */
+        .card-hd {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .card-bd {
+            padding: 12px 0px;
+        }
+
+        /* 搜尋欄與表格在同張卡片內，間距微調 */
+        .records .filters-bar {
+            margin: 0 0 10px; /* 貼齊卡片邊，底下留空隙 */
+        }
+        
+
     </style>
 </head>
 <body>
-    <!-- 頁首條 -->
-    <div class="page-bar">
-        <div class="wrap">
-            <div class="title">派車紀錄</div>
-            <div class="right" style="display:flex; gap:10px;">
-                <a class="btn btn-warning fw-bold ms-auto" asp-controller="Dispatch" asp-action="Dispatch">
-                    用車申請
-                </a>
-                <a class="btn btn-success fw-bold ms-auto" asp-controller="Dispatch" asp-action="Dispatch">
-                    共乘併單
-                </a>
-                <button class="btn btn-outline" @@click="exportCsv"><i class="fa-solid fa-file-export"></i> 匯出</button>
-            </div>
-        </div>
-    </div>
-
-    <main id="app" class="wrap">
-        <!-- 工具列（膠囊條件 + 右側搜尋） -->
-        <div class="filters-bar">
-            <div class="filters-chip">
-                <label>用車日期</label>
-                <input type="date" v-model="q.dateFrom">
-                <span style="color:#64748b;">–</span>
-                <input type="date" v-model="q.dateTo">
-            </div>
-
-            <div class="filters-chip">
-                <label>駕駛員</label>
-                <select v-model="q.driver">
-                    <option value="">全部</option>
-                    <option v-for="d in uniqueDrivers" :key="d" :value="d">{{ d }}</option>
-                </select>
-            </div>
-
-            <div class="filters-chip">
-                <label>申請人</label>
-                <input type="text" placeholder="輸入姓名…" v-model.trim="q.applicant">
-            </div>
-
-            <div class="filters-spacer"></div>
-
-            <div class="filters-search">
-                <input type="text" placeholder="車輛（輸入車牌…）" v-model.trim="q.plate" @@keyup.enter="reload">
-                <button class="icon-btn-ghost" title="搜尋" @@click="reload">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- 表格卡片 -->
+    <main id="app" class="wrap" v-cloak>
         <div class="card records">
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width:120px">用車日期 <i class="fa-solid fa-caret-down" style="color:#9ca3af"></i></th>
-                            <th style="width:130px">用車時間</th>
-                            <th>目的地</th>
-                            <th style="width:260px">事由</th>
-                            <th style="width:120px">申請人</th>
-                            <th style="width:70px">人數</th>
-                            <th style="width:90px">行駛里程</th>
-                            <th style="width:100px">審核狀態</th>
-                            <th style="width:120px">駕駛員</th>
-                            <th style="width:90px">車輛</th>
-                            <th style="width:70px">長/短差</th>
-                            <th style="width:140px">功能</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="r in shown" :key="r.id">
-                            <td class="mono">{{ rocDate(r.useStart) }}</td>
-                            <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
-                            <td><div>{{ r.route }}</div></td>
-                            <td style="color:#475569">{{ r.reason }}</td>
-                            <td>{{ r.applicant }}</td>
-                            <td class="mono">{{ r.seats }}</td>
-                            <td class="mono">{{ fmtKm(r.km) }}</td>
-                            <td><span class="chip" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
-                            <td><span class="pill">{{ r.driver }}</span></td>
-                            <td><span class="pill blue">{{ r.plate }}</span></td>
-                            <td>
-                                <a href="javascript:;" @@click="toggleLongShort(r)"
-                                   :style="{color: r.longShort==='長差' ? '#2563eb':'#64748b', textDecoration:'none', fontWeight:'600'}">
-                                    {{ r.longShort || '—' }}
-                                </a>
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    <button class="icon-btn view" title="檢視" @@click="view(r)"><i class="fa-solid fa-eye"></i></button>
-                                    <button class="icon-btn clone" title="複製" @@click="cloneRow(r)"><i class="fa-regular fa-copy"></i></button>
-                                    <button class="icon-btn edit" title="編輯" @@click="edit(r)"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button class="icon-btn delete" title="刪除" @@click="remove(r)"><i class="fa-solid fa-trash"></i></button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="!shown.length">
-                            <td colspan="12" style="text-align:center;color:#94a3b8;padding:16px">目前沒有資料</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="hint">最後更新時間：{{ lastUpdated }}</div>
+            <!-- 卡片標題列：左標題、右按鈕 -->
+            <div class=" topbar d-flex align-items-center justify-content-between">
+                <h5 class="mb-0 fw-bold">派車紀錄</h5>
+                <div class="d-flex gap-2">
+                    <a class="btn btn-warning fw-bold" asp-controller="Dispatches" asp-action="Dispatch">
+                        用車申請
+                    </a>
+                    <a class="btn btn-success fw-bold" asp-controller="Dispatches" asp-action="Dispatch">
+                        共乘併單
+                    </a>
+                    <button class="btn btn-outline" @@click="exportCsv">
+                        <i class="fa-solid fa-file-export"></i> 匯出
+                    </button>
+                </div>
+            </div>
+
+            <!-- 卡片內容：搜尋欄 + 表格，同寬 -->
+            <div class="card-bd">
+                <!-- 搜尋欄 -->
+                <div class="filters-bar">
+                    <div class="filters-chip">
+                        <label>用車日期</label>
+                        <input type="date" v-model="q.dateFrom">
+                        <span style="color:#64748b;">–</span>
+                        <input type="date" v-model="q.dateTo">
+                    </div>
+
+                    <div class="filters-chip">
+                        <label>駕駛員</label>
+                        <select v-model="q.driver">
+                            <option value="">全部</option>
+                            <option v-for="d in uniqueDrivers" :key="d" :value="d">{{ d }}</option>
+                        </select>
+                    </div>
+
+                    <div class="filters-chip">
+                        <label>申請人</label>
+                        <input type="text" placeholder="輸入姓名…" v-model.trim="q.applicant">
+                    </div>
+
+
+                    <div class="filters-search">
+                        <input type="text" placeholder="車輛（輸入車牌…）" v-model.trim="q.plate" @@keyup.enter="reload">
+                        <button class="icon-btn-ghost" title="搜尋" @@click="reload">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 表格 -->
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">用車日期 <i class="fa-solid fa-caret-down" style="color:#9ca3af"></i></th>
+                                <th style="width:130px">用車時間</th>
+                                <th>目的地</th>
+                                <th style="width:260px">事由</th>
+                                <th style="width:120px">申請人</th>
+                                <th style="width:70px">人數</th>
+                                <th style="width:90px">行駛里程</th>
+                                <th style="width:100px">審核狀態</th>
+                                <th style="width:120px">駕駛員</th>
+                                <th style="width:90px">車輛</th>
+                                <th style="width:70px">長/短差</th>
+                                <th style="width:140px">功能</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in shown" :key="r.id">
+                                <td class="mono">{{ rocDate(r.useStart) }}</td>
+                                <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
+                                <td><div>{{ r.route }}</div></td>
+                                <td style="color:#475569">{{ r.reason }}</td>
+                                <td>{{ r.applicant }}</td>
+                                <td class="mono">{{ r.seats }}</td>
+                                <td class="mono">{{ fmtKm(r.km) }}</td>
+                                <td><span class="chip" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
+                                <td><span class="pill">{{ r.driver }}</span></td>
+                                <td><span class="pill blue">{{ r.plate }}</span></td>
+                                <td>
+                                    <a href="javascript:;" @@click="toggleLongShort(r)"
+                                       :style="{color: r.longShort==='長差' ? '#2563eb':'#64748b', textDecoration:'none', fontWeight:'600'}">
+                                        {{ r.longShort || '—' }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <div class="actions">
+                                        <button class="icon-btn view" title="檢視" @@click="view(r)"><i class="fa-solid fa-eye"></i></button>
+                                        <button class="icon-btn clone" title="複製" @@click="cloneRow(r)"><i class="fa-regular fa-copy"></i></button>
+                                        <button class="icon-btn edit" title="編輯" @@click="edit(r)"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button class="icon-btn delete" title="刪除" @@click="remove(r)"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!shown.length">
+                                <td colspan="12" style="text-align:center;color:#94a3b8;padding:16px">目前沒有資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="hint">最後更新時間：{{ lastUpdated }}</div>
+                </div>
             </div>
         </div>
     </main>
+
 
     <script>
         window.addEventListener('DOMContentLoaded', () => {
@@ -572,7 +609,7 @@
                   useEnd:new Date(base.getFullYear(),base.getMonth(),base.getDate(),h1,m1+mins),
                   ...o
                 })
-               
+
               }
 
               // init

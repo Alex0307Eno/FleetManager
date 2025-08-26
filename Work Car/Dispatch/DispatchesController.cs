@@ -2,7 +2,7 @@
 
 namespace Cars.Dispatch
 {
-    public class DispatchController : Controller
+    public class DispatchesController : Controller
     {
         public IActionResult Dispatch()
         {

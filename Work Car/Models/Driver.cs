@@ -5,6 +5,7 @@ namespace Cars.Models
     public class Driver
     {
         public int DriverId { get; set; }
+
         public string? DriverName { get; set; }
         [Display(Name = "身分證字號"), MaxLength(20)]
         public string? NationalId { get; set; }

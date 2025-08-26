@@ -50,6 +50,15 @@
             padding: 0 16px
         }
 
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px
+        }
+
         /* top nav */
         .topnav {
             display: flex;
@@ -304,20 +313,21 @@
     </style>
 </head>
 <body>
-    <div id="app" class="wrap">
+    <div id="app" class="wrap" v-cloak>
        
-
         <section class="card">
-            <div class="card-hd">
-                <div class="title">用車申請</div>
-                <div style="display:flex;gap:8px">
-                    <a class="btn btn-warning fw-bold ms-auto"
-                       asp-controller="Dispatch" asp-action="CarApply">
+            <div class="card-hd d-flex align-items-center justify-content-between topbar">
+                <h5 class="mb-0 fw-bold">用車申請</h5>
+                <div class="d-flex gap-2">
+                    <a class="btn btn-warning fw-bold"
+                       asp-controller="Dispatches" asp-action="CarApply">
                         新增
-                    </a>                    
+                    </a>
                     <button class="btn btn-primary" @@click="exportCSV">匯出</button>
                 </div>
             </div>
+
+
 
             <!-- filter bar -->
             <div class="card-bd">

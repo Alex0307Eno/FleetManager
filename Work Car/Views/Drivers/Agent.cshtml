@@ -1,0 +1,248 @@
+﻿@{
+    ViewData["Title"] = "駕駛員管理 > 代理人員";
+    Layout = "_Layout";
+}
+
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+<style>
+    /* 保留你原本的樣式；以下是必要的 */
+    .page-wrap {
+        background: linear-gradient(180deg,#f2f7fb 0%,#eef5fb 100%);
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(16,24,40,.08)
+    }
+
+    .tabs {
+        display: flex;
+        gap: 8px;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 16px
+    }
+
+    .tab {
+        padding: 10px 16px;
+        border: 1px solid transparent;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        background: #f6f8fb;
+        cursor: pointer;
+        color: #334155
+    }
+
+        .tab.active {
+            background: #fff;
+            border-color: #e5e7eb #e5e7eb #fff #e5e7eb;
+            font-weight: 600
+        }
+
+    .table-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse
+    }
+
+        .table thead th {
+            background: #7da2c6;
+            color: #fff;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left
+        }
+
+        .table tbody td {
+            background: #fff;
+            padding: 12px;
+            border-top: 1px solid #eef2f7;
+            color: #111827
+        }
+
+        .table tbody tr:hover td {
+            background: #f9fbff
+        }
+
+    .td-actions {
+        width: 84px;
+        text-align: center
+    }
+
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(16,24,40,.04);
+        color: #334155;
+        margin-left: 6px
+    }
+
+        .icon-btn:hover {
+            background: #f3f6fb
+        }
+
+    .muted {
+        color: #fff
+    }
+
+    .content {
+        padding: 8px 4px 16px
+    }
+
+    .section-title {
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        color: #1f2937;
+        font-weight: 700
+    }
+
+    .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 16px
+    }
+</style>
+<div class="topbar">
+    <div class="muted" style="margin-bottom:12px;">駕駛員管理 <span style="color:#fff;">&gt;</span> <b>代理人員</b></div>
+</div>
+<div class="page-wrap">
+
+    <!-- Tabs -->
+    <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="records">代理紀錄</div>
+        <div class="tab" data-tab="profile">代理人員基本資料</div>
+    </div>
+
+    <!-- 代理紀錄（已經有就保留你原本的） -->
+    <div class="content" id="pane-records">
+        <div class="table-card">
+            <table class="table" id="tbl-records">
+                <thead>
+                    <tr>
+                        <th style="width:18%;">代理人姓名</th>
+                        <th style="width:20%;">代理期間</th>
+                        <th style="width:18%;">被代理人</th>
+                        <th style="width:14%;">代理原因</th>
+                        <th style="width:15%;">代理期間行駛趟數</th>
+                        <th style="width:15%;">代理期間行駛公里數</th>
+                        <th class="td-actions">功能</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-records"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ✅ 代理人員基本資料（只有切到分頁才載資料） -->
+    <div class="content" id="pane-profile" style="display:none;">
+        <div class="table-card">
+            <table class="table" id="tbl-profiles">
+                <thead>
+                    <tr>
+                        <th style="width:12%;">姓名</th>
+                        <th style="width:14%;">身分證字號</th>
+                        <th style="width:10%;">出生年月日</th>
+                        <th>戶籍地址</th>
+                        <th>聯絡地址</th>
+                        <th style="width:8%;">市話</th>
+                        <th style="width:12%;">行動電話</th>
+                        <th style="width:18%;">緊急聯絡人</th>
+                        <th class="td-actions">功能</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-profiles"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // ------- 共用小工具 -------
+        function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m])); }
+        function show(v, dash=false){ return v && v.trim() ? escapeHtml(v) : (dash ? '-' : ''); }
+
+        // ------- Tabs 切換 + lazy load -------
+        let profilesLoaded = false;
+        document.querySelectorAll('#tabs .tab').forEach(t => {
+          t.addEventListener('click', () => {
+            document.querySelectorAll('#tabs .tab').forEach(s => s.classList.remove('active'));
+            t.classList.add('active');
+            const key = t.getAttribute('data-tab');
+            document.getElementById('pane-records').style.display = key==='records' ? 'block' : 'none';
+            document.getElementById('pane-profile').style.display = key==='profile' ? 'block' : 'none';
+            if (key === 'profile' && !profilesLoaded) loadProfiles();
+          });
+        });
+
+        // ------- 代理紀錄（你原本的 fetch，這裡放簡化版） -------
+        (function loadRecords(){
+          fetch('/Agents/Records', { cache:'no-store' })
+            .then(r => r.json())
+            .then(rows => {
+              const tb = document.getElementById('tbody-records'); tb.innerHTML='';
+              rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                  `<td>${show(r.agentName)}</td>
+                   <td>${show(r.period)}</td>
+                   <td>${show(r.principalName)}</td>
+                   <td>${show(r.reason)}</td>
+                   <td>${r.tripCount}</td>
+                   <td>${r.distanceKm}</td>
+                   <td class="td-actions">
+                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="alert('明細 #${r.id}')">
+                        <i class="fa-regular fa-eye"></i>
+                      </a>
+                   </td>`;
+                tb.appendChild(tr);
+              });
+            });
+        })();
+
+        // ------- ✅ 代理人員基本資料（lazy load） -------
+        function loadProfiles(){
+          fetch('/Agents/Profiles', { cache:'no-store' })
+            .then(r => r.json())
+            .then(rows => {
+              const tb = document.getElementById('tbody-profiles'); tb.innerHTML='';
+              rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                  `<td>${show(r.name)}</td>
+                   <td>${show(r.nationalId)}</td>
+                   <td>${show(r.birthRoc)}</td>
+                   <td>${show(r.household)}</td>
+                   <td>${show(r.contact)}</td>
+                   <td>${show(r.phone, true)}</td>
+                   <td>${show(r.mobile)}</td>
+                   <td>${show(r.emergency)}</td>
+                   <td class="td-actions">
+                      <a class="icon-btn" title="檢視" href="/Drivers/Details/${r.id}">
+                        <i class="fa-regular fa-eye"></i>
+                      </a>
+                      <a class="icon-btn" title="編輯" href="/Drivers/Edit/${r.id}">
+                        <i class="fa-regular fa-pen-to-square"></i>
+                      </a>
+                   </td>`;
+                tb.appendChild(tr);
+              });
+              profilesLoaded = true;
+            });
+        }
+    </script>
+}

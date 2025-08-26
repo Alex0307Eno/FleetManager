@@ -15,6 +15,9 @@ namespace Cars
             // DbContext
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            //「長地址」轉成「簡稱（Alias）」服務
+            builder.Services.AddScoped<PlaceAliasService>();
+
 
             // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));

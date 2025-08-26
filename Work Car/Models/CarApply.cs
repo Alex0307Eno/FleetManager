@@ -17,14 +17,14 @@ namespace Cars.Models
         public string? VehicleType { get; set; }
         public string? PurposeType { get; set; }
         public int PassengerCount { get; set; }
-
+        [Required]
         public DateTime UseStart { get; set; }
+        [Required]
         public DateTime UseEnd { get; set; }
 
         public int? DriverId { get; set; }  
         public string? ReasonType { get; set; }
         public string? ApplyReason { get; set; }
-        public int Seats { get; set; }
         public string? Origin { get; set; }
         public string? Destination { get; set; }
         public string? TripType { get; set; }

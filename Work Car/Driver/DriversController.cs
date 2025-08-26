@@ -2,13 +2,13 @@
 
 namespace Cars.driver
 {
-    public class DriverController : Controller
+    public class DriversController : Controller
     {
         public IActionResult Schedule()
         {
             return View();
         }
-        public IActionResult Driver()
+        public IActionResult Index()
         {
             return View();
         }
@@ -22,6 +22,11 @@ namespace Cars.driver
             return View();
         }
         public IActionResult Edit()
+        {
+            return View();
+        }
+
+        public IActionResult Agent()
         {
             return View();
         }

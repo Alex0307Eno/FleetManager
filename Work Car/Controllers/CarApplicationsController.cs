@@ -154,5 +154,37 @@ namespace Cars.Controllers
 
             return Ok(new { message = "刪除成功" });
         }
+
+        [HttpGet("Search")]
+        public async Task<IActionResult> Search(
+    string origin,
+    string destination,
+    [FromServices] PlaceAliasService aliasService)
+        {
+            var q = _context.CarApplications.AsQueryable();
+
+           
+
+            // 起點
+            if (!string.IsNullOrWhiteSpace(origin))
+            {
+                var realOrigin = await aliasService.ResolveAsync(origin);
+                q = q.Where(a => a.Origin.Contains(realOrigin));
+            }
+
+            // 終點
+            if (!string.IsNullOrWhiteSpace(destination))
+            {
+                var realDest = await aliasService.ResolveAsync(destination);
+                q = q.Where(a => a.Destination.Contains(realDest));
+            }
+
+            var list = await q
+                .OrderByDescending(a => a.ApplyId)
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
     }
 }

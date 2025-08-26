@@ -1,0 +1,158 @@
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Cars.Data;
+using System.Globalization;
+
+namespace Cars.Controllers
+{
+    [Route("Vehicles")]
+    public class VehiclesController : Controller
+    {
+        private readonly ApplicationDbContext _db;
+        public VehiclesController(ApplicationDbContext db) => _db = db;
+
+        // 頁面：行車歷程統計（表格）
+        [HttpGet("Statistics")]
+        public IActionResult Statistics() => View();
+
+        // 頁面：行車歷程統計圖（保留）
+        [HttpGet("FuelStatsChart")]
+        public IActionResult FuelStatsChart() => View();
+
+        // API：行車歷程清單（查詢 + 回傳 JSON）
+        [HttpGet("TripStats")]
+        public async Task<IActionResult> TripStats(
+            DateTime? dateFrom, DateTime? dateTo,
+            int? driverId, string? plate, string? applicant, string? dept)
+        {
+            var q = _db.CarApplications
+                .Include(x => x.DispatchOrders)
+                .Include(x => x.Passengers)
+                .AsNoTracking()
+                .Select(x => new
+                {
+                    id = x.ApplyId,
+                    driveDate = x.UseStart.Date,
+                    driverId = x.DispatchOrders
+                    .Select(d => d.Driver.DriverId)
+                    .FirstOrDefault(),
+                    driverName = x.DispatchOrders
+                        .Select(d => d.Driver.DriverName)
+                        .FirstOrDefault(), 
+                    plateNo = x.DispatchOrders
+                        .Select(d => d.Vehicle.PlateNo)
+                        .FirstOrDefault(),
+                    applicantDept = x.ApplicantDept,
+                    applicantName = x.ApplicantName,
+                    km = ParseKm(x.SingleDistance, x.RoundTripDistance),
+                    trips = 1,
+                    longShort = x.TripType == "single" ? "短差" :
+                                x.TripType == "round" ? "長差" : "未知"
+                });
+
+            // 篩選條件
+            if (dateFrom.HasValue) q = q.Where(x => x.driveDate >= dateFrom.Value.Date);
+            if (dateTo.HasValue) q = q.Where(x => x.driveDate <= dateTo.Value.Date);
+            if (driverId.HasValue) q = q.Where(x => x.driverId == driverId.Value);
+            if (!string.IsNullOrWhiteSpace(plate)) q = q.Where(x => x.plateNo != null && x.plateNo.Contains(plate));
+            if (!string.IsNullOrWhiteSpace(applicant)) q = q.Where(x => x.applicantName != null && x.applicantName.Contains(applicant));
+            if (!string.IsNullOrWhiteSpace(dept)) q = q.Where(x => x.applicantDept != null && x.applicantDept.Contains(dept));
+
+            var list = await q
+                .OrderBy(x => x.driveDate)
+                .ThenBy(x => x.driverName)
+                .ThenBy(x => x.plateNo)
+                .ToListAsync();
+
+            // 統一格式
+            var result = list.Select(x => new
+            {
+                x.id,
+                x.driveDate,
+                x.driverName,
+                x.plateNo,
+                x.applicantDept,
+                x.applicantName,
+                km = Math.Round(x.km, 0),
+                x.trips,
+                x.longShort
+            });
+
+            return Json(result);
+        }
+
+        // 小工具：解析公里數
+        private static double ParseKm(string? single, string? round)
+        {
+            if (decimal.TryParse(round, out var r)) return (double)r;
+            if (decimal.TryParse(single, out var s)) return (double)s;
+            return 0;
+        }
+        [HttpGet("ChartData")]
+        public async Task<IActionResult> ChartData(DateTime? dateFrom, DateTime? dateTo, string type = "long")
+        {
+            // 1) 先把原始單據抓出來（含派工 -> 取 DriverName / PlateNo）
+            var q = _db.CarApplications
+                .Include(x => x.DispatchOrders).ThenInclude(d => d.Driver)
+                .Include(x => x.DispatchOrders).ThenInclude(d => d.Vehicle)
+                .AsNoTracking();
+
+            if (dateFrom.HasValue) q = q.Where(x => x.UseStart.Date >= dateFrom.Value.Date);
+            if (dateTo.HasValue) q = q.Where(x => x.UseStart.Date <= dateTo.Value.Date);
+
+            // 長差/短差：你的資料欄 TripType = "round" 表長差；"single" 表短差
+            if (string.Equals(type, "long", StringComparison.OrdinalIgnoreCase))
+                q = q.Where(x => x.TripType == "round");
+            else if (string.Equals(type, "short", StringComparison.OrdinalIgnoreCase))
+                q = q.Where(x => x.TripType == "single");
+
+            // 2) 先投影為可計算的基本欄位（里程用字串，等會在記憶體解析）
+            var raw = await q.Select(x => new
+            {
+                Driver = x.DispatchOrders.Select(d => d.Driver.DriverName).FirstOrDefault(),
+                Plate = x.DispatchOrders.Select(d => d.Vehicle.PlateNo).FirstOrDefault(),
+                Single = x.SingleDistance,
+                Round = x.RoundTripDistance
+            }).ToListAsync();
+
+            // 3) 解析里程（字串 -> double）。Round > Single
+            double ParseKm(string? single, string? round)
+            {
+                if (decimal.TryParse(round, NumberStyles.Any, CultureInfo.InvariantCulture, out var r)) return (double)r;
+                if (decimal.TryParse(single, NumberStyles.Any, CultureInfo.InvariantCulture, out var s)) return (double)s;
+                return 0;
+            }
+
+            // 4) 彙整：駕駛
+            var driverAgg = raw
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Driver) ? "—" : x.Driver)
+                .Select(g => new
+                {
+                    name = g.Key,
+                    km = g.Sum(v => ParseKm(v.Single, v.Round)),
+                    trips = g.Count()
+                })
+                .OrderByDescending(x => x.km)
+                .Take(8)    // 取前 8 名（可調）
+                .ToList();
+
+            // 5) 彙整：車牌
+            var plateAgg = raw
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Plate) ? "—" : x.Plate)
+                .Select(g => new
+                {
+                    name = g.Key,
+                    km = g.Sum(v => ParseKm(v.Single, v.Round)),
+                    trips = g.Count()
+                })
+                .OrderByDescending(x => x.km)
+                .Take(8)
+                .ToList();
+
+            return Json(new { drivers = driverAgg, vehicles = plateAgg });
+        }
+    }
+}

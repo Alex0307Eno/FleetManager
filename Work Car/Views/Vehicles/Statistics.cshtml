@@ -1,0 +1,378 @@
+﻿@{
+    ViewData["Title"] = "行車歷程統計";
+    Layout = "_Layout";
+}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<style>
+    .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 16px
+    }
+    /* --- 外框與卡片 --- */
+    .wrap {
+        max-width: 1200px;
+        margin: 18px auto;
+        padding: 0 16px;
+    }
+
+    .card {
+        background: #fff;
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(16,24,40,.08);
+    }
+
+    .card-hd {
+        padding: 12px 16px;
+        border-bottom: 1px solid #dbeafe;
+        font-weight: 700;
+    }
+
+    .card-bd {
+        padding: 12px 16px;
+    }
+    /* --- 頁首＋分頁籤 --- */
+    .page-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #1e3a8a;
+        display: flex;
+        align-items: center;
+        gap: 12px
+    }
+
+    .tabs {
+        display: flex;
+        gap: 8px;
+        margin-top: 14px
+    }
+
+    .tab {
+        padding: 10px 18px;
+        border: 1px solid #dbeafe;
+        border-radius: 10px;
+        background: #f4f7ff;
+        color: #467DAB;
+        cursor: pointer
+    }
+
+        .tab.active {
+            color: #fff;
+            background: #467DAB;
+            border-bottom-color: #fff;
+            box-shadow: 0 -2px 0 0 #fff inset
+            
+        }
+
+    .line {
+        height: 1px;
+        background: #dbeafe;
+        margin: 14px 0
+    }
+    /* --- 篩選列 --- */
+    .filters {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: #eaf4ff;
+        border: 1px solid #dbeafe;
+        border-radius: 10px;
+        padding: 10px
+    }
+
+        .filters .chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid #dbeafe;
+            border-radius: 999px;
+            padding: 6px 10px
+        }
+
+        .filters input, .filters select {
+            border: 0;
+            outline: 0;
+            background: transparent;
+            font-size: 14px;
+            min-width: 140px
+        }
+
+        .filters .spacer {
+            flex: 1 1 auto
+        }
+
+        .filters .chip.date-range {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border: 1px solid #dbeafe;
+            background: #fff;
+            border-radius: 999px;
+        }
+
+            .filters .chip.date-range label {
+                font-size: 13px;
+                color: #334155;
+                font-weight: 600;
+                margin-right: 4px;
+            }
+
+            .filters .chip.date-range input[type="date"] {
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                padding: 4px 6px;
+                font-size: 13px;
+                background: #f9fafb;
+                min-width: 130px;
+            }
+
+            .filters .chip.date-range span.dash {
+                color: #64748b;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+    .search-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid #c7d2fe;
+        background: #fff;
+        color: #1e40af;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer
+    }
+    /* --- 表格 --- */
+    .table-wrap {
+        overflow: auto
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0
+    }
+
+    thead th {
+        background: #e0edff;
+        color: #334155;
+        text-align: left;
+        font-size: 13px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #dbeafe;
+        position: sticky;
+        top: 0;
+        z-index: 1
+    }
+
+    tbody td {
+        padding: 12px;
+        border-bottom: 1px solid #eef2ff;
+        font-size: 14px
+    }
+
+    tbody tr:nth-child(2n) {
+        background: #fcfcff
+    }
+
+    tfoot td {
+        padding: 12px;
+        background: #f8fbff;
+        border-top: 1px solid #dbeafe;
+        font-weight: 800
+    }
+
+    .mono {
+        font-variant-numeric: tabular-nums
+    }
+
+    .badge {
+        display: inline-block;
+        border: 1px solid #c7d2fe;
+        background: #eef2ff;
+        color: #1e40af;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+        font-weight: 600
+    }
+
+    .right {
+        display: flex;
+        justify-content: flex-end
+    }
+</style>
+<div class="topbar">
+    <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 行車歷程統計</h2>
+
+</div>
+<div id="app" class="wrap" v-cloak>
+    <!-- 頁首 -->
+    <div>
+        
+
+        <!-- 分頁籤 -->
+        <div class="tabs">
+            <a class="tab active" href="javascript:;">行車歷程</a>
+            <a class="tab" href="javascript:;" @@click ="goChart">統計圖</a>
+        </div>
+        <div class="line"></div>
+    </div>
+
+    <!-- 篩選列 -->
+    <div class="filters">
+        <div class="chip date-range">
+            
+            <input type="date" v-model="q.dateFrom">
+            <span class="dash">~</span>
+            <input type="date" v-model="q.dateTo">
+        </div>
+
+
+        <div class="chip">
+            <select v-model="q.driverId" @@change ="reload">
+                <option :value="null">駕駛人（全部）</option>
+                <option v-for="d in drivers" :key="d.id" :value="d.id">{{ d.name }}</option>
+            </select>
+        </div>
+
+
+        <div class="chip">
+            <input type="text" v-model.trim="q.plate" placeholder="車輛車號">
+        </div>
+
+        <div class="chip">
+            <input type="text" v-model.trim="q.applicant" placeholder="申請人">
+        </div>
+
+        <div class="chip">
+            <input type="text" v-model.trim="q.dept" placeholder="申請單位">
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="search-btn" title="查詢" @@click ="reload">
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+    </div>
+
+    <!-- 表格 -->
+    <div class="card" style="margin-top:14px">
+        <div class="card-bd table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:120px">行車日期</th>
+                        <th style="width:120px">駕駛人</th>
+                        <th style="width:120px">車輛車號</th>
+                        <th style="width:160px">申請單位</th>
+                        <th style="width:140px">申請人</th>
+                        <th style="width:100px">行駛里程</th>
+                        <th style="width:100px">行駛趟次</th>
+                        <th style="width:110px">長差/短差</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="r in rows" :key="r.id">
+                        <td class="mono">{{ rocDate(r.driveDate) }}</td>
+                        <td>{{ r.driverName }}</td>
+                        <td><span class="badge">{{ r.plateNo }}</span></td>
+                        <td>{{ shortDept(r.applicantDept) }}</td>
+                        <td>{{ r.applicantName }}</td>
+                        <td class="mono">{{ r.km }}</td>
+                        <td class="mono">{{ r.trips }}</td>
+                        <td>{{ r.longShort || '—' }}</td>
+                    </tr>
+                    <tr v-if="!rows.length">
+                        <td colspan="8" style="text-align:center;color:#94a3b8;padding:16px">目前沒有資料</td>
+                    </tr>
+                </tbody>
+                <tfoot v-if="rows.length">
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td colspan="5" class="right">總計</td>
+                        <td class="mono">{{ sumKm }}</td>
+                        <td class="mono">{{ sumTrips }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        createApp({
+          setup(){
+             function shortDept(dept){
+              if(!dept) return '';
+              const parts = dept.split('/').map(x => x.trim()).filter(Boolean);
+              if(parts.length <= 2) return dept; // 如果本來就只有兩段，就照原樣顯示
+              return `${parts[0]} / ${parts[parts.length-1]}`; // 第一段 + 最後一段
+            }
+
+            const pad = n => String(n).padStart(2,'0');
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+             
+            const q = ref({
+              dateFrom: 'todayStr', dateTo: 'todayStr',
+              driverId: null, plate: '', applicant: '', dept: ''
+            });
+            const rows = ref([]);
+            const drivers = ref([]); // 下拉來源
+
+            const rocDate = (d)=>{
+              const x = new Date(d); if (isNaN(x)) return '';
+              return `${x.getFullYear()-1911}/${pad(x.getMonth()+1)}/${pad(x.getDate())}`;
+            };
+
+            const sumKm = computed(()=> rows.value.reduce((a,b)=>a + (Number(b.km)||0), 0));
+            const sumTrips = computed(()=> rows.value.reduce((a,b)=>a + (Number(b.trips)||0), 0));
+
+            async function reload(){
+              const res = await axios.get('/Vehicles/TripStats', { params:{
+                dateFrom: q.value.dateFrom || null,
+                dateTo: q.value.dateTo || null,
+                driverId: q.value.driverId || null,
+                plate: q.value.plate || null,
+                applicant: q.value.applicant || null,
+                dept: q.value.dept || null
+              }});
+              rows.value = res.data || [];
+            }
+
+            async function loadDrivers(){
+              // 從你現有 Drivers API 取清單（可改成 /Drivers/Records）
+              const res = await axios.get('/Drivers/Records');
+              drivers.value = (res.data || []).map(x=>({ id:x.driverId||x.id, name:x.driverName||x.name }));
+            }
+
+            function goChart(){ window.location.href = '/Vehicles/FuelStatsChart'; }
+
+            onMounted(async ()=>{
+              await loadDrivers();
+              await reload();
+            });
+
+            return { q, rows, drivers, reload, rocDate, sumKm, sumTrips, goChart, shortDept };
+          }
+        }).mount('#app');
+    </script>
+}

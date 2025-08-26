@@ -1,93 +1,110 @@
-﻿html {
-  font-size: 14px;
-}
-
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
-}
-
-body {
-  margin-bottom: 60px;
-}
-.brand {
-    font-weight: 700;
-    letter-spacing: .5px
-}
-
+﻿/* 頂部列 */
 .topbar {
-    background: #ffffff; /* 白底 */
-    border-bottom: 1px solid #e5e7eb;
-}
-
-    .topbar .brand {
-        font-size: 20px;
-        color: #0d6efd; /* 藍色 */
-        text-decoration: none;
-    }
-
-.nav .nav-link {
-    display: inline-block;
-    width: 80px; /* 固定寬度，依需求調整 */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* 超過字數顯示省略號 */
-}
-
-    .nav .nav-link:hover {
-        color: #0d6efd; /* 藍色 hover */
-        background: #f3f4f6;
-        border-radius: 6px;
-    }
-
-.dropdown-menu {
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-/* 讓 dropdown 和上方按鈕對齊同寬 */
-.nav-item {
-    position: relative;
-}
-
-    /* 讓下拉選單寬度和上方按鈕一致 */
-    .nav-item .dropdown-menu {
-        min-width: 100%;
-        width: 100%;
-        left: 0;
-        right: auto;
-        box-sizing: border-box;
-    }
-
-/* 美化導覽列 */
-.topbar {
+    background: linear-gradient(90deg,#3c6f97 0%, #407aa7 100%);
+    color: #fff;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
     font-size: 15px;
-    z-index: 1050; /* 確保永遠浮在最上層 */
+    z-index: 1050;
 }
 
-    .topbar .nav-link {
-        color: #333;
-        font-weight: 500;
+/* 左邊品牌 */
+.navbar-brand {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    color: #fff !important;
+    text-decoration: none;
+}
+
+/* 主選單 */
+.navbar .nav-link {
+    color: #fff !important;
+    font-weight: 500;
+    padding: 8px 12px;
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+    .navbar .nav-link:hover {
+        color: #fff !important;
+        background: rgba(255,255,255,0.15);
+        border-radius: 4px;
     }
 
-        .topbar .nav-link:hover,
-        .topbar .dropdown-menu .dropdown-item:hover {
-            background-color: #f1f5f9;
-            color: #1e40af;
-        }
+    /* 橘色底線 (目前頁面) */
+    .navbar .nav-link.is-active::after {
+        content: "";
+        position: absolute;
+        left: 0%;
+        right: 15%;
+        bottom: 0px;
+        width: 80px;
+        height: 4px;
+        background: #f59e0b;
+        border-radius: 2px;
+    }
 
-/* 下拉選單圓角 + 陰影 */
-.dropdown-menu {
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+/* 下拉選單 */
+.navbar .dropdown-menu {
+    background: #2c4c6f;
+    width: auto;
+    min-width: unset;
+    padding: 4px 0;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
 }
 
+.navbar .dropdown-item {
+    font-size: 14px;
+    padding: 6px 14px;
+    line-height: 1.5;
+    white-space: nowrap;
+    color: #fff !important;
+}
+
+    .navbar .dropdown-item:hover {
+        background-color: rgba(255,255,255,0.15);
+        color: #fff !important;
+    }
+
+/* 修正 overflow */
+.navbar, .navbar .container, .navbar .navbar-collapse {
+    overflow: visible !important;
+}
+[v-cloak] {
+    display: none;
+}
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px
+}
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #ddd;
+    border-top: 5px solid #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}

@@ -2,13 +2,21 @@
 
 namespace Cars.Vehicle
 {
-    public class VehicleController : Controller
+    public class VehiclesController : Controller
     {
         public IActionResult Maintenance()
         {
             return View();
         }
         public IActionResult FuelStats()
+        {
+            return View();
+        }
+        public IActionResult Statistics()
+        {
+            return View();
+        }
+        public IActionResult FuelStatsChart()
         {
             return View();
         }
