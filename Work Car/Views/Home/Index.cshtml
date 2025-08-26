@@ -744,7 +744,6 @@
               </svg>`;
           }
 
-          // 取代舊的 renderMyMaps（❌ 不用 mapId，✅ 用 styles；待機：變暗 & 不放 marker）
           async function renderMyMaps(){
             try{
               await loadGoogleMaps();
@@ -910,34 +909,70 @@
                 return d;
               };
 
-              const scheduleToDriverRow = (x) => {
-                const onDuty = !!x.hasDispatch;
-                const stateText = onDuty ? '執勤中' : '待命中';
-                const stateDotClass = onDuty ? 'status-red' : 'status-green';
+                      const scheduleToDriverRow = (x) => {
+          // 先安全轉成 Date
+          const st = x && x.startTime ? new Date(x.startTime) : null;
+          const et = x && x.endTime   ? new Date(x.endTime)   : null;
 
-                const st = x.startTime ? new Date(x.startTime) : null;
-                const et = x.endTime   ? new Date(x.endTime)   : null;
+          const pad = (n) => n.toString().padStart(2,'0');
+          const fmtHHmm = (d) => {
+            if (!d) return '';
+            const dt = (d instanceof Date) ? new Date(d) : new Date(d);
+            if (isNaN(dt)) return '';
+            return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+          };
 
-                const taskWindow = (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '';
-                const etaBack    = et ? fmtHHmm(et) : '';
-                const earliestOut= et ? fmtHHmm(addMinutes(et, 15)) : (onDuty? '-' : '');
+          // 時間到就不再視為執勤
+          const now = new Date();
+          const expired = (et instanceof Date) && !isNaN(et) && now >= et;
+          const onDuty  = !!x?.hasDispatch && !expired;
 
-                const attendance = x.leaveNote ? '請假' : '正常';
-                const note = x.leaveNote || '';
+          const stateText    = onDuty ? '執勤中' : '待命中';
+          const stateDotClass= onDuty ? 'status-red' : 'status-green';
 
-                return {
-                  key: x.key || `${x.driverName || 'D'}_${x.shiftLabel || ''}`,
-                  driverName: x.driverName ?? '-',
-                  shiftLabel: x.shiftLabel || '一般',
-                  shiftClass: x.shiftClass || 'general',
-                  stateText, stateDotClass,
-                  taskWindow,
-                  etaBack,
-                  earliestOut,
-                  attendance,
-                  note
-                };
+          // 預設（非執勤）→ 全部恢復原狀
+          let taskWindow   = '';
+          let etaBack      = '';
+          let earliestOut  = '即時可用';
+
+          // 只有執勤中才帶入任務視窗/回來時間/最早可出車時間
+          if (onDuty) {
+            if (st instanceof Date && !isNaN(st) && et instanceof Date && !isNaN(et)) {
+              taskWindow = `${fmtHHmm(st)}-${fmtHHmm(et)}`;
+              etaBack    = fmtHHmm(et);
+
+              // 你原本邏輯：結束後 15 分鐘才能再出
+              const addMinutes = (d, mins) => {
+                const t = new Date(d); t.setMinutes(t.getMinutes() + (mins || 0)); return t;
               };
+              earliestOut = fmtHHmm(addMinutes(et, 15));
+            } else {
+              // 有執勤但沒時間資料時，保守顯示
+              taskWindow  = '';
+              etaBack     = '';
+              earliestOut = '-';
+            }
+          }
+
+          const attendance = x?.leaveNote ? '請假' : '正常';
+          const note = x?.leaveNote || '';
+
+          return {
+            key: x?.key || `${x?.driverName || 'D'}_${x?.shiftLabel || ''}`,
+            driverId: x?.driverId ?? null,
+            driverName: x?.driverName ?? '-',
+            shiftLabel: x?.shiftLabel || '一般',
+            shiftClass: x?.shiftClass || 'general',
+            stateText,
+            stateDotClass,
+            taskWindow,   // ← 當前任務
+            etaBack,      // ← 預計回來時間
+            earliestOut,  // ← 最早可出車時間
+            attendance,
+            note
+          };
+        };
+
 
               const driverStatus = computed(()=>{
                 const rows = (schedules.value || []).map(scheduleToDriverRow);
@@ -983,7 +1018,13 @@
                 console.log('open fleet status');
               }
 
-              onMounted(loadAll);
+                      onMounted(() => {
+                  loadAll();
+                  setInterval(() => {
+                    loadAll();  // 每分鐘重抓一次資料，確保狀態更新
+                  }, 60 * 1000);
+                });
+
 
               return {
                 // 視圖

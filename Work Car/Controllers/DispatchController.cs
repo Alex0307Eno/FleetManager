@@ -59,6 +59,26 @@ namespace Cars.Controllers
             _db.SaveChanges();
             return Ok(new { message = "指派成功" });
         }
+
+        [HttpGet("/api/vehicles/list")]
+        public IActionResult GetVehicles()
+        {
+            var vehicles = _db.Vehicles
+                .Select(v => new
+                {
+                    vehicleId = v.VehicleId,
+                    plateNo = v.PlateNo,
+                    // 判斷是否已被派車 (車輛已經被某張申請單指派)
+                    isAssigned = _db.Dispatches.Any(d => d.VehicleId == v.VehicleId
+                                                       && d.CarApply.Status == "審核中"),
+                    inUse = _db.Dispatches.Any(d => d.VehicleId == v.VehicleId
+                                                  && d.CarApply.Status == "進行中")
+                })
+                .ToList();
+
+            return Ok(vehicles);
+        }
+
     }
 
     public class AssignDto

@@ -23,7 +23,8 @@ namespace Cars.Models
 
         // 導覽屬性
         [ForeignKey("ApplyId")]
-        public virtual CarApply? Application { get; set; }
+        public CarApply CarApply { get; set; }
+
 
         public virtual Vehicle? Vehicle { get; set; }
         public virtual Driver? Driver { get; set; }

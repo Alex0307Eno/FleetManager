@@ -1,4 +1,5 @@
 ﻿@* Views/Dispatch/Index.cshtml *@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -221,6 +222,13 @@
             border-collapse: separate;
             border-spacing: 0;
         }
+
+        th {
+            white-space: nowrap; /* 不換行 */
+            overflow: hidden; /* 超出隱藏 */
+            text-overflow: ellipsis; /* 超出顯示省略號，可選 */
+        }
+
 
         thead th {
             text-align: left;
@@ -590,14 +598,14 @@
                   id: x.id ?? Math.random().toString(16).slice(2),
                   useStart: x.useStart ?? x.start ?? new Date(),
                   useEnd:   x.useEnd   ?? x.end   ?? new Date(Date.now()+60*60*1000),
-                  route:    x.route ?? `${x.origin ?? '林業署'} - ${x.destination ?? '農業部'}`,
-                  reason:   x.reason ?? x.applyReason ?? '(公務用)公文交換',
-                  applicant: x.applicant ?? x.applicantName ?? '何○○、陳○○',
-                  seats: Number(x.seats ?? x.passengerCount ?? 1),
-                  km: Number(x.km ?? x.tripDistance ?? 8),
-                  status: x.status ?? '完成審核',
-                  driver: x.driver ?? x.driverName ?? '吳○祥',
-                  plate: x.plate ?? x.plateNo ?? '2061',
+                  route:    x.route ?? `${x.origin} - ${x.destination}`,
+                  reason:   x.reason ?? x.applyReason,
+                  applicant: x.applicant ?? x.applicantName,
+                  seats: Number(x.seats ?? x.passengerCount),
+                  km: Number(x.km ?? x.tripDistance ?? 0),
+                  status: x.status ,
+                  driver: x.driver ?? x.driverName,
+                  plate: x.plate ?? x.plateNo,
                   longShort: x.longShort ?? (Math.random()>0.5 ? '長差':'短差')
                 }
               }

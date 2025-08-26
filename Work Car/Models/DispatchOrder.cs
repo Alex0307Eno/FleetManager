@@ -15,17 +15,16 @@ namespace Cars.Models
         public string? ApplicantDept { get; set; }
         public int? PassengerCount { get; set; }
 
-        // ⚠️ 改成 string，避免 InvalidCastException
         public string? UseDate { get; set; }
         public string? UseTime { get; set; }
 
         public string? Route { get; set; }
         public string? Reason { get; set; }
 
-        // ⚠️ TripDistance 也建議用 string，因為可能存 "12 公里"
         public string? TripDistance { get; set; }
 
         public string? TripType { get; set; }
         public string? Status { get; set; }
+        public Vehicle Vehicle { get; set; }
     }
 }

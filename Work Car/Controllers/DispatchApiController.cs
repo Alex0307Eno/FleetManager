@@ -85,10 +85,8 @@ namespace Cars.Controllers.Api
                 Applicant = x.ApplicantName,
                 Seats = x.PassengerCount,
                 Km = x.TripType == "single"
-                        ? (decimal.TryParse(x.SingleDistance, out var s) ? s : (decimal?)null)
-                        : x.TripType == "round"
-                            ? (decimal.TryParse(x.RoundTripDistance, out var r) ? r : (decimal?)null)
-                            : null,
+                ? ParseDistance(x.SingleDistance):x.TripType == "round"
+                ? ParseDistance(x.RoundTripDistance):0,
                 Status = x.Status,
                 Driver = x.DriverName,
                 Plate = x.PlateNo,
@@ -99,8 +97,18 @@ namespace Cars.Controllers.Api
 
             return Ok(rows);
         }
+        // 小工具：從字串中抓出數字部分
+        private static decimal ParseDistance(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return 0;
+
+            // 把非數字、小數點的字元移掉，只留下數字
+            var cleaned = new string(input.Where(c => char.IsDigit(c) || c == '.').ToArray());
+
+            return decimal.TryParse(cleaned, out var value) ? value : 0;
+        }
 
 
-        
+
     }
 }
