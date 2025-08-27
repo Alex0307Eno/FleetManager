@@ -13,6 +13,7 @@ namespace Cars.Controllers.Api
         private readonly ApplicationDbContext _db;
         public DispatchApiController(ApplicationDbContext db) => _db = db;
 
+
         [HttpGet("records")]
         public async Task<ActionResult<IEnumerable<RecordDto>>> GetRecords(
             [FromQuery] DateTime? dateFrom,
@@ -21,6 +22,8 @@ namespace Cars.Controllers.Api
             [FromQuery] string? applicant,
             [FromQuery] string? plate)
         {
+
+
             var q =
          from d in _db.Dispatches.AsNoTracking()
          join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId
@@ -37,9 +40,9 @@ namespace Cars.Controllers.Api
              a.ApplyReason,
              a.ApplicantName,
              a.PassengerCount,
-             a.TripType,            // 'single' | 'round'
-             a.SingleDistance,      // 可能是字串
-             a.RoundTripDistance,   // 可能是字串
+             a.TripType,            
+             a.SingleDistance,      
+             a.RoundTripDistance,   
              a.Status,
              r.DriverName,
              v.PlateNo
@@ -147,28 +150,47 @@ namespace Cars.Controllers.Api
         public class UpdateStatusDto
         {
             public string DispatchStatus { get; set; } = "";
+            public string? Status { get; set; }
         }
 
+        
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
         {
+            var newStatus = (dto.DispatchStatus ?? dto.Status ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(newStatus))
+                return BadRequest(new { message = "缺少狀態（status/dispatchStatus）" });
+
             var dispatch = await _db.Dispatches.FindAsync(id);
             if (dispatch == null) return NotFound();
 
-            // 更新派工表
-            dispatch.DispatchStatus = dto.DispatchStatus;
+            dispatch.DispatchStatus = newStatus;
 
-            // 同步更新：對應的申請單狀態（這就是前端表格在看/顯示的 status）
             var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == dispatch.ApplyId);
-            if (app != null)
+            if (app != null) app.Status = newStatus;
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "更新成功", status = newStatus });
+        }
+
+        [HttpPut("application/{applyId}/status")]
+        public async Task<IActionResult> UpdateAppStatus(int applyId, [FromBody] UpdateStatusDto dto)
+        {
+            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
+            if (app == null) return NotFound();
+
+            app.Status = dto.DispatchStatus;
+
+            // 如果有對應的派工單，也一起更新
+            var dispatch = await _db.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == applyId);
+            if (dispatch != null)
             {
-                app.Status = dto.DispatchStatus;
+                dispatch.DispatchStatus = dto.DispatchStatus;
             }
 
             await _db.SaveChangesAsync();
-            return Ok(new { message = "更新成功", status = dispatch.DispatchStatus });
+            return Ok(new { message = "申請單狀態更新成功", status = app.Status });
         }
-
 
 
 

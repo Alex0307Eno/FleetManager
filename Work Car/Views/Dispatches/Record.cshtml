@@ -380,7 +380,42 @@
         .records .filters-bar {
             margin: 0 0 10px; /* 貼齊卡片邊，底下留空隙 */
         }
-        
+
+        .badge.s-approved {
+            background: var(--ok-bg);
+            border-color: var(--ok-br);
+            color: var(--ok)
+        }
+
+        .badge.s-review {
+            background: var(--info-bg);
+            border-color: var(--info-br);
+            color: var(--info)
+        }
+
+        .badge.s-wait {
+            background: var(--warn-bg);
+            border-color: var(--warn-br);
+            color: var(--warn)
+        }
+
+        .badge.s-muted {
+            background: #f1f5f9;
+            border-color: #e5e7eb;
+            color: #6b7280
+        }
+        /* 全欄位不換行 + 超出省略 */
+        table th, table td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* 只有路線可換行 */
+        td.col-route {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
 
     </style>
 </head>
@@ -459,12 +494,14 @@
                             <tr v-for="r in shown" :key="r.id">
                                 <td class="mono">{{ rocDate(r.useStart) }}</td>
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
-                                <td><div>{{ r.route }}</div></td>
-                                <td style="color:#475569">{{ r.reason }}</td>
+                                <td class="col-route"><div>{{ r.route }}</div></td>
+                                <td>
+                                    <span v-if="r.reasonType">({{ r.reasonType }}) </span>{{ r.reason }}
+                                </td>
                                 <td>{{ r.applicant }}</td>
                                 <td class="mono">{{ r.seats }}</td>
                                 <td class="mono">{{ fmtKm(r.km) }}</td>
-                                <td><span class="chip" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
+                                <td><span class="pill" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
                                 <td><span class="pill">{{ r.driver }}</span></td>
                                 <td><span class="pill blue">{{ r.plate }}</span></td>
                                 <td>
@@ -564,7 +601,7 @@
                 const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差']
                 const lines = shown.value.map(r=>[
                   rocDate(r.useStart), timeSpan(r.useStart, r.useEnd),
-                  r.route, r.reason, r.applicant, r.seats, r.km ?? '',
+                  r.route,r.reasonType, r.reason, r.applicant, r.seats, r.km ?? '',
                   r.status, r.driver, r.plate, r.longShort ?? ''
                 ].map(s=>`"${String(s??'').replaceAll('"','""')}"`).join(','))
                 const csv = [headers.join(','), ...lines].join('\r\n')

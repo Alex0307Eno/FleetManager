@@ -161,7 +161,7 @@ namespace Cars.Services
                     StartTime = useStart,
                     EndTime = useEnd,
                     CreatedAt = DateTime.UtcNow,
-                    DispatchStatus = "待派車"
+                    DispatchStatus = "已派車"
                 };
 
                 _db.Dispatches.Add(dispatch);

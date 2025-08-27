@@ -58,7 +58,7 @@ namespace Cars.Controllers
                         dis.StartTime.HasValue &&
                         dis.StartTime.Value.Date == today),
 
-                    // 取今天最早的一筆派工（你也可改成「進行中優先」的選法）
+                    // 取今天最早的一筆派工
                     startTime = _db.Dispatches
                         .Where(dis => dis.DriverId == s.DriverId &&
                                       dis.StartTime.HasValue &&
@@ -222,6 +222,7 @@ namespace Cars.Controllers
 
             var data = raw.Select(a => new
             {
+                applyId = a.ApplyId,
                 useDate = a.UseStart.ToString("yyyy-MM-dd"),
                 useTime = $"{a.UseStart:HH:mm}-{a.UseEnd:HH:mm}",
                 route = (a.Origin ?? "") + "-" + (a.Destination ?? ""),
