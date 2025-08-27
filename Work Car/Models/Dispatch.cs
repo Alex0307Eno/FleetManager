@@ -15,6 +15,8 @@ namespace Cars.Models
 
         // 派車狀態
         public string DispatchStatus { get; set; } = "待派車";
+        
+        public DateTime? DispatchTime { get; set; }
 
         // 時間
         public DateTime? StartTime { get; set; }

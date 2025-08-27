@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using DocumentFormat.OpenXml.InkML;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 
@@ -192,6 +193,45 @@ namespace Cars.Services
                     Message = $"派工例外：{ex.Message} ({ex.InnerException?.Message})"
                 };
             }
+        }
+        // 找出在 shift 這段期間「有班表」的一位駕駛（可加上車種/乘客數等條件）
+        public async Task<int?> FindOnDutyDriverIdAsync(DateTime useStart, DateTime useEnd)
+        {
+            var day = useStart.Date;
+
+            
+            List<string> BuildShiftChain(DateTime t)
+            {
+                var hhmm = t.TimeOfDay;
+                if (hhmm < TimeSpan.FromHours(11.5)) return new() { "AM", "G1", "G2", "G3" };
+                if (hhmm < TimeSpan.FromHours(13.5)) return new() { "PM", "G1", "G2", "G3" };
+                if (hhmm < TimeSpan.FromHours(17)) return new() { "PM", "G2", "G3", "G1" };
+                return new() { "PM", "G3", "G2", "G1" };
+            }
+
+            var chain = BuildShiftChain(useStart);
+
+            // 抓當日符合優先順序的班表，依 chain 排序
+            var daySchedules = (await _db.Schedules
+                .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
+                .AsNoTracking()
+                .ToListAsync())
+                .OrderBy(s => chain.IndexOf(s.Shift))
+                .ToList();
+
+            foreach (var s in daySchedules)
+            {
+                // 司機在該時段不可已有派遣（避免衝突）
+                var busy = await _db.Dispatches.AnyAsync(d =>
+                    d.DriverId == s.DriverId &&
+                    useStart < d.EndTime &&
+                    d.StartTime < useEnd);
+
+                if (!busy)
+                    return s.DriverId;
+            }
+
+            return null; // 找不到可用駕駛就回傳 null
         }
     }
 

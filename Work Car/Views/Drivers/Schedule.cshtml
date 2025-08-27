@@ -41,8 +41,8 @@
 
                         <!-- 平日才顯示排班 pill（週一=1 ... 週五=5）-->
                         <template v-if="cell.isWeekday">
-                            <div class="pill pill-dark">A：{{ who(codes.am[cell.weekIdx]) }}（{{ codes.am[cell.weekIdx] }}）</div>
-                            <div class="pill">B：{{ who(codes.pm[cell.weekIdx]) }}（{{ codes.pm[cell.weekIdx] }}）</div>
+                            <div class="pill pill-dark">{{ codes.am[cell.weekIdx] }}：{{ who(codes.am[cell.weekIdx]) }}</div>
+                            <div class="pill">{{ codes.pm[cell.weekIdx] }}：{{ who(codes.pm[cell.weekIdx]) }}</div>
                             <div class="help">● 長差第一順位：{{ codes.g3[cell.weekIdx] }}：{{ who(codes.g3[cell.weekIdx]) }}</div>
                         </template>
                     </div>
