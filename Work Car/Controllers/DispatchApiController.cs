@@ -2,6 +2,7 @@
 using Cars.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Cars.Controllers.Api
 {
@@ -32,6 +33,7 @@ namespace Cars.Controllers.Api
              a.UseEnd,
              a.Origin,
              a.Destination,
+             a.ReasonType,
              a.ApplyReason,
              a.ApplicantName,
              a.PassengerCount,
@@ -81,6 +83,7 @@ namespace Cars.Controllers.Api
                 UseEnd = x.UseEnd,
                 Route = string.Join(" - ", new[] { x.Origin, x.Destination }
                                         .Where(s => !string.IsNullOrWhiteSpace(s))),
+                ReasonType = x.ReasonType,
                 Reason = x.ApplyReason,
                 Applicant = x.ApplicantName,
                 Seats = x.PassengerCount,
@@ -97,6 +100,39 @@ namespace Cars.Controllers.Api
 
             return Ok(rows);
         }
+        // 🔹 查詢單筆
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetOne(int id)
+        {
+            var d = await _db.Dispatches
+                .AsNoTracking()
+                .Include(x => x.Vehicle)
+                .Include(x => x.Driver)
+                .Include(x => x.CarApply) // CarApplications
+                .FirstOrDefaultAsync(x => x.DispatchId == id);
+
+            if (d == null) return NotFound();
+
+            return Ok(new
+            {
+                d.DispatchId,
+                d.DispatchStatus,
+                d.StartTime,
+                d.EndTime,
+                d.CreatedAt,
+                Driver = d.Driver?.DriverName,
+                PlateNo = d.Vehicle?.PlateNo,
+                Applicant = d.CarApply?.ApplicantName,
+                ReasonType = d.CarApply?.ReasonType,
+                Reason = d.CarApply?.ApplyReason,
+                Origin = d.CarApply?.Origin,
+                Destination = d.CarApply?.Destination,
+                Seats = d.CarApply?.PassengerCount,
+                Status = d.CarApply?.Status
+            });
+        }
+
+
         // 小工具：從字串中抓出數字部分
         private static decimal ParseDistance(string? input)
         {
@@ -107,7 +143,47 @@ namespace Cars.Controllers.Api
 
             return decimal.TryParse(cleaned, out var value) ? value : 0;
         }
+        // 🔹 更新 (Update)
+        public class UpdateStatusDto
+        {
+            public string DispatchStatus { get; set; } = "";
+        }
 
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
+        {
+            var dispatch = await _db.Dispatches.FindAsync(id);
+            if (dispatch == null) return NotFound();
+
+            // 更新派工表
+            dispatch.DispatchStatus = dto.DispatchStatus;
+
+            // 同步更新：對應的申請單狀態（這就是前端表格在看/顯示的 status）
+            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == dispatch.ApplyId);
+            if (app != null)
+            {
+                app.Status = dto.DispatchStatus;
+            }
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "更新成功", status = dispatch.DispatchStatus });
+        }
+
+
+
+
+
+        // 🔹 刪除 (Delete)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var row = await _db.Dispatches.FindAsync(id);
+            if (row == null) return NotFound();
+
+            _db.Dispatches.Remove(row);
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "刪除成功" });
+        }
 
 
     }

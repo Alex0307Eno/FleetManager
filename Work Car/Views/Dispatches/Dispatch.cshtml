@@ -5,9 +5,8 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>派車單</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <style>
         :root {
             --bg: #f6f7fb;
@@ -15,22 +14,24 @@
             --border: #e5e7eb;
             --text: #1f2937;
             --muted: #6b7280;
-            --chip: #eef2f7;
             --primary: #1e6fb8;
-            --primary-600: #2b83d4;
             --shadow: 0 1px 3px rgba(16,24,40,.08);
             --ok: #16a34a;
             --ok-bg: #ecfdf5;
             --ok-br: #a7f3d0;
-            --warn: #92400e;
-            --warn-bg: #fffbeb;
-            --warn-br: #fde68a;
             --info: #1e3a8a;
             --info-bg: #eef2ff;
             --info-br: #c7d2fe;
+            --warn: #92400e;
+            --warn-bg: #fffbeb;
+            --warn-br: #fde68a;
             --danger: #b91c1c;
             --danger-bg: #fef2f2;
             --danger-br: #fecaca;
+        }
+
+        [v-cloak] {
+            display: none
         }
 
         * {
@@ -39,9 +40,9 @@
 
         body {
             margin: 0;
-            font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
             background: var(--bg);
-            color: var(--text)
+            color: var(--text);
+            font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif
         }
 
         .wrap {
@@ -50,44 +51,6 @@
             padding: 0 16px
         }
 
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 16px
-        }
-
-        th {
-            white-space: nowrap; /* 不換行 */
-            overflow: hidden; /* 超出隱藏 */
-            text-overflow: ellipsis; /* 超出顯示省略號，可選 */
-        }
-
-        /* top nav */
-        .topnav {
-            display: flex;
-            gap: 24px;
-            align-items: center;
-            padding: 12px 10px;
-            color: #64748b
-        }
-
-            .topnav a {
-                color: inherit;
-                text-decoration: none;
-                padding: 8px 12px;
-                border-radius: 8px
-            }
-
-                .topnav a.active {
-                    background: #e8f0fb;
-                    color: #1e3a8a;
-                    font-weight: 700
-                }
-
-        /* card */
         .card {
             background: var(--card);
             border: 1px solid var(--border);
@@ -103,15 +66,6 @@
             border-bottom: 1px solid var(--border)
         }
 
-            .card-hd .title {
-                font-weight: 700
-            }
-
-        .card-bd {
-            padding: 12px 16px
-        }
-
-        /* toolbar buttons */
         .btn {
             border: 1px solid var(--border);
             background: #fff;
@@ -126,17 +80,11 @@
             color: #fff
         }
 
-        .btn-ghost {
-            background: #fff
-        }
-
         .btn-warning {
             background: #facc15;
-            color: #111;
             border-color: #eab308
         }
 
-        /* filters bar */
         .filters {
             display: flex;
             flex-wrap: wrap;
@@ -157,11 +105,6 @@
             padding: 6px 8px
         }
 
-            .f-item label {
-                font-size: 13px;
-                color: #374151
-            }
-
             .f-item input, .f-item select {
                 border: 1px solid #cbd5e1;
                 border-radius: 6px;
@@ -169,29 +112,8 @@
                 background: #fff
             }
 
-        .f-search {
-            display: flex;
-            align-items: center;
-            background: #fff;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            overflow: hidden
-        }
+       
 
-            .f-search input {
-                border: 0;
-                outline: none;
-                padding: 8px 10px
-            }
-
-            .f-search button {
-                border: 0;
-                background: #fff;
-                padding: 8px 10px;
-                cursor: pointer
-            }
-
-        /* table */
         .table-wrap {
             overflow: auto
         }
@@ -202,6 +124,14 @@
             border-spacing: 0
         }
 
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px
+        }
         thead th {
             position: sticky;
             top: 0;
@@ -211,7 +141,8 @@
             text-align: left;
             font-weight: 600;
             color: #374151;
-            padding: 10px
+            padding: 10px;
+            white-space: nowrap
         }
 
         tbody td {
@@ -237,7 +168,6 @@
             font-variant-numeric: tabular-nums
         }
 
-        /* status chips */
         .badge {
             display: inline-flex;
             align-items: center;
@@ -274,7 +204,6 @@
                 color: #6b7280
             }
 
-        /* row actions (svg icons) */
         .row-actions {
             display: flex;
             gap: 6px
@@ -316,31 +245,119 @@
                 background: #eef2f7;
                 border: 1px solid var(--border)
             }
+
+        .modal-mask {
+            position: fixed;
+            z-index: 9998;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-container {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px 24px;
+            width: 360px;
+            max-width: 90%;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            animation: fadeIn .2s ease-out;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 4px;
+        }
+
+        .modal-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0 0 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+            .form-group label {
+                font-size: 14px;
+                font-weight: 500;
+                color: #374151;
+            }
+
+            .form-group select {
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        @@keyframes fadeIn {
+            from
+
+        {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        }
+
+        /* 全欄位不換行 + 超出省略 */
+        table th, table td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* 只有路線可換行 */
+        td.col-route {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
+
+    
     </style>
 </head>
 <body>
     <div id="app" class="wrap" v-cloak>
-       
         <section class="card">
-            <div class="card-hd d-flex align-items-center justify-content-between topbar">
-                <h5 class="mb-0 fw-bold">用車申請</h5>
-                <div class="d-flex gap-2">
-                    <a class="btn btn-warning fw-bold"
-                       asp-controller="Dispatches" asp-action="CarApply">
-                        新增
-                    </a>
+            <div class="card-hd topbar">
+                <h5 class="mb-0" style="font-weight:700">派車申請</h5>
+                <div style="display:flex;gap:8px">
+                    <a class="btn btn-warning" asp-controller="Dispatches" asp-action="CarApply">新增</a>
                     <button class="btn btn-primary" @@click="exportCSV">匯出</button>
                 </div>
             </div>
 
-
-
-            <!-- filter bar -->
             <div class="card-bd">
                 <div class="filters">
                     <div class="f-item">
-                        <label>用車日期</label>
-                        <input type="date" v-model="filters.date">
+                        <label>日期起</label>
+                        <input type="date" v-model="filters.dateStart">
+                        <label>日期迄</label>
+                        <input type="date" v-model="filters.dateEnd">
+                        <button class="btn" style="margin-left:6px" @@click="reloadByDate">搜尋</button>
+                        <button class="btn" style="margin-left:6px" @@click="resetFilters">重置</button>
                     </div>
                     <div class="f-item">
                         <label>駕駛人</label>
@@ -363,18 +380,10 @@
                             <option v-for="c in cars" :key="c" :value="c">{{ c }}</option>
                         </select>
                     </div>
-
-                    <div class="f-search" style="margin-left:auto">
-                        <input v-model.trim="filters.q" placeholder="搜尋目的地 / 事由">
-                        <button @@click="applyFilters" title="搜尋">
-                            <!-- magnifier -->
-                            <svg class="icon" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke-width="2" /><path d="M20 20l-3.5-3.5" stroke-width="2" stroke-linecap="round" /></svg>
-                        </button>
-                    </div>
+                    
                 </div>
             </div>
 
-            <!-- table -->
             <div class="card-bd table-wrap">
                 <table>
                     <thead>
@@ -389,42 +398,28 @@
                             <th style="width:100px">審核狀態</th>
                             <th style="width:90px">駕駛人</th>
                             <th style="width:80px">車輛</th>
+                            <th style="width:80px">共乘</th>
                             <th style="width:110px">功能</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="r in rows" :key="r.dispatchId">
-                            <!-- 用車日期 -->
+                        <tr v-for="r in filtered" :key="r.dispatchId">
                             <td class="mono">{{ r.useDate }}</td>
-                            <!-- 用車時間 -->
                             <td class="mono">{{ r.useTime }}</td>
-                            <!-- 路線 -->
-                            <td>{{ r.route }}</td>
-                            <!-- 用途 -->
-                            <td style="color:#374151">{{ r.reason }}</td>
-                            <!-- 申請人 -->
+                            <td class="col-route">{{ r.route }}</td>
+                            <td>
+                                <span v-if="r.reasonType">({{ r.reasonType }}) </span>{{ r.reason }}
+                            </td>
                             <td>{{ r.applicantName }}</td>
-                            <!-- 人數 -->
                             <td class="mono">{{ r.passengerCount }}</td>
-                            <!-- 距離 -->
                             <td class="mono">{{ r.tripDistance }}</td>
-                            <!-- 狀態 -->
-                            <td>
-                                <span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span>
+                            <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
+                            <td><span class="badge" :class="r.driverName ? '' : 's-muted'">{{ r.driverName || '未指派' }}</span></td>
+                            <td><span class="badge" :class="r.plateNo ? '' : 's-muted'">{{ r.plateNo || '未指派' }}</span></td>
+                            <td class="text-center">
+                                <span v-if="r.passengerCount > 1" class="text-success fw-bold">✔</span>
+                                <span v-else>-</span>
                             </td>
-                            <!-- 駕駛 -->
-                            <td>
-                                <span class="badge" :class="r.driverName ? '' : 's-muted'">
-                                    {{ r.driverName || '未指派' }}
-                                </span>
-                            </td>
-                            <!-- 車輛 -->
-                            <td>
-                                <span class="badge" :class="r.plateNo ? '' : 's-muted'">
-                                    {{ r.plateNo || '未指派' }}
-                                </span>
-                            </td>
-                            <!-- 動作 -->
                             <td class="row-actions">
                                 <button class="icon-btn" title="檢視" @@click="viewRow(r)">
                                     <svg class="icon" viewBox="0 0 24 24" fill="none">
@@ -444,21 +439,78 @@
                                 </button>
                             </td>
                         </tr>
+                        <tr v-if="!loading && filtered.length===0">
+                            <td colspan="11" style="text-align:center;color:#6b7280">沒有符合條件的資料</td>
+                        </tr>
                     </tbody>
-
                 </table>
 
-                <!-- 下方淡淡的占位點（視覺上像設計稿） -->
                 <div class="footer-dots">
-                    <div class="dotline"></div>
-                    <div class="dotline"></div>
-                    <div class="dotline"></div>
-                    <div class="dotline"></div>
-                    <div class="dotline"></div>
+                    <div class="dotline"></div><div class="dotline"></div><div class="dotline"></div><div class="dotline"></div><div class="dotline"></div>
                 </div>
             </div>
         </section>
+        <!-- 檢視狀態 Modal -->
+        <div v-if="viewing" class="modal-mask">
+            <div class="modal-container">
+                <h3 class="modal-title">派車單詳細資料</h3>
+                <p class="modal-subtitle">#{{ viewing.id }}</p>
+
+                <div class="form-group">
+                    <label>申請人</label>
+                    <div>{{ viewing.applicant }}</div>
+                </div>
+                <div class="form-group">
+                    <label>駕駛人</label>
+                    <div>{{ viewing.driver || '未指派' }}</div>
+                </div>
+                <div class="form-group">
+                    <label>車輛</label>
+                    <div>{{ viewing.plateNo || '未指派' }}</div>
+                </div>
+                <div class="form-group">
+                    <label>事由</label>
+                    <div>
+                        <span v-if="viewing.reasonType">({{ viewing.reasonType }})</span>
+                        {{ viewing.reason }}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>狀態</label>
+                    <div>{{ viewing.status }}</div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-primary" @@click="closeView">關閉</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 編輯狀態 Modal -->
+        <div v-if="editing" class="modal-mask">
+            <div class="modal-container">
+                <h3 class="modal-title">編輯審核狀態</h3>
+                <p class="modal-subtitle">派車單 #{{ editing.dispatchId }}</p>
+
+                <div class="form-group">
+                    <label for="statusSelect">審核狀態</label>
+                    <select id="statusSelect" v-model="newStatus">
+                        <option value="待審核">待審核</option>
+                        <option value="審核中">審核中</option>
+                        <option value="完成審核">完成審核</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn" @@click="cancelEdit">取消</button>
+                    <button class="btn btn-primary" @@click="confirmEdit">確認</button>
+                </div>
+            </div>
+        </div>
+
+
     </div>
+
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -467,71 +519,163 @@
 
         createApp({
           setup(){
-            const rows = ref([]);  // 改成空陣列，等 API 填資料進來
+            const rows = ref([]);
             const loading = ref(true);
+            const error = ref("");
+               
+            
+            // 當月 1~最後 1 日
+            function getMonthRange(){
+              const now = new Date();
+              const y = now.getFullYear(), m = now.getMonth();
+              const first = new Date(y, m, 2);
+              const last  = new Date(y, m+1, 0);
+              const f = d => d.toISOString().slice(0,10);
+              return { start: f(first), end: f(last) };
+            }
 
             // 篩選條件
-            const filters = ref({ date:'', driver:'', applicant:'', car:'', q:'' });
+            const filters = ref({
+              dateStart: "", dateEnd: "",
+              driver: "", applicant: "", car: "", q: ""
+            });
 
             const drivers = ref([]);
             const applicants = ref([]);
             const cars = ref([]);
 
-            // 載入資料
-            const loadData = async () => {
-              try {
-                const res = await axios.get('/api/dispatch/list'); // 🚨 後端 API
-                console.log("📌 後端回傳：", res.data);
-                rows.value = res.data;
+            // 格式工具
+            const pad = n => String(n).padStart(2,"0");
+            const fmtDate = d => {
+              const dt = new Date(d); if (isNaN(dt)) return "";
+              return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+            };
+            const fmtTime = d => {
+              const dt = new Date(d); if (isNaN(dt)) return "";
+              return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+            };
 
-                // 順便整理篩選下拉選單 (去重)
-                drivers.value = [...new Set(res.data.map(r=> r.driverName).filter(Boolean))];
-                applicants.value = [...new Set(res.data.map(r=> r.applicantName).filter(Boolean))];
-                cars.value = [...new Set(res.data.map(r=> r.plateNo).filter(Boolean))];
-              } catch(err){
-                console.error('讀取失敗:', err);
-                alert('讀取派車單失敗');
+            // 後端 /api/dispatch/records -> 轉成前端欄位
+            const shapeRow = x => ({
+              dispatchId: x.id,
+              useDate: fmtDate(x.useStart),
+              useTime: fmtTime(x.useStart),
+              route: x.route || "",
+              reasonType: x.reasonType || "",
+              reason: x.reason || "",
+              applicantName: x.applicant || "",
+              passengerCount: x.seats ?? "",
+              tripDistance: (x.km ?? 0).toString(),
+              status: x.status || x.dispatchStatus || "",
+              driverName: x.driver || "",
+              plateNo: x.plate || ""
+            });
+
+            // 載入（依日期向後端要資料；其餘在前端過濾）
+            const loadData = async () => {
+              loading.value = true; error.value = "";
+              try {
+                const res = await axios.get('/api/dispatch/records', {
+                  params: {
+                    dateFrom: filters.value.dateStart || null,
+                    dateTo:   filters.value.dateEnd   || null
+                  }
+                });
+                const arr = Array.isArray(res.data) ? res.data : [];
+                rows.value = arr.map(shapeRow);
+
+                // 下拉清單
+                const uniq = a => [...new Set(a.filter(Boolean))];
+                drivers.value    = uniq(rows.value.map(r => r.driverName));
+                applicants.value = uniq(rows.value.map(r => r.applicantName));
+                cars.value       = uniq(rows.value.map(r => r.plateNo));
+              } catch(e){
+                console.error(e); error.value = "讀取派車單失敗";
               } finally {
                 loading.value = false;
               }
             };
 
-            onMounted(loadData);
+            onMounted(() => {
+              const {start,end} = getMonthRange();
+              filters.value.dateStart = start;
+              filters.value.dateEnd   = end;
+              loadData();
+            });
 
-            // 篩選資料
-            const filtered = computed(()=>{
-              return rows.value.filter(r=>{
-                if(filters.value.date && r.useDate !== filters.value.date) return false;
-                if(filters.value.driver && r.driverName !== filters.value.driver) return false;
-                if(filters.value.applicant && r.applicantName !== filters.value.applicant) return false;
-                if(filters.value.car && r.plateNo !== filters.value.car) return false;
-                if(filters.value.q){
-                  const q = filters.value.q.toLowerCase();
-                  const hay = (r.route + ' ' + r.reason).toLowerCase();
-                  if(!hay.includes(q)) return false;
+            // 前端篩選
+            const filtered = computed(() => {
+              const f = filters.value;
+              const q = (f.q||"").toLowerCase().trim();
+
+              return rows.value.filter(r => {
+                // 日期區間
+                if (f.dateStart && r.useDate < f.dateStart) return false;
+                if (f.dateEnd   && r.useDate > f.dateEnd)   return false;
+
+                if (f.driver    && r.driverName    !== f.driver)    return false;
+                if (f.applicant && r.applicantName !== f.applicant) return false;
+                if (f.car       && r.plateNo       !== f.car)       return false;
+
+                if (q){
+                  const hay = [
+                    r.route, r.reason,r.applicantName,
+                    r.driverName, r.plateNo, r.status
+                  ].map(x => (x||"").toString().toLowerCase()).join(" ");
+                  if (!hay.includes(q)) return false;
                 }
                 return true;
               });
             });
 
-            // 狀態顯示
-            const statusText = (s)=> s==='approved'?'完成審核': s==='review'?'審核中':'待審核';
-            const statusClass = (s)=> s==='approved'?'s-approved': s==='review'?'s-review':'s-wait';
+            // 顯示文字/樣式
+             const statusText = (s) => {
+               const k = String(s || "").trim();
+               if (k === "完成審核" || k.toLowerCase() === "approved") return "完成審核";
+               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "審核中";
+               return "待審核";
+             };
 
-            // row actions
-            const viewRow = (r)=> alert('查看：\n' + JSON.stringify(r,null,2));
-            const editRow = (r)=> alert('編輯（示意）ID=' + r.id);
-            const removeRow = (r)=> { if(confirm('確定刪除？')) rows.value = rows.value.filter(x=>x.id!==r.id); };
+             // 顯示樣式
+             const statusClass = (s) => {
+               const k = String(s || "").trim();
+               if (k === "完成審核" || k.toLowerCase() === "approved") return "s-approved";
+               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "s-review";
+               return "s-wait"; // 待審核
+             };
 
-            const onCreate = ()=> alert('導向到新增派車單頁（示意）');
 
-            const exportCSV = ()=>{
+            // 依日期重新查詢後端
+            const reloadByDate = () => loadData();
+
+            // 重置到「當月一號～最後一號」，並清空其它條件
+            const resetFilters = () => {
+              const {start,end} = getMonthRange();
+              filters.value.dateStart = start;
+              filters.value.dateEnd   = end;
+              filters.value.driver    = "";
+              filters.value.applicant = "";
+              filters.value.car       = "";
+              filters.value.q         = "";
+              // 重新打 API（當月資料）
+              loadData();
+            };
+
+            // 匯出目前 filtered
+            const exportCSV = () => {
               const head = '用車日期,用車時間,目的地,事由,申請人,人數,行駛里程,審核狀態,駕駛人,車輛\n';
-              const body = filtered.value.map(r =>
-                [r.useDate, r.useTime, `"${r.route}"`, `"${r.reason}`,
-                 r.applicantName, r.passengerCount, r.tripDistance,
-                 statusText(r.status), r.driverName||'未指派', r.plateNo||'未指派'
-                ].join(',')).join('\n');
+              const body = filtered.value.map(r => ([
+                r.useDate, r.useTime,
+                `"${(r.route||"").replace(/"/g,'""')}"`,
+                `"${(r.reason||"").replace(/"/g,'""')}"`,
+                r.applicantName || "",
+                r.passengerCount ?? "",
+                r.tripDistance ?? "",
+                statusText(r.status),
+                r.driverName || '未指派',
+                r.plateNo || '未指派'
+              ].join(','))).join('\n');
+
               const blob = new Blob([head+body], {type:'text/csv;charset=utf-8;'});
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
@@ -539,13 +683,79 @@
               document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
             };
 
-            return { rows, filters, filtered, drivers, applicants, cars, loading,
-                     statusText, statusClass,
-                     viewRow, editRow, removeRow, onCreate, exportCSV };
+            
+        const viewing = ref(null);
+
+        // R: 檢視
+           const viewRow = async (r) => {
+          try {
+            const res = await axios.get(`/api/dispatch/${r.dispatchId}`);
+            viewing.value = res.data;   // 這裡觸發 modal 顯示
+          } catch (err) {
+            console.error(err);
+            alert("讀取失敗");
+          }
+        };
+        const closeView = () => {
+          viewing.value = null;
+        };
+
+
+
+        // U: 編輯
+          const editing = ref(null);   // 正在編輯的 row
+          const newStatus = ref("");
+                  const editRow = (r) => {
+          editing.value = r;
+          newStatus.value = r.status || "待審核";
+        };
+
+        // 確認更新
+        const confirmEdit = async () => {
+          if (!editing.value) return;
+          try {
+            await axios.put(`/api/dispatch/${editing.value.dispatchId}`, {
+              dispatchStatus: newStatus.value
+            });
+            alert("狀態已更新為：" + newStatus.value);
+            editing.value = null; // 關閉 modal
+            await loadData();     // 重新讀取
+          } catch (err) {
+            console.error(err);
+            alert("更新失敗");
+          }
+        };
+
+        // 取消編輯
+        const cancelEdit = () => {
+          editing.value = null;
+        };
+
+
+        // D: 刪除
+        const removeRow = async (r) => {
+          if (!confirm(`確定刪除派車單 #${r.dispatchId} ?`)) return;
+
+          try {
+            await axios.delete(`/api/dispatch/${r.dispatchId}`);
+            alert("刪除成功");
+            rows.value = rows.value.filter(x => x.dispatchId !== r.dispatchId);
+          } catch (err) {
+            alert("刪除失敗");
+          }
+        };
+
+
+            return {
+              rows, loading, error,
+              filters, drivers, applicants, cars,
+              filtered, statusText, statusClass,
+              reloadByDate, resetFilters, exportCSV,
+              viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
+              editing, newStatus
+            };
           }
         }).mount('#app');
     </script>
-
-
 </body>
 </html>

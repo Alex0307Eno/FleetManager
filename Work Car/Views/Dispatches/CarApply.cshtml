@@ -421,7 +421,7 @@
                                     <div style="flex:0 0 180px;">
                                         <label>事由類型</label>
                                         <select v-model="reasonType" style="width:100%">
-                                            <option value="public">公務用</option>
+                                            <option value="公務用">公務用</option>
                                             
                                         </select>
                                     </div>
@@ -743,7 +743,7 @@
             const passengerCount = ref(1);
             const useStart = ref(getLocalDateTimeString(now));
             const useEnd   = ref(getLocalDateTimeString(new Date(now.getTime() + 60 * 60 * 1000)));
-            const reasonType = ref("public");
+            const reasonType = ref("公務用");
             const applyReason = ref("");
             const origin = ref("");
             const destination = ref("");

@@ -28,10 +28,8 @@ namespace Cars.Controllers
             public List<CarPassenger> Passengers { get; set; } = new();
         }
 
-        private static bool IsOverlap(DateTime s1, DateTime e1, DateTime s2, DateTime e2)
-            => s1 < e2 && s2 < e1;
+       
 
-        [HttpPost]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] AutoDispatcher dispatcher)
         {
@@ -135,7 +133,6 @@ namespace Cars.Controllers
                 });
             }
 
-            // 可選車 / 其他
             // 可選車 / 其他
             string vehiclePlate = null;
             string driverName = null;
