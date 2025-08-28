@@ -544,7 +544,7 @@
                         <div v-for="(card, idx) in driverCards.slice(0,3)" :key="card.key" class="map-cell">
                             <div class="gmap" :id="'gmap_'+idx"></div>
                             <div class="badge-row">
-                                <div class="badge-dark">{{ card.plate }} {{ card.driver }}</div>
+                                <div class="badge-dark">{{ card.plate }} <br>{{ card.driver }}</div>
                                 <div class="badge-pill" :class="card.statusType === 'on' ? 'badge-on' : 'badge-idle'">{{ card.statusText }}</div>
                             </div>
                         </div>
@@ -554,7 +554,7 @@
                             <div v-for="(card, i) in driverCards.slice(3,5)" :key="card.key" class="map-cell">
                                 <div class="gmap" :id="'gmap_'+(i+3)"></div>
                                 <div class="badge-row">
-                                    <div class="badge-dark">{{ card.plate }} {{ card.driver }}</div>
+                                    <div class="badge-dark">{{ card.plate }}<br> {{ card.driver }}</div>
                                     <div class="badge-pill" :class="card.statusType === 'on' ? 'badge-on' : 'badge-idle'">{{ card.statusText }}</div>
                                 </div>
                             </div>

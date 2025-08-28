@@ -203,10 +203,19 @@
                 color: var(--ok)
             }
 
+            .badge.s-reject {
+                background: var(--danger-bg);
+                border-color: var(--danger-br);
+                color: var(--danger);
+            }
+
+
+
+
             .badge.s-review {
-                background: var(--info-bg);
-                border-color: var(--info-br);
-                color: var(--info)
+                background: var(--warn-bg);
+                border-color: var(--warn-br);
+                color: var(--warn)
             }
 
             .badge.s-wait {
@@ -420,7 +429,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="r in filtered" :key="r.dispatchId">
+                        <tr v-for="r in filtered" :key="r.applyId">
                             <td class="mono">{{ r.useDate }}</td>
                             <td class="mono">{{ r.useTime }}</td>
                             <td class="col-route">{{ r.route }}</td>
@@ -471,30 +480,34 @@
         <div v-if="viewing" class="modal-mask">
             <div class="modal-container">
                 <h3 class="modal-title">派車單詳細資料</h3>
-                <p class="modal-subtitle">#{{ viewing.id }}</p>
+                <p class="modal-subtitle">#{{ viewing.app.applyId }}</p>
 
                 <div class="form-group">
                     <label>申請人</label>
-                    <div>{{ viewing.applicant }}</div>
+                    <div>{{ viewing.app.applicantName }}</div>
                 </div>
+
                 <div class="form-group">
                     <label>駕駛人</label>
-                    <div>{{ viewing.driver || '未指派' }}</div>
+                    <div>{{ viewing.driverName || '未指派' }}</div>
                 </div>
+
                 <div class="form-group">
                     <label>車輛</label>
                     <div>{{ viewing.plateNo || '未指派' }}</div>
                 </div>
+
                 <div class="form-group">
                     <label>事由</label>
                     <div>
-                        <span v-if="viewing.reasonType">({{ viewing.reasonType }})</span>
-                        {{ viewing.reason }}
+                        <span v-if="viewing.app.reasonType">({{ viewing.app.reasonType }})</span>
+                        {{ viewing.app.applyReason }}
                     </div>
                 </div>
+
                 <div class="form-group">
                     <label>狀態</label>
-                    <div>{{ viewing.status }}</div>
+                    <div>{{ viewing.app.status }}</div>
                 </div>
 
                 <div class="modal-actions">
@@ -503,18 +516,20 @@
             </div>
         </div>
 
+
+        <!-- 編輯狀態 Modal -->
         <!-- 編輯狀態 Modal -->
         <div v-if="editing" class="modal-mask">
             <div class="modal-container">
                 <h3 class="modal-title">編輯審核狀態</h3>
-                <p class="modal-subtitle">派車單 #{{ editing.dispatchId }}</p>
+                <p class="modal-subtitle">派車單 #{{ editing.applyId }}</p>
 
                 <div class="form-group">
                     <label for="statusSelect">審核狀態</label>
                     <select id="statusSelect" v-model="newStatus">
                         <option value="待審核">待審核</option>
-                        <option value="審核中">審核中</option>
                         <option value="完成審核">完成審核</option>
+                        <option value="駁回">駁回</option>
                     </select>
                 </div>
 
@@ -524,6 +539,7 @@
                 </div>
             </div>
         </div>
+
 
 
     </div>
@@ -573,45 +589,63 @@
             };
 
             // 後端 /api/dispatch/records -> 轉成前端欄位
-            const shapeRow = x => ({
-              dispatchId: x.id,
-              useDate: fmtDate(x.useStart),
-              useTime: fmtTime(x.useStart),
-              route: x.route || "",
-              reasonType: x.reasonType || "",
-              reason: x.reason || "",
-              applicantName: x.applicant || "",
-              passengerCount: x.seats ?? "",
-              tripDistance: (x.km ?? 0).toString(),
-              status: x.status || x.dispatchStatus || "",
-              driverName: x.driver || "",
-              plateNo: x.plate || ""
-            });
+                             const shapeRow = x => ({
+          applyId: x.applyId,
+          useDate: fmtDate(x.useStart),
+          useTime: fmtTime(x.useStart),
+          route: (x.origin || "") + " - " + (x.destination || ""),
+          applicantName: x.applicantName || "",
+          applicantDept: x.applicantDept || "",
+          passengerCount: x.passengerCount ?? 0,
+          tripType: x.tripType || "",
+          tripDistance: x.singleDistance || x.roundTripDistance || "",
+          status: x.status || "",
+
+          // 新增
+          reasonType: x.reasonType || "",
+          reason: x.applyReason || "",
+          driverName: x.driverName || "",
+          plateNo: x.plateNo || ""
+        });
+
+                function normalizeDate(d) {
+          if (!d) return null;
+          const dt = new Date(d);
+          if (isNaN(dt)) return null;
+          return dt.toISOString().split('T')[0]; // yyyy-MM-dd
+        }
+
 
             // 載入（依日期向後端要資料；其餘在前端過濾）
-            const loadData = async () => {
-              loading.value = true; error.value = "";
-              try {
-                const res = await axios.get('/api/dispatch/records', {
-                  params: {
-                    dateFrom: filters.value.dateStart || null,
-                    dateTo:   filters.value.dateEnd   || null
-                  }
-                });
-                const arr = Array.isArray(res.data) ? res.data : [];
-                rows.value = arr.map(shapeRow);
+                    const loadData = async () => {
+          loading.value = true; error.value = "";
+          try {
+            const params = {};
+            if (filters.value.dateStart) params.dateFrom = normalizeDate(filters.value.dateStart);
+            if (filters.value.dateEnd)   params.dateTo   = normalizeDate(filters.value.dateEnd);
+        if (filters.value.q && filters.value.q.trim()) {
+          params.q = filters.value.q.trim();
+        }
+            const res = await axios.get('/api/carApplications', { params });
+            const arr = Array.isArray(res.data) ? res.data : [];
+            rows.value = arr.map(shapeRow);
+            console.log("API回傳", res.data);
 
-                // 下拉清單
-                const uniq = a => [...new Set(a.filter(Boolean))];
-                drivers.value    = uniq(rows.value.map(r => r.driverName));
-                applicants.value = uniq(rows.value.map(r => r.applicantName));
-                cars.value       = uniq(rows.value.map(r => r.plateNo));
-              } catch(e){
-                console.error(e); error.value = "讀取派車單失敗";
-              } finally {
-                loading.value = false;
-              }
-            };
+            // 下拉清單
+            const uniq = a => [...new Set(a.filter(Boolean))];
+            drivers.value    = uniq(rows.value.map(r => r.driverName));
+            applicants.value = uniq(rows.value.map(r => r.applicantName));
+            cars.value       = uniq(rows.value.map(r => r.plateNo));
+          } catch(e){
+            console.log("Validation Errors:", e.response?.data?.errors);
+            console.error("API錯誤:", e.response?.data || e.message);
+
+            error.value = "讀取派車單失敗";
+          } finally {
+            loading.value = false;
+          }
+        };
+
 
             onMounted(() => {
               const {start,end} = getMonthRange();
@@ -649,7 +683,7 @@
              const statusText = (s) => {
                const k = String(s || "").trim();
                if (k === "完成審核" || k.toLowerCase() === "approved") return "完成審核";
-               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "審核中";
+               if (k === "駁回" || k.toLowerCase() === "reject") return "駁回";
                return "待審核";
              };
 
@@ -657,7 +691,7 @@
              const statusClass = (s) => {
                const k = String(s || "").trim();
                if (k === "完成審核" || k.toLowerCase() === "approved") return "s-approved";
-               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "s-review";
+               if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
                return "s-wait"; // 待審核
              };
 
@@ -701,47 +735,45 @@
             };
 
             
-        const viewing = ref(null);
 
         // R: 檢視
-           const viewRow = async (r) => {
-          try {
-            const res = await axios.get(`/api/dispatch/${r.dispatchId}`);
-            viewing.value = res.data;   // 這裡觸發 modal 顯示
-          } catch (err) {
-            console.error(err);
-            alert("讀取失敗");
-          }
+                   const viewing = Vue.ref(null);
+        const viewRow = async (r) => {
+        try {
+        const res = await axios.get(`/api/carApplications/${r.applyId}`);
+        viewing.value = res.data; // { app, passengers }
+        } catch (err) {
+        alert('讀取失敗');
+        }
         };
-        const closeView = () => {
-          viewing.value = null;
-        };
+        const closeView = () => { viewing.value = null; };
 
 
 
         // U: 編輯
-          const editing = ref(null);   // 正在編輯的 row
+        const editing = ref(null);   // 正在編輯的 row
           const newStatus = ref("");
-                  const editRow = (r) => {
+                 const editRow = (r) => {
           editing.value = r;
           newStatus.value = r.status || "待審核";
         };
 
-        // 確認更新
-        const confirmEdit = async () => {
+                const confirmEdit = async () => {
           if (!editing.value) return;
           try {
-            await axios.put(`/api/dispatch/${editing.value.dispatchId}`, {
-              dispatchStatus: newStatus.value
+            await axios.patch(`/api/carApplications/${editing.value.applyId}/status`, {
+              status: newStatus.value
             });
             alert("狀態已更新為：" + newStatus.value);
-            editing.value = null; // 關閉 modal
-            await loadData();     // 重新讀取
+            editing.value = null;
+            await loadData(); // 重新載入列表
           } catch (err) {
             console.error(err);
             alert("更新失敗");
           }
         };
+
+
 
         // 取消編輯
         const cancelEdit = () => {
@@ -750,16 +782,15 @@
 
 
         // D: 刪除
-        const removeRow = async (r) => {
-          if (!confirm(`確定刪除派車單 #${r.dispatchId} ?`)) return;
-
-          try {
-            await axios.delete(`/api/dispatch/${r.dispatchId}`);
-            alert("刪除成功");
-            rows.value = rows.value.filter(x => x.dispatchId !== r.dispatchId);
-          } catch (err) {
-            alert("刪除失敗");
-          }
+                const removeRow = async (r) => {
+        if (!confirm(`確定刪除申請單 #${r.applyId}？`)) return;
+        try {
+        await axios.delete(`/api/carApplications/${r.applyId}`);
+        // 前端移除，或重新載入
+        rows.value = rows.value.filter(x => x.applyId !== r.applyId);
+        } catch (err) {
+        alert('刪除失敗');
+        }
         };
 
 

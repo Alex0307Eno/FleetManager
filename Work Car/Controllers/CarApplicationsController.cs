@@ -43,8 +43,6 @@ namespace Cars.Controllers
             if (model.UseEnd <= model.UseStart)
                 return BadRequest("結束時間必須晚於起始時間");
 
-            // 預設由系統指派
-            model.DriverId = null;
 
             // 先存申請單，讓 DB 自動產生 ApplyId
             _context.CarApplications.Add(model);
@@ -92,8 +90,7 @@ namespace Cars.Controllers
             }
             else if (model.PurposeType == "公務車(不可選車)")
             {
-                model.VehicleId = null;
-                model.DriverId = null;
+                
                 await _context.SaveChangesAsync();
             }
 
@@ -117,12 +114,16 @@ namespace Cars.Controllers
                     model.UseEnd,
                     model.PassengerCount,
                     model.VehicleType
+                   
                 );
 
                 if (!result.Success)
                 {
                     return Ok(new { message = $"申請成功，但派工失敗：{result.Message}", id = model.ApplyId });
                 }
+                model.DriverId = result.DriverId;
+                model.VehicleId = result.VehicleId;
+                await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
@@ -178,9 +179,57 @@ namespace Cars.Controllers
 
         // 取得全部申請單
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll(
+    [FromQuery] DateTime? dateFrom,
+    [FromQuery] DateTime? dateTo,
+    [FromQuery] string? q)
         {
-            var list = await _context.CarApplications.ToListAsync();
+            var query = _context.CarApplications
+                .Include(a => a.Vehicle)
+                .Include(a => a.Driver)   
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (dateFrom.HasValue)
+                query = query.Where(a => a.UseStart >= dateFrom.Value.Date);
+
+            if (dateTo.HasValue)
+                query = query.Where(a => a.UseStart < dateTo.Value.Date.AddDays(1));
+
+            if (!string.IsNullOrWhiteSpace(q))
+                query = query.Where(a =>
+                    (a.ApplicantName ?? "").Contains(q) ||
+                    (a.Origin ?? "").Contains(q) ||
+                    (a.Destination ?? "").Contains(q));
+
+            var list = await query
+                .OrderByDescending(a => a.UseStart)
+                .Select(a => new {
+                    a.ApplyId,
+                    a.ApplicantName,
+                    a.ApplicantDept,
+                    a.UseStart,
+                    a.UseEnd,
+                    a.Origin,
+                    a.Destination,
+                    a.PassengerCount,
+                    a.TripType,
+                    a.SingleDistance,
+                    a.RoundTripDistance,
+                    a.Status,
+
+                    // 事由
+                    a.ReasonType,
+                    a.ApplyReason,
+
+                    // 車輛
+                    PlateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
+
+                    // 駕駛人
+                    DriverName = a.Driver != null ? a.Driver.DriverName : null
+                })
+                .ToListAsync();
+
             return Ok(list);
         }
 
@@ -188,84 +237,96 @@ namespace Cars.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
-            var app = await _context.CarApplications.FindAsync(id);
+            var app = await _context.CarApplications
+                .Include(a => a.Vehicle)
+                .Include(a => a.Driver)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.ApplyId == id);
             if (app == null) return NotFound();
 
             var passengers = await _context.CarPassengers
                 .Where(p => p.ApplyId == id)
                 .ToListAsync();
 
-            return Ok(new { app, passengers });
+            return Ok(new
+            {
+                app,
+                passengers,
+                driverName = app.Driver != null ? app.Driver.DriverName : null,
+                plateNo = app.Vehicle != null ? app.Vehicle.PlateNo : null
+            });
+        }
+        public class StatusDto { public string? Status { get; set; } }
+
+        [HttpPatch("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Status))
+                return BadRequest("Status 不可為空");
+
+            var app = await _context.CarApplications.FindAsync(id);
+            if (app == null) return NotFound();
+
+            app.Status = dto.Status.Trim();
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "狀態已更新", status = app.Status });
         }
 
-        // 更新申請單（不含搭乘人員）
-        //[HttpPut("{id}")]
-        //public async Task<IActionResult> Update(int id, [FromBody] CarApply model, [FromServices] AutoDispatcher dispatcher)
-        //{
-        //    var app = await _context.CarApplications.FindAsync(id);
-        //    if (app == null) return NotFound();
 
-        //    if (model.UseStart == default || model.UseEnd == default)
-        //        return BadRequest("起訖時間不得為空");
-        //    if (model.UseEnd <= model.UseStart)
-        //        return BadRequest("結束時間必須晚於起始時間");
-
-        //    // ★ 可選車：同樣檢查 + 重新計算 DriverId
-        //    if (model.PurposeType == "公務車(可選車)")
-        //    {
-        //        if (model.VehicleId == null) return BadRequest("請選擇車輛");
-
-        //        var vehicle = await _context.Vehicles
-        //            .AsNoTracking()
-        //            .FirstOrDefaultAsync(v => v.VehicleId == model.VehicleId.Value);
-        //        if (vehicle == null) return BadRequest("車輛不存在");
-
-        //        if ((vehicle.Status ?? "").Trim() != "可用")
-        //            return BadRequest("該車輛目前不可用，請重新選擇");
-
-        //        var vUsed = await _context.Dispatches.AnyAsync(d =>
-        //            d.VehicleId == model.VehicleId &&
-        //            d.ApplyId != id &&                      // 若有以 ApplyId 關聯，避免算到自己（視你的資料設計）
-        //            model.UseStart < d.EndTime &&
-        //            d.StartTime < model.UseEnd);
-        //        if (vUsed) return BadRequest("該車於申請時段已被派用，請改選其他車或調整時間");
-
-        //        model.DriverId = await dispatcher.FindOnDutyDriverIdAsync(model.UseStart, model.UseEnd);
-        //    }
-        //    else if (model.PurposeType == "公務車(不可選車)")
-        //    {
-        //        model.VehicleId = null;
-        //        model.DriverId = null;
-        //    }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, [FromBody] CarApply model)
+        {
+            var app = await _context.CarApplications.FindAsync(id);
+            if (app == null) return NotFound();
 
 
-        //    // 更新欄位
-        //    app.ApplicantName = model.ApplicantName;
-        //    app.ApplicantEmpId = model.ApplicantEmpId;
-        //    app.ApplicantDept = model.ApplicantDept;
-        //    app.ApplicantExt = model.ApplicantExt;
-        //    app.ApplicantEmail = model.ApplicantEmail;
-        //    app.ApplyFor = model.ApplyFor;
-        //    app.VehicleType = model.VehicleType;
-        //    app.PurposeType = model.PurposeType;
-        //    app.PassengerCount = model.PassengerCount;
-        //    app.UseStart = model.UseStart;
-        //    app.UseEnd = model.UseEnd;
-        //    app.ReasonType = model.ReasonType;
-        //    app.ApplyReason = model.ApplyReason;
-        //    app.Origin = model.Origin;
-        //    app.Destination = model.Destination;
-        //    app.TripType = model.TripType;
-        //    app.SingleDistance = model.SingleDistance;
-        //    app.SingleDuration = model.SingleDuration;
-        //    app.RoundTripDistance = model.RoundTripDistance;
-        //    app.RoundTripDuration = model.RoundTripDuration;
-        //    app.VehicleId = model.VehicleId;    
-        //    app.DriverId = model.DriverId;     
+            // 基本驗證（必要可再加強）
+            if (model.UseStart == default(DateTime) || model.UseEnd == default(DateTime))
+                return BadRequest("起訖時間不得為空");
+            if (model.UseEnd <= model.UseStart)
+                return BadRequest("結束時間必須晚於起始時間");
 
-        //    await _context.SaveChangesAsync();
-        //    return Ok(new { message = "更新成功" });
-        //}
+
+            // 欄位覆寫（與你的資料表對齊）
+            app.ApplicantName = model.ApplicantName;
+            app.ApplicantEmpId = model.ApplicantEmpId;
+            app.ApplicantDept = model.ApplicantDept;
+            app.ApplicantExt = model.ApplicantExt;
+            app.ApplicantEmail = model.ApplicantEmail;
+            app.ApplyFor = model.ApplyFor;
+            app.VehicleType = model.VehicleType;
+            app.PurposeType = model.PurposeType;
+            app.VehicleId = model.VehicleId; // 可為 null
+
+
+            app.PassengerCount = model.PassengerCount; // 若 DB 允許 NULL，建議把 Model 改成 int?
+            app.UseStart = model.UseStart;
+            app.UseEnd = model.UseEnd;
+
+
+            app.DriverId = model.DriverId; // 可為 null
+            app.ReasonType = model.ReasonType;
+            app.ApplyReason = model.ApplyReason;
+
+
+            app.Origin = model.Origin; // 建議不可為 null
+            app.Destination = model.Destination; // 建議不可為 null
+
+
+            app.TripType = model.TripType;
+            app.SingleDistance = model.SingleDistance;
+            app.SingleDuration = model.SingleDuration;
+            app.RoundTripDistance = model.RoundTripDistance;
+            app.RoundTripDuration = model.RoundTripDuration;
+
+
+            app.Status = string.IsNullOrWhiteSpace(model.Status) ? app.Status : model.Status;
+
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "更新成功" });
+        }
 
         // 過濾可用車輛（排除 使用中 / 維修中 / 該時段已被派工）
         [HttpGet("/api/vehicles/available")]

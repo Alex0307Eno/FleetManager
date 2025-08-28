@@ -152,7 +152,7 @@ namespace Cars.Services
                     };
                 }
 
-                // 4) 建立派工單（也可以只把 DriverId/VehicleId 回寫到 CarApplications 內）
+                // 4) 建立派工單
                 var dispatch = new Cars.Models.Dispatch
                 {
                     ApplyId = carApplyId,

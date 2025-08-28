@@ -25,7 +25,21 @@
             --primary-600: #1d4ed8;
             --row-alt: #fffdf7;
             --shadow: 0 1px 3px rgba(16,24,40,.08);
+            /* ✅ 補上狀態用色 */
+            --ok: #16a34a;
+            --ok-bg: #ecfdf5;
+            --ok-br: #a7f3d0;
+            --danger: #b91c1c;
+            --danger-bg: #fef2f2;
+            --danger-br: #fecaca;
+            --info: #1e3a8a;
+            --info-bg: #eef2ff;
+            --info-br: #c7d2fe;
+            --warn: #92400e;
+            --warn-bg: #fffbeb;
+            --warn-br: #fde68a;
         }
+
 
         * {
             box-sizing: border-box
@@ -387,6 +401,11 @@
             color: var(--ok)
         }
 
+        .badge.s-reject {
+            background: var(--danger-bg);
+            border-color: var(--danger-br);
+            color: var(--danger);
+        }
         .badge.s-review {
             background: var(--info-bg);
             border-color: var(--info-br);
@@ -501,7 +520,7 @@
                                 <td>{{ r.applicant }}</td>
                                 <td class="mono">{{ r.seats }}</td>
                                 <td class="mono">{{ fmtKm(r.km) }}</td>
-                                <td><span class="pill" :class="r.status==='完成審核' ? 'approved' : 'pending'">{{ r.status }}</span></td>
+                                <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
                                 <td><span class="pill">{{ r.driver }}</span></td>
                                 <td><span class="pill blue">{{ r.plate }}</span></td>
                                 <td>
@@ -512,10 +531,9 @@
                                 </td>
                                 <td>
                                     <div class="actions">
-                                        <button class="icon-btn view" title="檢視" @@click="view(r)"><i class="fa-solid fa-eye"></i></button>
-                                        <button class="icon-btn clone" title="複製" @@click="cloneRow(r)"><i class="fa-regular fa-copy"></i></button>
-                                        <button class="icon-btn edit" title="編輯" @@click="edit(r)"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button class="icon-btn delete" title="刪除" @@click="remove(r)"><i class="fa-solid fa-trash"></i></button>
+                                        <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
+                                        <button class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
                                     </div>
                                 </td>
                             </tr>
@@ -526,6 +544,27 @@
                     </table>
 
                     <div class="hint">最後更新時間：{{ lastUpdated }}</div>
+                </div>
+            </div>
+        </div>
+        <div v-if="editing" class="modal-mask">
+            <div class="modal-container">
+                <h3 class="modal-title">編輯審核狀態</h3>
+                <p class="modal-subtitle">派車單 #{{ editing.dispatchId }}</p>
+
+                <div class="form-group">
+                    <label for="statusSelect">審核狀態</label>
+                    <select id="statusSelect" v-model="newStatus">
+                        <option value="待審核">待審核</option>
+                        <option value="審核中">審核中</option>
+                        <option value="完成審核">完成審核</option>
+                        <option value="駁回">駁回</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn" @@click="cancelEdit">取消</button>
+                    <button class="btn btn-primary" @@click="confirmEdit">確認</button>
                 </div>
             </div>
         </div>
@@ -587,16 +626,66 @@
               const fmtKm = v => (v ?? '-') + (v!=null ? '' : '')
               const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999)
 
-              // 互動
-              function view(r){ console.log('view', r) }
-              function cloneRow(r){ rows.value.push({...r, id: 'copy_'+Math.random().toString(16).slice(2)}) }
-              function edit(r){ console.log('edit', r) }
-              function remove(r){ rows.value = rows.value.filter(x=>x.id!==r.id) }
-              function toggleLongShort(r){
-                if (!r.longShort) r.longShort = '短差'
-                else if (r.longShort==='短差') r.longShort = '長差'
-                else r.longShort = ''
-              }
+               const viewing = ref(null);
+
+        // R: 檢視
+           const viewRow = async (r) => {
+          try {
+            const res = await axios.get(`/api/dispatch/${r.dispatchId}`);
+            viewing.value = res.data;   // 這裡觸發 modal 顯示
+          } catch (err) {
+            console.error(err);
+            alert("讀取失敗");
+          }
+        };
+        const closeView = () => {
+          viewing.value = null;
+        };
+
+
+
+        // U: 編輯
+          const editing = ref(null);   // 正在編輯的 row
+          const newStatus = ref("");
+                  const editRow = (r) => {
+          editing.value = r;
+          newStatus.value = r.status || "待審核";
+        };
+
+        // 確認更新
+        const confirmEdit = async () => {
+          if (!editing.value) return;
+          try {
+            await axios.put(`/api/dispatch/${editing.value.dispatchId}`, {
+              dispatchStatus: newStatus.value
+            });
+            alert("狀態已更新為：" + newStatus.value);
+            editing.value = null; // 關閉 modal
+            await loadData();     // 重新讀取
+          } catch (err) {
+            console.error(err);
+            alert("更新失敗");
+          }
+        };
+
+        // 取消編輯
+        const cancelEdit = () => {
+          editing.value = null;
+        };
+
+
+        // D: 刪除
+        const removeRow = async (r) => {
+          if (!confirm(`確定刪除派車單 #${r.dispatchId} ?`)) return;
+
+          try {
+            await axios.delete(`/api/dispatch/${r.dispatchId}`);
+            alert("刪除成功");
+            rows.value = rows.value.filter(x => x.dispatchId !== r.dispatchId);
+          } catch (err) {
+            alert("刪除失敗");
+          }
+        };
               function exportCsv(){
                 const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差']
                 const lines = shown.value.map(r=>[
@@ -656,14 +745,32 @@
                 })
 
               }
+               // 顯示文字/樣式
+             const statusText = (s) => {
+               const k = String(s || "").trim();
+               if (k === "完成審核" || k.toLowerCase() === "approved") return "完成審核";
+               if (k === "駁回" || k.toLowerCase() === "reject") return "駁回";
+               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "審核中";
+               return "待審核";
+             };
+
+             // 顯示樣式
+             const statusClass = (s) => {
+               const k = String(s || "").trim();
+               if (k === "完成審核" || k.toLowerCase() === "approved") return "s-approved";
+               if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
+               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "s-review";
+               return "s-wait"; // 待審核
+             };
 
               // init
               reload()
 
               return {
                 q, rows, shown, uniqueDrivers, lastUpdated,
-                rocDate, timeSpan, fmtKm,
-                reload, view, edit, remove, cloneRow, toggleLongShort, exportCsv
+                rocDate, timeSpan, fmtKm,statusText,statusClass,
+                reload, viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
+              editing, newStatus , exportCsv
               }
             }
           }).mount('#app')

@@ -43,7 +43,7 @@ namespace Cars.Models
         public string Status { get; set; } = "待審核";
 
         public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>();
-        public Driver? Applicant { get; set; }
+        public Driver? Driver { get; set; }
         public ICollection<Dispatch>? DispatchOrders { get; set; }
 
     }
