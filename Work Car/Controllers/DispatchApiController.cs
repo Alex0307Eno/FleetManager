@@ -16,6 +16,7 @@ namespace Cars.Controllers.Api
 
         [HttpGet("records")]
         public async Task<ActionResult<IEnumerable<RecordDto>>> GetRecords(
+             
             [FromQuery] DateTime? dateFrom,
             [FromQuery] DateTime? dateTo,
             [FromQuery] string? driver,
@@ -32,6 +33,7 @@ namespace Cars.Controllers.Api
          select new
          {
              d.DispatchId,
+             a.ApplyId,
              a.UseStart,
              a.UseEnd,
              a.Origin,
@@ -44,7 +46,9 @@ namespace Cars.Controllers.Api
              a.SingleDistance,      
              a.RoundTripDistance,   
              a.Status,
+             r.DriverId,
              r.DriverName,
+             v.VehicleId,
              v.PlateNo
          };
 
@@ -82,6 +86,7 @@ namespace Cars.Controllers.Api
             var rows = rawRows.Select(x => new RecordDto
             {
                 Id = x.DispatchId,
+                ApplyId = x.ApplyId,
                 UseStart = x.UseStart,
                 UseEnd = x.UseEnd,
                 Route = string.Join(" - ", new[] { x.Origin, x.Destination }
@@ -95,7 +100,9 @@ namespace Cars.Controllers.Api
                 ? ParseDistance(x.RoundTripDistance):0,
                 Status = x.Status,
                 Driver = x.DriverName,
+                DriverId = x.DriverId,
                 Plate = x.PlateNo,
+                VehicleId = x.VehicleId,
                 LongShort = x.TripType == "single" ? "短差"
                            : x.TripType == "round" ? "長差"
                            : null
@@ -147,50 +154,27 @@ namespace Cars.Controllers.Api
             return decimal.TryParse(cleaned, out var value) ? value : 0;
         }
         // 🔹 更新 (Update)
-        public class UpdateStatusDto
+        public class UpdateDispatchDto
         {
-            public string DispatchStatus { get; set; } = "";
-            public string? Status { get; set; }
+            public int? DriverId { get; set; }
+            public int? VehicleId { get; set; }
         }
 
-        
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
+        public async Task<IActionResult> UpdateDispatch(int id, [FromBody] UpdateDispatchDto dto)
         {
-            var newStatus = (dto.DispatchStatus ?? dto.Status ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(newStatus))
-                return BadRequest(new { message = "缺少狀態（status/dispatchStatus）" });
-
             var dispatch = await _db.Dispatches.FindAsync(id);
             if (dispatch == null) return NotFound();
 
-            dispatch.DispatchStatus = newStatus;
-
-            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == dispatch.ApplyId);
-            if (app != null) app.Status = newStatus;
+            dispatch.DriverId = dto.DriverId;
+            dispatch.VehicleId = dto.VehicleId;
 
             await _db.SaveChangesAsync();
-            return Ok(new { message = "更新成功", status = newStatus });
+            return Ok(new { message = "更新成功", dispatch.DispatchId, dispatch.DriverId, dispatch.VehicleId });
         }
 
-        [HttpPut("application/{applyId}/status")]
-        public async Task<IActionResult> UpdateAppStatus(int applyId, [FromBody] UpdateStatusDto dto)
-        {
-            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
-            if (app == null) return NotFound();
 
-            app.Status = dto.DispatchStatus;
-
-            // 如果有對應的派工單，也一起更新
-            var dispatch = await _db.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == applyId);
-            if (dispatch != null)
-            {
-                dispatch.DispatchStatus = dto.DispatchStatus;
-            }
-
-            await _db.SaveChangesAsync();
-            return Ok(new { message = "申請單狀態更新成功", status = app.Status });
-        }
+       
 
 
 

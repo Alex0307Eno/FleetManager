@@ -253,7 +253,9 @@ namespace Cars.Controllers
                 app,
                 passengers,
                 driverName = app.Driver != null ? app.Driver.DriverName : null,
-                plateNo = app.Vehicle != null ? app.Vehicle.PlateNo : null
+                driverId = app.DriverId,
+                plateNo = app.Vehicle != null ? app.Vehicle.PlateNo : null,
+                vehicleId = app.VehicleId
             });
         }
         public class StatusDto { public string? Status { get; set; } }
@@ -363,6 +365,91 @@ namespace Cars.Controllers
 
             return Ok(list);
         }
+        //過濾可用司機
+        [HttpGet("/api/drivers/available")]
+        public async Task<IActionResult> GetAvailableDrivers(DateTime from, DateTime to)
+        {
+            if (from == default || to == default || to <= from)
+                return BadRequest("時間區間不正確");
+
+            var q = _context.Drivers.AsQueryable();
+
+            // 避開該時段已被派工的駕駛
+            q = q.Where(d => !_context.Dispatches.Any(dispatch =>
+                dispatch.DriverId == d.DriverId &&
+                from < dispatch.EndTime &&
+                dispatch.StartTime < to));
+
+            var list = await q
+                .OrderBy(d => d.DriverName)
+                .Select(d => new {
+                    d.DriverId,
+                    d.DriverName
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+        // CarApplicationsController 內
+        public class AssignDto { public int? DriverId { get; set; } public int? VehicleId { get; set; } }
+
+        [HttpPatch("{id}/assignment")]
+        public async Task<IActionResult> UpdateAssignment(int id, [FromBody] AssignDto dto)
+        {
+            var app = await _context.CarApplications.FindAsync(id);
+            if (app == null) return NotFound();
+
+            var from = app.UseStart; var to = app.UseEnd;
+
+            // 驗證車在區間內可用（避免撞單）
+            if (dto.VehicleId.HasValue)
+            {
+                var vUsed = await _context.Dispatches.AnyAsync(d =>
+                    d.VehicleId == dto.VehicleId &&
+                    d.ApplyId != id &&
+                    from < d.EndTime && d.StartTime < to);
+                if (vUsed) return BadRequest("該車於此時段已被派用");
+            }
+
+            // 驗證駕駛在區間內可用
+            if (dto.DriverId.HasValue)
+            {
+                var dUsed = await _context.Dispatches.AnyAsync(d =>
+                    d.DriverId == dto.DriverId &&
+                    d.ApplyId != id &&
+                    from < d.EndTime && d.StartTime < to);
+                if (dUsed) return BadRequest("該駕駛於此時段已有派工");
+            }
+
+            app.DriverId = dto.DriverId;
+            app.VehicleId = dto.VehicleId;
+
+            // 同步 Dispatch（有就改，沒有就建）
+            var disp = await _context.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == id);
+            if (disp == null && (dto.DriverId.HasValue || dto.VehicleId.HasValue))
+            {
+                _context.Dispatches.Add(new Cars.Models.Dispatch
+                {
+                    ApplyId = id,
+                    DriverId = dto.DriverId ?? 0,
+                    VehicleId = dto.VehicleId ?? 0,
+                    DispatchStatus = "執勤中",
+                    DispatchTime = DateTime.Now,
+                    StartTime = from,
+                    EndTime = to,
+                    CreatedAt = DateTime.Now
+                });
+            }
+            else if (disp != null)
+            {
+                if (dto.DriverId.HasValue) disp.DriverId = dto.DriverId.Value;
+                if (dto.VehicleId.HasValue) disp.VehicleId = dto.VehicleId.Value;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "指派已更新" });
+        }
+
 
         // 刪除申請單（連同搭乘人員）
         [HttpDelete("{id}")]

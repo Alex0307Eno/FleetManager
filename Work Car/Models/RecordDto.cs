@@ -3,6 +3,8 @@
     public class RecordDto
     {
         public int Id { get; set; }                 // d.DispatchId
+
+        public int ApplyId { get; set; }            // a.ApplyId
         public DateTime? UseStart { get; set; }     // a.UseStart
         public DateTime? UseEnd { get; set; }       // a.UseEnd
         public string? Route { get; set; }          // a.Route 或 Origin-Destination
@@ -13,7 +15,9 @@
         public decimal? Km { get; set; }            // 單趟/來回里程擇一
         public string? Status { get; set; }         // a.Status
         public string? Driver { get; set; }         // r.DriverName
+        public int? DriverId { get; set; }          // r.DriverId
         public string? Plate { get; set; }          // v.PlateNo
+        public int? VehicleId { get; set; }         // v.VehicleId
         public string? LongShort { get; set; }      // 若有欄位就回；沒有就 null
     }
 }

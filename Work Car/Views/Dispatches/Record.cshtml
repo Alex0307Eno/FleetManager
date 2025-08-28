@@ -56,6 +56,17 @@
             background: linear-gradient(180deg,var(--bg1) 0,var(--bg2) 1200px);
         }
 
+        button.btn.btn-primary {
+            background-color: #2563eb !important; /* 藍色底 */
+            border-color: #2563eb !important;
+            color: #fff !important;
+        }
+
+            button.btn.btn-primary:hover {
+                background-color: #1d4ed8 !important; /* 深藍 hover */
+                border-color: #1d4ed8 !important;
+            }
+
         .topbar {
             display: flex;
             justify-content: space-between;
@@ -312,11 +323,7 @@
                 color: #065f46;
             }
 
-            .chip.pending {
-                background: #fff7ed;
-                border-color: #fed7aa;
-                color: #92400e;
-            }
+            
 
         /* 列操作鈕 */
         .actions {
@@ -423,12 +430,81 @@
             border-color: #e5e7eb;
             color: #6b7280
         }
+
+        .modal-mask {
+            position: fixed;
+            inset: 0; /* top:0; right:0; bottom:0; left:0 */
+            background: rgba(0,0,0,.45);
+            display: grid;
+            place-items: center;
+            z-index: 9999;
+        }
+        .modal-container {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px 24px;
+            width: 360px;
+            max-width: 90%;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            animation: fadeIn .2s ease-out;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 4px;
+        }
+
+        .modal-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0 0 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+            .form-group label {
+                font-size: 14px;
+                font-weight: 500;
+                color: #374151;
+            }
+
+            .form-group select {
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        @@keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
         /* 全欄位不換行 + 超出省略 */
         table th, table td {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
         /* 只有路線可換行 */
         td.col-route {
             white-space: normal;
@@ -461,7 +537,7 @@
             <div class="card-bd">
                 <!-- 搜尋欄 -->
                 <div class="filters-bar">
-                    <div class="filters-chip">
+                    <div class="filters-chip q">
                         <label>用車日期</label>
                         <input type="date" v-model="q.dateFrom">
                         <span style="color:#64748b;">–</span>
@@ -510,7 +586,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="r in shown" :key="r.id">
+                            <tr v-for="r in shown" :key="r.dispatchId">
                                 <td class="mono">{{ rocDate(r.useStart) }}</td>
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
                                 <td class="col-route"><div>{{ r.route }}</div></td>
@@ -547,24 +623,63 @@
                 </div>
             </div>
         </div>
+        <!-- 編輯 Modal（只改駕駛/車輛） -->
         <div v-if="editing" class="modal-mask">
             <div class="modal-container">
-                <h3 class="modal-title">編輯審核狀態</h3>
+                <h3 class="modal-title">更新指派</h3>
                 <p class="modal-subtitle">派車單 #{{ editing.dispatchId }}</p>
 
                 <div class="form-group">
-                    <label for="statusSelect">審核狀態</label>
-                    <select id="statusSelect" v-model="newStatus">
-                        <option value="待審核">待審核</option>
-                        <option value="審核中">審核中</option>
-                        <option value="完成審核">完成審核</option>
-                        <option value="駁回">駁回</option>
+                    <label>可用駕駛</label>
+                    <select v-model.number="selectedDriverId">
+                        <option :value="null">（不指定）</option>
+                        <!-- 當下的駕駛 -->
+                        <option v-if="currentDriver" :value="currentDriver.driverId">
+                            ★ 當前指派：{{ currentDriver.driverName }}
+                        </option>
+                        <!-- 可用駕駛清單 -->
+                        <option v-for="d in availDrivers" :key="d.driverId" :value="d.driverId">
+                            {{ d.driverName }}
+                        </option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label>可用車輛</label>
+                    <select v-model.number="selectedVehicleId">
+                        <option :value="null">（不指定）</option>
+                        <!-- 當下的車輛 -->
+                        <option v-if="currentVehicle" :value="currentVehicle.vehicleId">
+                            ★ 當前指派：{{ currentVehicle.plateNo }}
+                        </option>
+                        <!-- 可用車輛清單 -->
+                        <option v-for="v in availVehicles" :key="v.vehicleId" :value="v.vehicleId">
+                            {{ v.plateNo }}（{{ v.brand }} {{ v.model }} / 容量 {{ v.capacity }}）
+                        </option>
+                    </select>
+                </div>
+
+
 
                 <div class="modal-actions">
                     <button class="btn" @@click="cancelEdit">取消</button>
                     <button class="btn btn-primary" @@click="confirmEdit">確認</button>
+                </div>
+            </div>
+        </div>
+
+
+        <div v-if="viewing" class="modal-mask">
+            <div class="modal-container">
+                <h3 class="modal-title">派車單詳細資料</h3>
+                <p class="modal-subtitle">#{{ viewing.dispatchId }}</p>
+                <div><b>申請人：</b>{{ viewing.applicant }}</div>
+                <div><b>駕駛人：</b>{{ viewing.driver || '未指派' }}</div>
+                <div><b>車輛：</b>{{ viewing.plateNo || '未指派' }}</div>
+                <div><b>事由：</b>{{ viewing.reason }}</div>
+                <div><b>狀態：</b>{{ viewing.status }}</div>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" @@click="closeView">關閉</button>
                 </div>
             </div>
         </div>
@@ -573,13 +688,23 @@
 
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-          const { createApp, ref, computed } = Vue
+          const { createApp, ref, computed, onMounted } = Vue
 
           createApp({
+
             setup(){
+              
               // 查詢條件
               const q = ref({ dateFrom:'', dateTo:'', driver:'', applicant:'', plate:'' })
-
+              // 當月 1~最後 1 日
+            function getMonthRange(){
+              const now = new Date();
+              const y = now.getFullYear(), m = now.getMonth();
+              const first = new Date(y, m, 2);
+              const last  = new Date(y, m+1, 0);
+              const f = d => d.toISOString().slice(0,10);
+              return { start: f(first), end: f(last) };
+            }
               // 資料
               const rows = ref([])
               const lastUpdated = ref(new Date().toLocaleString())
@@ -645,33 +770,92 @@
 
 
         // U: 編輯
+          
+          const selectedDriverId = ref(null); // ✅ 選擇的駕駛
+          const selectedVehicleId = ref(null);// ✅ 選擇的車
+          const availDrivers = ref([]);  // 可用駕駛清單
+          const availVehicles = ref([]); // 可用車輛清單
           const editing = ref(null);   // 正在編輯的 row
-          const newStatus = ref("");
-                  const editRow = (r) => {
-          editing.value = r;
-          newStatus.value = r.status || "待審核";
+          const drivers = ref([]);
+          const vehicles = ref([]);
+          const currentDriver  = ref(null);
+          const currentVehicle = ref(null);
+
+        const editRow = async (r) => {
+          try {
+            viewing.value = null;
+            editing.value = r;
+
+            const appRes = await axios.get(`/api/carapplications/${r.applyId}`);
+            const app = appRes.data?.app ?? {};
+
+            // 設定當下 driver/vehicle
+            let drv = app.driverId ?? app.DriverId ?? r.driverId ?? null;
+            let veh = app.vehicleId ?? app.VehicleId ?? r.vehicleId ?? null;
+
+            selectedDriverId.value  = drv !== null ? Number(drv) : null;
+            selectedVehicleId.value = veh !== null ? Number(veh) : null;
+
+            // 存放當下駕駛/車輛（顯示在最上面）
+            currentDriver.value = drv
+              ? { driverId: Number(drv), driverName: app.driverName ?? r.driver ?? '(未知駕駛)' }
+              : null;
+
+            currentVehicle.value = veh
+              ? { vehicleId: Number(veh), plateNo: app.plateNo ?? r.plate ?? '(未知車輛)' }
+              : null;
+
+            // 抓可用清單
+            const from = isoLocal(app.useStart ?? r.useStart);
+            const to   = isoLocal(app.useEnd   ?? r.useEnd);
+            const cap  = Number(app.passengerCount ?? r.seats ?? 0);
+
+            const [driversRes, vehiclesRes] = await Promise.all([
+              axios.get(`/api/drivers/available`,  { params: { from, to } }),
+              axios.get(`/api/vehicles/available`, { params: { from, to, capacity: cap || undefined } })
+            ]);
+
+            availDrivers.value  = driversRes.data || [];
+            availVehicles.value = vehiclesRes.data || [];
+
+          } catch (err) {
+            console.error("讀取可用人車失敗：", err);
+            alert("讀取可用人車失敗");
+            editing.value = null;
+          }
         };
 
+                function isoLocal(date) {
+          if (!date) return "";
+          const d = new Date(date);
+          if (isNaN(d)) return "";
+          const pad = n => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+
         // 確認更新
-        const confirmEdit = async () => {
+                       const confirmEdit = async () => {
           if (!editing.value) return;
           try {
-            await axios.put(`/api/dispatch/${editing.value.dispatchId}`, {
-              dispatchStatus: newStatus.value
+            await axios.patch(`/api/carapplications/${editing.value.applyId}/assignment`, {
+              driverId:  selectedDriverId.value ?? null,
+              vehicleId: selectedVehicleId.value ?? null
             });
-            alert("狀態已更新為：" + newStatus.value);
-            editing.value = null; // 關閉 modal
-            await loadData();     // 重新讀取
+            alert("指派已更新");
+            editing.value = null;
+            await reload(); // 重新載入列表
           } catch (err) {
             console.error(err);
             alert("更新失敗");
           }
         };
 
-        // 取消編輯
+
+
         const cancelEdit = () => {
-          editing.value = null;
-        };
+          editing.value = null
+        }
 
 
         // D: 刪除
@@ -718,23 +902,35 @@
                 }
                 lastUpdated.value = new Date().toLocaleString()
               }
+                      onMounted(() => {
+          const { start, end } = getMonthRange();
+          q.value.dateFrom = start;   // ✅ 這裡要跟 q 定義一致
+          q.value.dateTo   = end;
+          reload();                  // ✅ 呼叫 reload()
+        });
 
-              function normalize(x){
-                return {
-                  id: x.id ?? Math.random().toString(16).slice(2),
-                  useStart: x.useStart ?? x.start ?? new Date(),
-                  useEnd:   x.useEnd   ?? x.end   ?? new Date(Date.now()+60*60*1000),
-                  route:    x.route ?? `${x.origin} - ${x.destination}`,
-                  reason:   x.reason ?? x.applyReason,
-                  applicant: x.applicant ?? x.applicantName,
-                  seats: Number(x.seats ?? x.passengerCount),
-                  km: Number(x.km ?? x.tripDistance ?? 0),
-                  status: x.status ,
-                  driver: x.driver ?? x.driverName,
-                  plate: x.plate ?? x.plateNo,
-                  longShort: x.longShort ?? (Math.random()>0.5 ? '長差':'短差')
-                }
-              }
+                      function normalize(x){
+          const did = x.dispatchId ?? x.id ?? Math.random().toString(16).slice(2);
+          return {
+            dispatchId: did, 
+            applyId:    x.applyId ?? x.ApplyId ?? null,
+            useStart:   x.useStart ?? x.start ?? new Date(),
+            useEnd:     x.useEnd   ?? x.end   ?? new Date(Date.now()+60*60*1000),
+            route:      x.route ?? `${x.origin ?? ''} - ${x.destination ?? ''}`,
+            reasonType: x.reasonType ?? '',
+            reason:     x.reason ?? x.applyReason ?? '',
+            applicant:  x.applicant ?? x.applicantName ?? '',
+            seats:      Number(x.seats ?? x.passengerCount ?? 0),
+            km:         Number(x.km ?? x.tripDistance ?? 0),
+            status:     x.status ?? x.dispatchStatus ?? '待審核',
+            driver:     x.driver ?? x.driverName ?? '',
+            driverId:   x.driverId ?? null,
+            plate:      x.plate ?? x.plateNo ?? '',
+            vehicleId:  x.vehicleId ?? null,
+            longShort:  x.longShort ?? (Math.random()>0.5 ? '長差':'短差')
+          }
+        }
+
 
               function mockRows(){
                 const base = new Date(); base.setHours(0,0,0,0)
@@ -750,7 +946,6 @@
                const k = String(s || "").trim();
                if (k === "完成審核" || k.toLowerCase() === "approved") return "完成審核";
                if (k === "駁回" || k.toLowerCase() === "reject") return "駁回";
-               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "審核中";
                return "待審核";
              };
 
@@ -759,7 +954,6 @@
                const k = String(s || "").trim();
                if (k === "完成審核" || k.toLowerCase() === "approved") return "s-approved";
                if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
-               if (k === "審核中" || k.toLowerCase() === "review" || k.toLowerCase() === "pending") return "s-review";
                return "s-wait"; // 待審核
              };
 
@@ -770,7 +964,8 @@
                 q, rows, shown, uniqueDrivers, lastUpdated,
                 rocDate, timeSpan, fmtKm,statusText,statusClass,
                 reload, viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
-              editing, newStatus , exportCsv
+                editing ,availDrivers, availVehicles,currentDriver,currentVehicle,
+                selectedDriverId, selectedVehicleId, drivers, vehicles, exportCsv
               }
             }
           }).mount('#app')
