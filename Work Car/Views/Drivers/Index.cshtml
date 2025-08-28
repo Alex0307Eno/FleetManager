@@ -160,6 +160,37 @@
             .icon-btn.edit {
                 color: #22c55e
             }
+
+        .modal-mask {
+            position: fixed;
+            z-index: 9998;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-container {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.4);
+        }
+
+        .table-detail th {
+            background: #f3f4f6;
+            padding: 8px 12px;
+            text-align: left;
+            width: 140px;
+        }
+
+        .table-detail td {
+            padding: 8px 12px;
+        }
     </style>
 </head>
 <body>
@@ -216,9 +247,9 @@
                                 </td>
                                 <td>
                                     <div class="actions">
-                                        <a :href="`/Drivers/Details/${d.driverId}`" class="icon-btn view" title="檢視">
+                                        <button class="icon-btn view" title="檢視" @@click="viewDriver(d.driverId)">
                                             <i class="fa-solid fa-eye"></i>
-                                        </a>
+                                        </button>
                                         <a :href="`/Drivers/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </a>
@@ -232,6 +263,52 @@
                     </table>
                 </div>
             </div>
+            <!-- 檢視 Modal -->
+            <div v-if="viewModalOpen" class="modal-mask">
+                <div class="modal-container" style="max-width:700px;width:90%;">
+                    <h3 class="modal-title">駕駛員詳細資料</h3>
+
+                    <table class="table-detail">
+                        <tr>
+                            <th>姓名</th>
+                            <td>{{ currentDriver.driverName }}</td>
+                        </tr>
+                        <tr>
+                            <th>身分證字號</th>
+                            <td>{{ currentDriver.nationalId }}</td>
+                        </tr>
+                        <tr>
+                            <th>出生年月日</th>
+                            <td>{{ rocDate(currentDriver.birthDate) }}</td>
+                        </tr>
+                        <tr>
+                            <th>戶籍地址</th>
+                            <td>{{ currentDriver.householdAddress }}</td>
+                        </tr>
+                        <tr>
+                            <th>聯絡地址</th>
+                            <td>{{ currentDriver.contactAddress }}</td>
+                        </tr>
+                        <tr>
+                            <th>市話</th>
+                            <td>{{ currentDriver.phone }}</td>
+                        </tr>
+                        <tr>
+                            <th>行動電話</th>
+                            <td>{{ currentDriver.mobile }}</td>
+                        </tr>
+                        <tr>
+                            <th>緊急聯絡人</th>
+                            <td>{{ currentDriver.emergencyContactName }} {{ currentDriver.emergencyContactPhone }}</td>
+                        </tr>
+                    </table>
+
+                    <div class="modal-actions" style="margin-top:12px;text-align:right">
+                        <button class="btn" @@click="viewModalOpen=false">關閉</button>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -257,9 +334,23 @@
                 console.error("載入失敗", e)
               }
             }
+        const viewModalOpen = ref(false)
+        const currentDriver = ref({})
+
+        async function viewDriver(id){
+          try{
+            const res = await axios.get(`/Drivers/Details/${id}`)  // API 回傳 JSON
+            currentDriver.value = res.data
+            viewModalOpen.value = true
+          }catch(e){
+            console.error("讀取駕駛員失敗", e)
+            alert("讀取失敗")
+          }
+        }
+
 
             onMounted(load)
-            return { drivers, rocDate }
+            return { drivers, rocDate, viewModalOpen, currentDriver, viewDriver   }
           }
         }).mount('#app')
     </script>

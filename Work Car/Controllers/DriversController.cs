@@ -36,14 +36,18 @@ namespace Cars.Controllers
             return View(list);
         }
 
-        [HttpGet("Details/{id:int}")]
-        public async Task<IActionResult> Details(int id)
+        [HttpGet("Details/{id}")]
+        public async Task<IActionResult> DetailsApi(int id)
         {
-            var d = await _db.Drivers.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.DriverId == id);
-            if (d == null) return NotFound();
-            return View(d);
+            var driver = await _db.Drivers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.DriverId == id);
+
+            if (driver == null) return NotFound();
+
+            return Json(driver);
         }
+
 
         [HttpGet("Create")]
         public IActionResult Create() => View();

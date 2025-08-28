@@ -115,6 +115,46 @@
         border-radius: 10px;
         padding: 12px 16px
     }
+
+    .modal-mask {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .modal-container {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+
+    .table-detail th {
+        background: #f3f4f6;
+        width: 140px;
+        padding: 8px 12px;
+        text-align: left;
+    }
+
+    .table-detail td {
+        padding: 8px 12px;
+        white-space: nowrap; /* 不換行 */
+    }
+
+    .td-actions {
+        display: flex;
+        justify-content: center; /* 中間對齊 */
+        gap: 6px; /* 兩個按鈕之間的距離 */
+    }
+
+
 </style>
 <div class="topbar">
     <div class="muted" style="margin-bottom:12px;">駕駛員管理 <span style="color:#fff;">&gt;</span> <b>代理人員</b></div>
@@ -169,6 +209,48 @@
         </div>
     </div>
 </div>
+<!-- 紀錄 Modal -->
+<div id="record-modal" class="modal-mask" style="display:none;">
+    <div class="modal-container" style="max-width:700px;width:90%;">
+        <h3 class="modal-title">代理紀錄詳細資料</h3>
+
+        <table class="table-detail">
+            <tr><th>代理人姓名</th><td id="r-agent"></td></tr>
+            <tr><th>被代理人</th><td id="r-principal"></td></tr>
+            <tr><th>代理原因</th><td id="r-reason"></td></tr>
+            <tr><th>代理期間</th><td id="r-period"></td></tr>
+            <tr><th>行駛趟數</th><td id="r-trip"></td></tr>
+            <tr><th>行駛公里數</th><td id="r-dist"></td></tr>
+        </table>
+
+        <div class="modal-actions" style="margin-top:12px;text-align:right">
+            <button class="btn" onclick="closeRecordModal()">關閉</button>
+        </div>
+    </div>
+</div>
+
+<!-- 檢視 Modal -->
+<div id="profile-modal" class="modal-mask" style="display:none;">
+    <div class="modal-container" style="max-width:700px;width:90%;">
+        <h3 class="modal-title">代理人員詳細資料</h3>
+
+        <table class="table-detail">
+            <tr><th>姓名</th><td id="m-name"></td></tr>
+            <tr><th>身分證</th><td id="m-nid"></td></tr>
+            <tr><th>生日</th><td id="m-birth"></td></tr>
+            <tr><th>戶籍地址</th><td id="m-household"></td></tr>
+            <tr><th>聯絡地址</th><td id="m-contact"></td></tr>
+            <tr><th>電話</th><td id="m-phone"></td></tr>
+            <tr><th>手機</th><td id="m-mobile"></td></tr>
+            <tr><th>緊急聯絡人</th><td id="m-emergency"></td></tr>
+        </table>
+
+        <div class="modal-actions" style="margin-top:12px;text-align:right">
+            <button class="btn" onclick="closeProfileModal()">關閉</button>
+        </div>
+    </div>
+</div>
+
 
 @section Scripts {
     <script>
@@ -190,7 +272,7 @@
         });
 
         // ------- 代理紀錄（你原本的 fetch，這裡放簡化版） -------
-        (function loadRecords(){
+                (function loadRecords(){
           fetch('/Agents/Records', { cache:'no-store' })
             .then(r => r.json())
             .then(rows => {
@@ -205,17 +287,20 @@
                    <td>${r.tripCount}</td>
                    <td>${r.distanceKm}</td>
                    <td class="td-actions">
-                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="alert('明細 #${r.id}')">
+                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
                         <i class="fa-regular fa-eye"></i>
                       </a>
                    </td>`;
                 tb.appendChild(tr);
               });
+              // 儲存資料在全域，讓 viewRecord 可以查
+              window._recordCache = rows;
             });
         })();
 
+
         // ------- ✅ 代理人員基本資料（lazy load） -------
-        function loadProfiles(){
+                function loadProfiles(){
           fetch('/Agents/Profiles', { cache:'no-store' })
             .then(r => r.json())
             .then(rows => {
@@ -232,9 +317,10 @@
                    <td>${show(r.mobile)}</td>
                    <td>${show(r.emergency)}</td>
                    <td class="td-actions">
-                      <a class="icon-btn" title="檢視" href="/Drivers/Details/${r.id}">
+                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
                         <i class="fa-regular fa-eye"></i>
                       </a>
+
                       <a class="icon-btn" title="編輯" href="/Drivers/Edit/${r.id}">
                         <i class="fa-regular fa-pen-to-square"></i>
                       </a>
@@ -244,5 +330,49 @@
               profilesLoaded = true;
             });
         }
+                function viewRecord(id){
+          const rows = window._recordCache || [];
+          const data = rows.find(x => x.id === id);
+          if(!data) return alert("找不到資料");
+
+          document.getElementById("r-agent").textContent     = data.agentName || '—';
+          document.getElementById("r-principal").textContent = data.principalName || '—';
+          document.getElementById("r-reason").textContent    = data.reason || '—';
+          document.getElementById("r-period").textContent    = data.period || '—';
+          document.getElementById("r-trip").textContent      = data.tripCount || '0';
+          document.getElementById("r-dist").textContent      = data.distanceKm || '0';
+
+          document.getElementById("record-modal").style.display = "flex";
+        }
+
+        function closeRecordModal(){
+          document.getElementById("record-modal").style.display = "none";
+        }
+
+
+                function viewProfile(id){
+          fetch(`/Agents/Profiles`, { cache:'no-store' })
+            .then(r=>r.json())
+            .then(rows=>{
+              const data = rows.find(x=>x.id===id);
+              if(!data) return alert("找不到資料");
+
+              document.getElementById("m-name").textContent      = data.name || '—';
+              document.getElementById("m-nid").textContent       = data.nationalId || '—';
+              document.getElementById("m-birth").textContent     = data.birthRoc || '—';
+              document.getElementById("m-household").textContent = data.household || '—';
+              document.getElementById("m-contact").textContent   = data.contact || '—';
+              document.getElementById("m-phone").textContent     = data.phone || '—';
+              document.getElementById("m-mobile").textContent    = data.mobile || '—';
+              document.getElementById("m-emergency").textContent = data.emergency || '—';
+
+              document.getElementById("profile-modal").style.display="flex";
+            });
+        }
+
+        function closeProfileModal(){
+          document.getElementById("profile-modal").style.display="none";
+        }
+
     </script>
 }
