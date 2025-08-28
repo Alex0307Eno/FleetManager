@@ -342,6 +342,11 @@
                 background: #f0f0f0;
             }
 
+        .grid-equal-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 🔥 兩欄各佔一半 */
+            gap: 16px; /* 保持和 grid-2 一樣的間距 */
+        }
     </style>
 </head>
 
@@ -404,14 +409,15 @@
 
                             </div>
 
-                            <div class="grid-3" style="margin-top:12px">
+                            <div class="grid-equal-2" style="margin-top:12px">
                                 <div>
                                     <label>起始時間 *</label>
-                                    <input type="datetime-local" v-model="useStart" />
+                                    <input type="datetime-local" class="form-control"  v-model="useStart" />
                                 </div>
                                 <div>
                                     <label>結束時間 *</label>
-                                    <input type="datetime-local" v-model="useEnd" />
+                                    <input type="text" id="ArrivalDisplay" class="form-control" readonly>
+                                    <input type="hidden" id="useEnd" name="useEnd">
                                 </div>
 
 
@@ -682,6 +688,37 @@
           window.addEventListener("resize", positionDropdown);
           window.addEventListener("scroll", positionDropdown);
         }
+              let singleDurationSec = 0;       // 單程秒數  e.g. data.rows[0].elements[0].duration.value
+        let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
+
+        function formatDateTime(dt) {
+          // 輸出 yyyy/M/d HH:mm（或要含秒可自行調整）
+          const pad = n => (n < 10 ? "0" + n : "" + n);
+          return dt.getFullYear() + "/" + (dt.getMonth() + 1) + "/" + dt.getDate() +
+                 " " + pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + ":" + pad(dt.getSeconds());
+        }
+
+        function recalcArrival() {
+          const startInput = document.getElementById("UseStart").value;
+          if (!startInput) return;
+
+          const start = new Date(startInput);
+          if (isNaN(start.getTime())) return;
+
+          const tripType = document.getElementById("TripType").value;
+          const secs = (tripType === "來回") ? roundTripDurationSec : singleDurationSec;
+          if (!secs || secs <= 0) return;
+
+          const arrival = new Date(start.getTime() + secs * 1000);
+
+          // 顯示用
+          document.getElementById("ArrivalDisplay").value = formatDateTime(arrival);
+
+          // 送後端用（用 ISO 格式避免時區問題；後端用 DateTime 解析）
+          document.getElementById("useEnd").value = arrival.toISOString();
+        }
+
+       
 
         // 初始化：避免重複綁定
         function initPlacesAutocompleteDebounced(bindings = {}, opts = {}){
@@ -741,8 +778,6 @@
             );
 
             const passengerCount = ref(1);
-            const useStart = ref(getLocalDateTimeString(now));
-            const useEnd   = ref(getLocalDateTimeString(new Date(now.getTime() + 60 * 60 * 1000)));
             const reasonType = ref("公務用");
             const applyReason = ref("");
             const origin = ref("");
@@ -757,6 +792,32 @@
               ext: '212',
               email: 'XXXXX@forest.gov.tw'
             });
+                    const useStart = ref(getLocalDateTimeString(now));
+        const useEnd   = ref("");   // 真正送到後端的值
+
+        // 自動算到達時間（出發時間 + 路程時間）
+        const arrivalDisplay = computed(() => {
+          if (!useStart.value) return "";
+          const start = new Date(useStart.value);
+          if (isNaN(start.getTime())) return "";
+
+          // 根據單程 / 來回選擇秒數
+          const secs = (tripType.value === "round")
+            ? roundTripDurationSec
+            : singleDurationSec;
+
+          if (!secs) return "";
+
+          const arrival = new Date(start.getTime() + secs * 1000);
+
+          // 同步更新 useEnd（後端用）
+          useEnd.value = arrival.toISOString();
+
+          // 顯示格式
+          const pad = n => (n < 10 ? "0" + n : n);
+          return `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} `
+               + `${pad(arrival.getHours())}:${pad(arrival.getMinutes())}:${pad(arrival.getSeconds())}`;
+        });
 
            
         // 車輛清單（改呼叫 /api/vehicles/available）
@@ -896,31 +957,72 @@
               }
             }
 
-            async function calcDistance() {
-              if (!origin.value || !destination.value) {
-                alert('請輸入出發地與目的地');
-                return;
-              }
-              try {
-                const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
-                const data = await res.json();
-                if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
-                  const distMeters = data.rows[0].elements[0].distance.value;
-                  const durSecs = data.rows[0].elements[0].duration.value;
-                  function formatDuration(seconds){
-                    let hours=Math.floor(seconds/3600), mins=Math.round((seconds%3600)/60);
-                    if (mins===60){ hours+=1; mins=0; }
-                    let t=''; if (hours>0) t+=hours+' 小時'; if (mins>0) t+=(hours>0?' ':'')+mins+' 分鐘'; return t;
-                  }
-                  singleDistance.value    = (distMeters/1000).toFixed(1)+ ' 公里';
-                  singleDuration.value    = formatDuration(durSecs);
-                  roundTripDistance.value = (distMeters*2/1000).toFixed(1)+' 公里';
-                  roundTripDuration.value = formatDuration(durSecs*2);
-                } else {
-                  alert('⚠️ 查無路線');
-                }
-              } catch(err){ console.error('❌ 取得距離失敗', err); }
+        async function calcDistance() {
+          if (!origin.value || !destination.value) {
+            alert('請輸入出發地與目的地');
+            return;
+          }
+          try {
+            const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
+            const data = await res.json();
+
+                   if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
+          const distMeters = data.rows[0].elements[0].distance.value;
+          const durSecs = data.rows[0].elements[0].duration.value;
+
+          // 原本就有的顯示邏輯
+          singleDurationSec = durSecs;
+          roundTripDurationSec = durSecs * 2;
+
+          function formatDuration(seconds){
+            let hours=Math.floor(seconds/3600), mins=Math.round((seconds%3600)/60);
+            if (mins===60){ hours+=1; mins=0; }
+            let t=''; if (hours>0) t+=hours+' 小時'; if (mins>0) t+=(hours>0?' ':'')+mins+' 分鐘';
+            return t;
+          }
+          singleDistance.value    = (distMeters/1000).toFixed(1)+ ' 公里';
+          singleDuration.value    = formatDuration(durSecs);
+          roundTripDistance.value = (distMeters*2/1000).toFixed(1)+' 公里';
+          roundTripDuration.value = formatDuration(durSecs*2);
+
+          // 🔻 新增區塊：按完「查詢」就計算並顯示結束時間
+          const start = new Date(useStart.value);
+          if (!isNaN(start.getTime())) {
+            const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
+            if (secs > 0) {
+              const arrival = new Date(start.getTime() + secs * 1000);
+
+              // 更新 Vue 變數（右側卡片會跟著變）
+              useEnd.value = arrival.toISOString();
+
+              // 更新頁面上的結束時間輸入框
+              const pad = n => (n < 10 ? '0' + n : '' + n);
+                      let hours = arrival.getHours();
+        const minutes = pad(arrival.getMinutes());
+        const seconds = pad(arrival.getSeconds());
+        const ampm = hours >= 12 ? '下午' : '上午';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 轉成 12
+
+        const show = `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} ` +
+                     `${ampm} ${pad(hours)}:${minutes}:${seconds}`;
+
+              const disp = document.getElementById('ArrivalDisplay');
+              if (disp) disp.value = show;
+
+              // 若後端還會讀 hidden 欄位，就同步它
+              const hidden = document.getElementById('useEnd');
+              if (hidden) hidden.value = useEnd.value;
             }
+          }
+        } else {
+          alert('⚠️ 查無路線');
+        }
+
+          } catch(err){
+            console.error('❌ 取得距離失敗', err);
+          }
+        }
 
             onMounted(() => {
               // 地點自動完成
@@ -931,9 +1033,9 @@
               // 載入車輛
               loadVehicles();
             });
-
+            
             return {
-              applyFor, vehicleType, purposeType,
+              applyFor, vehicleType, purposeType,arrivalDisplay,
               passengerCount, useStart, useEnd, reasonType, applyReason,
               origin, destination, tripType, applicant,
               singleDistance, singleDuration, roundTripDistance, roundTripDuration,

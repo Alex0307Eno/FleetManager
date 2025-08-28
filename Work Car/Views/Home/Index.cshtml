@@ -434,8 +434,12 @@
             <section>
                 <!-- A. 排班視圖 -->
                 <div v-if="viewMode==='schedule'" class="card">
-                    <div class="card-hd">
-                        <div>今日排班情形（@DateTime.Now.ToString("yyyy/M/d dddd", new System.Globalization.CultureInfo("zh-TW"))）</div>
+                    <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
+                        <!-- 左邊固定 -->
+                        <div>今日排班情形</div>
+
+                        <!-- 右邊日期 + 時間 -->
+                        <div id="dateTime"></div>
                     </div>
 
                     <div class="card-bd">
@@ -643,6 +647,28 @@
 
     <!-- Vue App -->
     <script>
+            function updateDateTime() {
+            var now = new Date();
+
+            // 日期 + 星期
+            var options = { weekday: 'long' };
+            var dateStr = now.getFullYear() + "/" +
+                          (now.getMonth() + 1) + "/" +
+                          now.getDate() + " " +
+                          now.toLocaleDateString("zh-TW", options);
+
+            // 時間 (時:分:秒)
+            var timeStr = now.toLocaleTimeString("zh-TW");
+
+            // 更新右邊區塊
+        const el = document.getElementById("dateTime");
+        if (el) {
+          el.textContent = dateStr + " " + timeStr;
+        }
+                }
+
+        updateDateTime();           // 載入時執行一次
+        setInterval(updateDateTime, 1000); // 每秒更新
         window.addEventListener('DOMContentLoaded', () => {
           if (!window.Vue) { console.error('❌ Vue 還沒載到'); return; }
           const { createApp, ref, onMounted, computed, nextTick, watch } = window.Vue;
