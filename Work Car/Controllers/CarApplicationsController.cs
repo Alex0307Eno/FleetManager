@@ -458,14 +458,28 @@ namespace Cars.Controllers
             var app = await _context.CarApplications.FindAsync(id);
             if (app == null) return NotFound();
 
+            // 刪掉子表（派工單）
+            var dispatches = _context.Dispatches.Where(d => d.ApplyId == id);
+            _context.Dispatches.RemoveRange(dispatches);
+
+            // 刪掉子表（乘客）
             var passengers = _context.CarPassengers.Where(p => p.ApplyId == id);
             _context.CarPassengers.RemoveRange(passengers);
 
+            // 最後刪掉申請單
             _context.CarApplications.Remove(app);
-            await _context.SaveChangesAsync();
 
-            return Ok(new { message = "刪除成功" });
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "刪除成功" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "刪除失敗", detail = ex.Message });
+            }
         }
+
 
         [HttpGet("Search")]
         public async Task<IActionResult> Search(

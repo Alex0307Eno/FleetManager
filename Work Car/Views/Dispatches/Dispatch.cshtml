@@ -786,6 +786,7 @@
         await axios.delete(`/api/carApplications/${r.applyId}`);
         // 前端移除，或重新載入
         rows.value = rows.value.filter(x => x.applyId !== r.applyId);
+        alert('刪除成功');
         } catch (err) {
         alert('刪除失敗');
         }
