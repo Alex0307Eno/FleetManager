@@ -108,3 +108,36 @@
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
+/* 登入 Modal 藍底樣式 */
+#loginModal .modal-content {
+    background-color: #1e6fb8; /* 深藍底 */
+    color: #fff; /* 白字 */
+    border-radius: 12px;
+}
+
+#loginModal .modal-header {
+    border-bottom: none;
+    background-color: #145a99; /* 更深一點的藍 */
+}
+
+#loginModal .modal-footer {
+    border-top: none;
+    background-color: #145a99;
+    color: #e5e5e5;
+}
+
+#loginModal label {
+    color: #fff; /* 表單標籤白色 */
+}
+
+#loginModal input.form-control {
+    background-color: #fff;
+    color: #000;
+}
+
+#loginModal button.btn-primary {
+    background-color: #fff;
+    color: #1e6fb8;
+    border: none;
+    font-weight: bold;
+}

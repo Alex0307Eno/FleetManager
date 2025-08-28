@@ -32,6 +32,7 @@
             <!-- 右邊選單 -->
             <div class="collapse navbar-collapse justify-content-end">
                 <ul class="navbar-nav">
+
                     <!-- 派車管理 -->
                     <li class="nav-item dropdown">
                     <li class="nav-item">
@@ -62,6 +63,28 @@
                             <li><a class="dropdown-item" href="/Vehicles/Statistics">行車歷程統計</a></li>
                         </ul>
                     </li>
+                    <!-- 登入/登出 -->
+                    @if (User.Identity.IsAuthenticated)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                                👤 @User.Identity.Name
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <form asp-controller="Account" asp-action="Logout" method="post" class="dropdown-item p-0">
+                                        <button type="submit" class="btn btn-link w-100 text-start">登出</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Account" asp-action="Login">登入</a>
+                        </li>
+                    }
                 </ul>
             </div>
         </div>
@@ -80,10 +103,44 @@
             &copy; 2025 - Cars - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
-
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 shadow-lg">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">🚗 公務車派車系統登入</h5>
+                </div>
+                <div class="modal-body p-4">
+                    <form method="post" action="/Account/Login">
+                        <div class="mb-3">
+                            <label class="form-label">帳號</label>
+                            <input type="text" name="username" class="form-control form-control-lg" placeholder="輸入帳號" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">密碼</label>
+                            <input type="password" name="password" class="form-control form-control-lg" placeholder="輸入密碼" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 btn-lg">登入</button>
+                    </form>
+                </div>
+                <div class="modal-footer text-muted small">
+                    &copy; 2025 公務車派車系統
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // 頁面載入後自動顯示登入視窗
+        document.addEventListener("DOMContentLoaded", function () {
+            var loginModal = new bootstrap.Modal(document.getElementById("loginModal"), {
+                backdrop: 'static', // 背景不可點擊關閉
+                keyboard: true     // 按 Esc 不可關閉
+            });
+            loginModal.show();
+        });
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

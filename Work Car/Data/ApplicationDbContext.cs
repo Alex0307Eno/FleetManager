@@ -11,6 +11,8 @@ namespace Cars.Data
         }
 
         // 這裡放你的資料表，舉例 CarApply
+        public DbSet<User> Users { get; set; }
+
         public DbSet<CarApply> CarApplications { get; set; }
         public DbSet<CarPassenger> CarPassengers { get; set; }
         public DbSet<Cars.Models.Vehicle> Vehicles { get; set; }
