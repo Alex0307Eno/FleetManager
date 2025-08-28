@@ -454,7 +454,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="s in schedules" :key="s.key">
+                                <tr v-for="(s, idx) in scheduleTable" :key="s.key">
                                     <td>{{ s.driverName || '-' }}</td>
                                     <td><span class="pill" :class="s.shiftClass">{{ s.shiftLabel }}</span></td>
                                     <td class="col-route">{{ s.arrivalDisplay || '無任務' }}</td>
@@ -472,6 +472,7 @@
                                     </td>
                                     <td>{{ s.plateNo ? s.plateNo.replace(/\D/g, '') : '-' }}</td>
                                 </tr>
+                               
                                 <tr v-if="!schedules.length">
                                     <td colspan="9" style="text-align:center;color:#999;padding:8px">今天沒有排班資料</td>
                                 </tr>
@@ -672,6 +673,7 @@
               };
               return (pending.value || []).filter(x => !isDoneOrRejected(x.status));
             });
+              
 
               // ===== 工具 =====
               const hasMapsKey = computed(() => !!(window.GOOGLE_MAPS_KEY && window.GOOGLE_MAPS_KEY.length));
@@ -693,6 +695,16 @@
                   else console.warn('無定位資訊');
                 }
               }
+                        // ===== 今日排班行程表（司機可重複出現，依時間排序） =====
+                 const scheduleTable = computed(() => {
+                   return (schedules.value || [])
+                     .slice() // 複製一份，避免影響原始資料
+                     .sort((a, b) => {
+                       const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
+                       const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
+                       return ta - tb; // 依照開始時間由早到晚排序
+                     });
+                 });
 
               // ===== 我的定位（五張地圖） =====
               const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
@@ -837,12 +849,12 @@
           const myLat = toNumOrNull(myLoc.value?.lat);
           const myLng = toNumOrNull(myLoc.value?.lng);
 
-          const base = (schedules.value || []).slice(0, 5).map(d => ({
+          const base = (driverStatus.value || []).slice(0, 5).map(d => ({
             key: d.key,
             plate: (d.plateNo || '').trim() || '—',
             driver: (d.driverName || '').trim() || '—',
-            statusText: d.hasDispatch ? '執勤中' : '待機中',
-            statusType: d.hasDispatch ? 'on' : 'idle',
+            statusText: d.stateText,                 // ← 改用 driverStatus 的判斷結果
+            statusType: (d.stateText==='執勤中') ? 'on' : 'idle',  // ← 跟 stateText 對應
             // 把地圖座標一律換成我的定位
             lat: validLatLng(myLat, myLng) ? myLat : null,
             lng: validLatLng(myLat, myLng) ? myLng : null
@@ -861,12 +873,15 @@
           return base;
         });
                 // --- 審核操作（✅/✕） ---
-                                    const approve = async (p) => {
+                        const approve = async (p) => {
+          if (!confirm(`確定要將申請單 #${p.applyId} 審核通過嗎？`)) return;
+
           try {
             console.log("🚀 approve", p);
-            await axios.put(`/api/dispatch/application/${p.applyId}/status`, {
-              dispatchStatus: "完成審核"
+            await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
+              status: "完成審核"
             });
+            alert("✅ 已成功審核通過");
             p.status = "完成審核";
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
           } catch (err) {
@@ -876,11 +891,14 @@
         };
 
         const reject = async (p) => {
+          if (!confirm(`確定要將申請單 #${p.applyId} 駁回嗎？`)) return;
+
           try {
             console.log("🚀 reject", p);
-            await axios.put(`/api/dispatch/application/${p.applyId}/status`, {
-              dispatchStatus: "駁回"
+            await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
+              status: "駁回"
             });
+            alert("✅ 已成功駁回");
             p.status = "駁回";
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
           } catch (err) {
@@ -888,11 +906,6 @@
             alert("駁回失敗");
           }
         };
-
-
-
-
-
 
               // ===== 資料載入 =====
               async function get(url){ const res = await axios.get(url); return res.data; }
@@ -903,6 +916,8 @@
                     get('/api/dashboard/dispatch/uncomplete'),
                     get('/api/dashboard/applications/pending')
                   ]);
+              
+
 
                   // 地址對應表（可自行擴充）
                   const addressMap = {
@@ -988,6 +1003,7 @@
             if (isNaN(dt)) return '';
             return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
           };
+
 
           // 時間到就不再視為執勤
           const now = new Date();
@@ -1095,9 +1111,9 @@
 
               return {
                 // 視圖
-                viewMode, enterMyLocationView, exitMyLocationView,
+                viewMode, enterMyLocationView, exitMyLocationView,fmtHHmm,
                 // 列表/審核
-                schedules, unfinished, pending, approve, reject,pendingFiltered,
+                schedules,scheduleTable, unfinished, pending, approve, reject,pendingFiltered,
                 // 單一地圖開新頁
                 openMap,
                 // 我的定位

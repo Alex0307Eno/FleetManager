@@ -468,7 +468,7 @@ namespace Cars.Controllers
 
             // 最後刪掉申請單
             _context.CarApplications.Remove(app);
-
+            await _context.SaveChangesAsync();
             try
             {
                 await _context.SaveChangesAsync();

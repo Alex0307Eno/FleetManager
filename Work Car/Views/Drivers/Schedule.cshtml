@@ -22,8 +22,44 @@
                     <button class="seg-btn" :class="{active: viewMode==='week'}" @@click="viewMode='week'">每週</button>
                 </div>
                 <div class="toolbar" style="margin-left:auto; display:flex; gap:6px;">
-                    <button class="btn btn-warning">代理人</button>
+                    <button class="btn btn-warning" @@click="openAgentModal">代理人</button>
                     <button class="btn btn-primary" @@click="exportCSV">匯出班表</button>
+                </div>
+            </div>
+            <!-- 代理人 Modal -->
+            <div v-if="agentModalOpen" class="modal-mask">
+                <div class="modal-container" style="max-width:900px;width:90%;">
+                    <h3 class="modal-title">代理人員清單</h3>
+
+                    <table class="agent-table" style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>身分證</th>
+                                <th>生日</th>
+                                <th>聯絡地址</th>
+                                <th>手機</th>
+                                <th>緊急聯絡人</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="a in agents" :key="a.id">
+                                <td>{{ a.name }}</td>
+                                <td>{{ a.nationalId }}</td>
+                                <td>{{ a.birthRoc }}</td>
+                                <td>{{ a.contact }}</td>
+                                <td>{{ a.mobile }}</td>
+                                <td>{{ a.emergency }}</td>
+                            </tr>
+                            <tr v-if="!agents.length">
+                                <td colspan="8" style="text-align:center;color:#999;padding:8px">目前沒有資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="modal-actions" style="margin-top:12px;text-align:right">
+                        <button class="btn btn-primary" @@click="agentModalOpen=false">關閉</button>
+                    </div>
                 </div>
             </div>
 
@@ -217,6 +253,137 @@
         color: #111
     }
 
+    /* ===== Modal 樣式 ===== */
+    .modal-mask {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55); /* 半透明黑背景 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .modal-container {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        width: 90%;
+        max-width: 1000px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        color: #1e293b;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+    }
+
+    /* ===== 表格樣式 ===== */
+    .agent-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+        .agent-table thead th {
+            background: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+            white-space: nowrap; /* 標題不換行 */
+        }
+
+        .agent-table tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: middle;
+            color: #111827;
+        }
+
+        .agent-table tbody tr:nth-child(2n) {
+            background: #f9fafb; /* 斑馬紋 */
+        }
+
+        .agent-table tbody tr:hover {
+            background: #f1f5ff; /* 滑鼠移入顏色 */
+        }
+
+        /* ===== 姓名欄強調 ===== */
+        .agent-table td:first-child {
+            font-weight: 600;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+
+    /* ===== 關閉按鈕 ===== */
+    .modal-actions {
+        margin-top: 16px;
+        text-align: right;
+    }
+
+        .modal-actions .btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .modal-actions .btn-primary {
+            background: #2563eb;
+            border: 1px solid #2563eb;
+            color: #fff;
+        }
+
+            .modal-actions .btn-primary:hover {
+                background: #1d4ed8;
+            }
+
+
+    /* 表格美化 */
+    .modal-body table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+    }
+
+    .modal-body td:first-child {
+        font-weight: 600;
+        color: #111827; /* 深色文字 */
+        font-size: 15px;
+        white-space: nowrap;
+    }
+
+    .modal-body th {
+        background: #f1f5f9; /* 淺灰底 */
+        color: #1f2937; /* 深灰字 */
+        font-weight: 600;
+        font-size: 14px;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .modal-body td:first-child,
+    .agent-table td:nth-child(5) {
+        font-weight: 600;
+        color: #111827;
+        font-size: 15px;
+        white-space: nowrap; /* 不換行 */
+        overflow: hidden; /* 超出隱藏 */
+        text-overflow: ellipsis; /* 超出時顯示 … */
+        max-width: 120px; /* 視需要加上寬度限制 */
+    }
+
+
+
+
     .grid {
         display: grid;
         grid-template-columns: 2fr 1fr;
@@ -399,6 +566,8 @@
 
 <!-- ====== Vue 3 ====== -->
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
 <script>
     const { createApp, ref, reactive, computed } = Vue;
 
@@ -408,6 +577,19 @@
         const rocYear   = today.getFullYear() - 1911;
         const month     = ref(today.getMonth()+1);             // 1-12
         const yearAD    = computed(()=> rocYear + 1911);
+        const agentModalOpen = ref(false);
+        const agents = ref([]);
+
+        async function openAgentModal() {
+          try {
+            const res = await axios.get('/agents/profiles'); // 👈 API 位置等下補
+            agents.value = res.data;
+            agentModalOpen.value = true;
+          } catch (err) {
+            console.error("讀取代理人失敗:", err);
+            alert("無法載入代理人資料");
+          }
+        }
 
         // A~E 駕駛
         const drivers = ref(['邱ＯＯ','黃ＯＯ','王ＯＯ','吳ＯＯ','林ＯＯ']);
@@ -571,6 +753,7 @@
 
         return {
           rocYear, month, viewMode,
+          openAgentModal,agentModalOpen, agents,
           drivers, assign, codes,
           daysInMonth, firstWeekday, isToday,
           monthGrid, weeksOfMonth, selectedWeek, weekDays,
