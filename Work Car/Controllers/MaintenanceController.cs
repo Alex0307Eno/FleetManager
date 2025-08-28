@@ -18,11 +18,43 @@ namespace Cars.Controllers
         {
             var list = await _db.Vehicles
                 .OrderBy(v => v.PlateNo)
-                .Select(v => new { vehicleId = v.VehicleId, plate = v.PlateNo })
+                .Select(v => new { vehicleId = v.VehicleId, plate = v.PlateNo, status = v.Status })
                 .ToListAsync();
 
             return Ok(list);
         }
+
+        [HttpGet("vehicle/{id}")]
+        public async Task<IActionResult> GetVehicleDetail(int id)
+        {
+            var v = await _db.Vehicles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.VehicleId == id);
+
+            if (v == null) return NotFound();
+
+            return Ok(new
+            {
+                v.VehicleId,
+                plate = v.PlateNo,
+                v.Status,
+                v.Source,
+                v.ApprovalNo,
+                v.PurchaseDate,
+                v.Value,
+                v.LicenseDate,
+                v.StartUseDate,
+                v.InspectionDate,
+                v.EngineCC,
+                v.EngineNo,
+                v.Brand,
+                v.Year,
+                v.Model,
+                v.Type,
+                v.Retired
+            });
+        }
+
 
         // 查某車的保養紀錄
         [HttpGet]
@@ -32,7 +64,7 @@ namespace Cars.Controllers
                 .Where(m => m.VehicleId == vehicleId)
                 .OrderByDescending(m => m.Date)
                 .Select(m => new {
-                    m.VehicleMaintenanceId,
+                    id = m.VehicleMaintenanceId,
                     date = m.Date.ToString("yyyy-MM-dd"),
                     m.Odometer,
                     m.Item,
@@ -96,5 +128,75 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return Ok(new { message = "已刪除" });
         }
+        // === 報修申請 DTO ===
+        public sealed class RepairRequestDto
+        {
+            public int VehicleId { get; set; }
+            public string? PlateNo { get; set; }
+            public DateTime Date { get; set; }
+            public string Issue { get; set; } = "";
+            public decimal? CostEstimate { get; set; }
+            public string? Note { get; set; }
+        }
+
+        // 新增報修
+        [HttpPost("repair")]
+        public async Task<IActionResult> CreateRepair([FromBody] RepairRequestDto dto)
+        {
+            if (dto.VehicleId <= 0) return BadRequest("VehicleId 必填");
+            if (string.IsNullOrWhiteSpace(dto.Issue)) return BadRequest("故障內容必填");
+
+            var entity = new RepairRequest
+            {
+                VehicleId = dto.VehicleId,
+                PlateNo = dto.PlateNo ?? "",
+                Date = dto.Date,
+                Issue = dto.Issue,
+                CostEstimate = dto.CostEstimate,
+                Note = dto.Note,
+                Status = "待處理"
+            };
+
+            _db.RepairRequests.Add(entity);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "報修已送出", id = entity.RepairRequestId });
+        }
+
+        // 查詢某車的報修紀錄
+        [HttpGet("repairs")]
+        public async Task<IActionResult> ListRepairs([FromQuery] int vehicleId)
+        {
+            var q = _db.RepairRequests
+                .Where(r => r.VehicleId == vehicleId)
+                .OrderByDescending(r => r.Date)
+                .Select(r => new {
+                    repairRequestId = r.RepairRequestId,
+                    date = r.Date != null ? r.Date.ToString("yyyy-MM-dd") : "",
+                    issue = r.Issue ?? "",
+                    status = r.Status ?? "",
+                    costEstimate = r.CostEstimate ?? 0,
+                    note = r.Note ?? ""
+                });
+
+            return Ok(await q.ToListAsync());
+        }
+
+
+        // 更新狀態（例如 維修完成）
+        [HttpPut("vehicle/{id}/status")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
+        {
+            var v = await _db.Vehicles.FindAsync(id);
+            if (v == null) return NotFound();
+
+            v.Status = status;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "狀態已更新", status });
+        }
+
+
+
     }
 }

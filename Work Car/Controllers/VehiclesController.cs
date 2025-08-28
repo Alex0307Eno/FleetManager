@@ -87,10 +87,18 @@ namespace Cars.Controllers
         // 小工具：解析公里數
         private static double ParseKm(string? single, string? round)
         {
-            if (decimal.TryParse(round, out var r)) return (double)r;
-            if (decimal.TryParse(single, out var s)) return (double)s;
+            string? src = !string.IsNullOrWhiteSpace(round) ? round : single;
+            if (string.IsNullOrWhiteSpace(src)) return 0;
+
+            // 只保留數字和小數點，例如 "12 公里" -> "12"
+            var digits = new string(src.Where(c => char.IsDigit(c) || c == '.').ToArray());
+
+            if (double.TryParse(digits, out var km))
+                return km;
+
             return 0;
         }
+
         [HttpGet("ChartData")]
         public async Task<IActionResult> ChartData(DateTime? dateFrom, DateTime? dateTo, string type = "long")
         {

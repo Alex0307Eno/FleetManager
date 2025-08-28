@@ -228,6 +228,8 @@
               const res = await axios.get('/Vehicles/TripStats',{ params:q.value });
               rows.value = Array.isArray(res.data) ? res.data : [];
               drawCharts();
+                console.log("🚗 TripStats data:", res.data); // ← 檢查這裡
+
             }
 
             async function loadDrivers(){

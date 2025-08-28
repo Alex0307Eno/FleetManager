@@ -205,12 +205,112 @@
         border-radius: 10px;
         padding: 12px 16px
     }
+
+    table th, table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .vehicle-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+    }
+
+        .vehicle-info .plate {
+            background: rgba(255,255,255,0.15);
+            padding: 6px 12px;
+            border-radius: 8px;
+        }
+
+        .vehicle-info .status {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+            /* 狀態顏色 */
+            .vehicle-info .status.可用 {
+                background: #22c55e;
+                color: #fff;
+            }
+
+            .vehicle-info .status.維修中 {
+                background: #eab308;
+                color: #111;
+            }
+
+            .vehicle-info .status.報廢 {
+                background: #ef4444;
+                color: #fff;
+            }
+
+    .vehicle-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #fff;
+    }
+
+    .plate {
+        background: rgba(255,255,255,0.15);
+        padding: 6px 12px;
+        border-radius: 8px;
+    }
+
+    .status {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        background: rgba(255,255,255,0.2);
+    }
+
+        .status.可用 {
+            background: #16a34a;
+            color: #fff;
+        }
+
+        .status.維修中 {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .status.報廢 {
+            background: #dc2626;
+            color: #fff;
+        }
+
+    .btn-success {
+        background: #16a34a;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+    }
+
 </style>
 
 <div id="app" class="wrap" v-cloak>
     <div class="topbar">
-    <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 車輛維護</h2>
+        <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 車輛維護</h2>
+
+        <!-- 右側顯示車牌與狀態 -->
+        <div class="vehicle-info">
+            <span class="plate">{{ vehicleDetail.plate || '未選擇車輛' }}</span>
+            <span class="status" :class="vehicleDetail.status">
+                {{ vehicleDetail.status || '—' }}
+            </span>
+            <button v-if="vehicleDetail.status==='維修中'" class="btn btn-success" @@click="setAvailable">
+            維修完成
+            </button>
+        </div>
     </div>
+
     <div class="grid">
 
         <!-- 左側：車籍卡 -->
@@ -218,34 +318,42 @@
             <div class="card-hd">
                 <div class="title">汽車車歷登記卡</div>
                 <div class="toolbar">
-                    <select v-model="selectedVehicleId" class="select" @@change="loadMaintenance">
-                        <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">{{ v.plate }}</option>
+                    <select v-model="selectedVehicleId" class="select"
+                            @@change="() => { loadMaintenance(); loadVehicleDetail(); loadRepairs(); }">
+                        <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">
+                            {{ v.plate }} ({{ v.status }})
+                        </option>
                     </select>
-                    <button class="btn">＋</button>
+
+
                 </div>
             </div>
             <div class="card-bd">
-                <div class="field"><label>來源</label><div class="fake">—</div></div>
-                <div class="field"><label>核准文號</label><div class="fake">—</div></div>
-                <div class="field"><label>購置日期</label><div class="fake">—</div></div>
-                <div class="field"><label>價值</label><div class="fake">—</div></div>
-                <div class="field"><label>請領牌照日期</label><div class="fake">—</div></div>
-                <div class="field"><label>開始使用日期</label><div class="fake">—</div></div>
-                <div class="field"><label>定期檢驗日期</label><div class="fake">—</div></div>
-                <div class="field"><label>排氣量</label><div class="fake">—</div></div>
-                <div class="field"><label>引擎號碼</label><div class="fake">—</div></div>
-                <div class="field"><label>廠牌</label><div class="fake">—</div></div>
-                <div class="field"><label>年份</label><div class="fake">—</div></div>
-                <div class="field"><label>型式</label><div class="fake">—</div></div>
-                <div class="field"><label>(移轉)報停報廢</label><div class="fake">—</div></div>
+                <div class="field"><label>來源</label><div class="fake">{{ vehicleDetail.source || '—' }}</div></div>
+                <div class="field"><label>核准文號</label><div class="fake">{{ vehicleDetail.approvalNo || '—' }}</div></div>
+                <div class="field"><label>購置日期</label><div class="fake">{{ vehicleDetail.purchaseDate?.slice(0,10) || '—' }}</div></div>
+                <div class="field"><label>價值</label><div class="fake">{{ vehicleDetail.value || '—' }}</div></div>
+                <div class="field"><label>請領牌照日期</label><div class="fake">{{ vehicleDetail.licenseDate?.slice(0,10) || '—' }}</div></div>
+                <div class="field"><label>開始使用日期</label><div class="fake">{{ vehicleDetail.startUseDate?.slice(0,10) || '—' }}</div></div>
+                <div class="field"><label>定期檢驗日期</label><div class="fake">{{ vehicleDetail.inspectionDate?.slice(0,10) || '—' }}</div></div>
+                <div class="field"><label>排氣量</label><div class="fake">{{ vehicleDetail.engineCC || '—' }}</div></div>
+                <div class="field"><label>引擎號碼</label><div class="fake">{{ vehicleDetail.engineNo || '—' }}</div></div>
+                <div class="field"><label>廠牌</label><div class="fake">{{ vehicleDetail.brand || '—' }}</div></div>
+                <div class="field"><label>年份</label><div class="fake">{{ vehicleDetail.year || '—' }}</div></div>
+                <div class="field"><label>型式</label><div class="fake">{{ vehicleDetail.type || '—' }}</div></div>
+                <div class="field"><label>(移轉)報停報廢</label><div class="fake">{{ vehicleDetail.retired ? '已報廢' : '—' }}</div></div>
+
             </div>
         </section>
 
         <!-- 右側：保養紀錄 / 報修申請 -->
         <section class="card">
             <div class="tabs">
-                <div class="tab" :class="{active: tab==='maint'}" @@click="tab='maint'">保養紀錄</div>
-                <div class="tab" :class="{active: tab==='repair'}" @@click="tab='repair'">報修申請</div>
+                <div class="tab" :class="{active: tab==='maint'}" @@click="tab='maint'">保養修配</div>
+                <div class="tab" :class="{active: tab==='repair'}" @@click="tab='repair'">維修紀錄</div>
+                <div class="tab" :class="{active: tab==='inspection'}" @@click="tab='inspection'">驗車紀錄</div>
+                <div class="tab" :class="{active: tab==='Violation'}" @@click="tab='Violation'">違規紀錄</div>
+                <div class="tab" :class="{active: tab==='record'}" @@click="tab='record'">紀錄總覽</div>
             </div>
 
             <!-- 保養紀錄 -->
@@ -293,7 +401,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="r in rows" :key="r.id">
-                                <td class="mono">{{ r.date }}</td>
+                                <td class="mono">{{ r?.date || '—' }}</td>
                                 <td class="mono">{{ r.odometer ?? '' }}</td>
                                 <td>{{ r.item }}</td>
                                 <td>{{ r.unit || '' }}</td>
@@ -316,12 +424,18 @@
                 </div>
             </div>
 
-            <!-- 報修申請（先做版型） -->
-            <div v-else>
+            <!-- 維修紀錄區塊 -->
+            <div v-if="tab==='repair'">
+                <!-- 報修申請表單 -->
                 <div class="card-hd">
                     <div class="title">報修申請</div>
+                    <div class="toolbar">
+                        <button class="btn btn-primary" @@click="showRepairAdd = !showRepairAdd">
+                            {{ showRepairAdd ? '取消' : '新增' }}
+                        </button>
+                    </div>
                 </div>
-                <div class="card-bd">
+                <div class="card-bd" v-if="showRepairAdd">
                     <div class="form-row" style="grid-template-columns:1fr 1fr 2fr 1fr 2fr;">
                         <input type="date" v-model="repair.date" />
                         <input type="text" v-model="repair.place" placeholder="送修地點" />
@@ -330,24 +444,58 @@
                         <input type="text" v-model="repair.contact" placeholder="聯絡人/電話" />
                     </div>
                     <div style="text-align:right">
-                        <button class="btn btn-primary" @@click="submitRepair">送出申請</button>
+                        <button class="btn" @@click="showRepairAdd=false">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="submitRepair">送出申請</button>
                     </div>
-                    <p class="muted" style="margin-top:8px">（此分頁示意；可依你流程串審核/上傳附件…）</p>
+                </div>
+                
+
+                <!-- 維修紀錄表格 -->
+                <div class="card-bd table-wrap" style="margin-top:16px">
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">日期</th>
+                                <th style="width:200px">故障描述</th>
+                                <th style="width:100px">狀態</th>
+                                <th style="width:100px">估計費用</th>
+                                <th style="width:160px">備註</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in repairRows" :key="r.id">
+                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td>{{ r.issue }}</td>
+                                <td>{{ r.status }}</td>
+                                <td class="mono">{{ fmtMoney(r.costEstimate) }}</td>
+                                <td>{{ r.note }}</td>
+                            </tr>
+                            <tr v-if="!repairRows.length">
+                                <td colspan="5" style="text-align:center;color:#64748b">尚無維修資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+
+           
+
         </section>
+
     </div>
 </div>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-    const { createApp, ref, onMounted } = Vue;
+    const { createApp, ref, onMounted, computed } = Vue;
 
     createApp({
       setup(){
         const vehicles = ref([]);
         const selectedVehicleId = ref(0);
+        const showRepairAdd = ref(false);
 
         const tab = ref('maint');
         const rows = ref([]);
@@ -367,8 +515,16 @@
           note: ''
         });
 
-        const repair = ref({ date: toISO(today), place:'', desc:'', cost:null, contact:'' });
-
+        const repair = ref({
+          date: toISO(today),
+          place: '',
+          desc: '',
+          cost: null,
+          contact: '',
+          vendor: '',
+          note: '',
+          odometer: null
+        });
         const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
         const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
 
@@ -378,6 +534,32 @@
           if (vehicles.value.length && !selectedVehicleId.value){
             selectedVehicleId.value = vehicles.value[0].vehicleId;
           }
+        }
+
+        async function setAvailable() {
+          if (!selectedVehicleId.value) return;
+          try {
+            await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
+              JSON.stringify("可用"),
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+            vehicleDetail.value.status = "可用"; // 前端同步更新
+            alert("✅ 維修完成，車輛已可用");
+          } catch (err) {
+            console.error("狀態更新失敗", err);
+            alert("更新失敗");
+          }
+        }
+
+        const vehicleDetail = ref({});
+
+        async function loadVehicleDetail() {
+          if (!selectedVehicleId.value) {
+            vehicleDetail.value = {};
+            return;
+          }
+          const res = await axios.get(`/api/maintenance/vehicle/${selectedVehicleId.value}`);
+          vehicleDetail.value = res.data || {};
         }
 
         async function loadMaintenance(){
@@ -415,16 +597,85 @@
           await loadMaintenance();
         }
 
-        function submitRepair(){
-          alert('（示意）送出報修申請：\n' + JSON.stringify(repair.value,null,2));
+        // ✅ repairs 原始資料
+        const repairs = ref([]);
+
+        // ✅ computed：整理過的資料，給畫面用
+        const repairRows = computed(() =>{
+          const safe = (Array.isArray(repairs.value) ? repairs.value : []).map((x, idx) => ({
+            id: x.repairRequestId ?? idx,
+            date: x.date || "",
+            issue: x.issue || "",
+            status: x.status || "",
+            costEstimate: x.costEstimate ?? null,
+            note: x.note || ""
+          }))
+          console.log("📌 repairRows (computed):", safe);  // <<== 檢查整理後的
+                    return safe;
+        }
+        );
+                    
+
+        // 只存原始回傳，不要再 map
+        async function loadRepairs() {
+          if (!selectedVehicleId.value) { repairs.value = []; return; }
+          const res = await axios.get('/api/maintenance/repairs', {
+            params: { vehicleId: selectedVehicleId.value }
+          });
+            console.log("📥 後端回來的 repairs 原始資料:", res.data);  // <<== 檢查原始回傳
+
+          repairs.value = Array.isArray(res.data) ? res.data : [];
+        }
+
+        async function submitRepair(){
+          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+          if(!repair.value.desc.trim()){ alert('請輸入故障描述'); return; }
+
+          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+
+          const payload = {
+            vehicleId: selectedVehicleId.value,
+            plateNo: plate,
+            date: repair.value.date,
+            odometer: repair.value.odometer || null,
+            issue: repair.value.desc,
+            vendor: repair.value.vendor || null,
+            costEstimate: repair.value.cost || null,
+            note: repair.value.note || null
+          };
+
+          await axios.post('/api/maintenance/repair', payload);
+          alert("✅ 報修已送出");
+          // 狀態更新成「維修中」
+          await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, { status: "維修中" });
+
+          // 重新載入報修紀錄 & 車輛狀態
+          await loadRepairs();
+          await loadVehicleDetail();
+
+          // 清空表單
+              repair.value = {
+              date: toISO(today),
+              place: '',
+              desc: '',
+              cost: null,
+              contact: '',
+              vendor: '',
+              note: '',
+              odometer: null
+            };
         }
 
         onMounted(async ()=>{
           await loadVehicles();
           await loadMaintenance();
+          await loadVehicleDetail();
+          await loadRepairs();
         });
 
-        return { vehicles, selectedVehicleId, tab, rows, showAdd, form, repair,
+        return { vehicles, selectedVehicleId, tab, rows, showAdd, form,
+                 vehicleDetail, loadVehicleDetail,setAvailable,
+                 repair,repairs, repairRows, loadRepairs,showRepairAdd,
                  loadMaintenance, create, remove, submitRepair, fmtNum, fmtMoney };
       }
     }).mount('#app');
