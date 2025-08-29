@@ -82,59 +82,47 @@ namespace Cars.Controllers
         public async Task<IActionResult> DriversTodayStatus()
         {
             var today = DateTime.Today;
+            var now = DateTime.Now;
 
             var drivers = await _db.Drivers
                 .Select(d => new
                 {
                     driverId = d.DriverId,
                     driverName = d.DriverName,
-                    // 先帶班表資訊（如果有的話）
+
+                    // 班表
                     shift = _db.Schedules
                         .Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
                         .Select(s => s.Shift)
                         .FirstOrDefault(),
 
-                    // 今天有沒有派工
-                    hasDispatch = _db.Dispatches.Any(dis =>
+                    // 是否正在執勤
+                    isOnDuty = _db.Dispatches.Any(dis =>
                         dis.DriverId == d.DriverId &&
                         dis.StartTime.HasValue &&
-                        dis.StartTime.Value.Date == today),
+                        dis.EndTime.HasValue &&
+                        dis.StartTime.Value <= now &&
+                        dis.EndTime.Value >= now
+                    ),
 
-                    // 今天最早一筆派工的開始/結束時間
-                    startTime = _db.Dispatches
-                        .Where(dis => dis.DriverId == d.DriverId &&
-                                      dis.StartTime.HasValue &&
-                                      dis.StartTime.Value.Date == today)
-                        .OrderBy(dis => dis.StartTime)
-                        .Select(dis => dis.StartTime)
-                        .FirstOrDefault(),
-
-                    endTime = _db.Dispatches
-                        .Where(dis => dis.DriverId == d.DriverId &&
-                                      dis.StartTime.HasValue &&
-                                      dis.StartTime.Value.Date == today)
-                        .OrderBy(dis => dis.StartTime)
-                        .Select(dis => dis.EndTime)
-                        .FirstOrDefault(),
-
-                    // 車牌號碼
+                    // 當前派工的車牌
                     plateNo = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
                         join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
                         select v.PlateNo
                     ).FirstOrDefault(),
 
-                    // 申請人 / 部門（可選）
+                    // 申請人 / 部門 / 人數（也抓當下的派工）
                     applicantDept = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                         select a.ApplicantDept
                     ).FirstOrDefault(),
@@ -142,9 +130,9 @@ namespace Cars.Controllers
                     applicantName = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                         select a.ApplicantName
                     ).FirstOrDefault(),
@@ -152,16 +140,49 @@ namespace Cars.Controllers
                     passengerCount = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                         select a.PassengerCount
+                    ).FirstOrDefault(),
+
+                    // 當前派工的時間
+                    startTime = (
+                        from dis in _db.Dispatches
+                        where dis.DriverId == d.DriverId
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
+                        select dis.StartTime
+                    ).FirstOrDefault(),
+
+                    endTime = (
+                        from dis in _db.Dispatches
+                        where dis.DriverId == d.DriverId
+                              && dis.StartTime.HasValue && dis.EndTime.HasValue
+                              && dis.StartTime.Value <= now
+                              && dis.EndTime.Value >= now
+                        select dis.EndTime
                     ).FirstOrDefault()
                 })
                 .ToListAsync();
 
-            return Ok(drivers);
+            // 將狀態文字統一處理
+            var result = drivers.Select(d => new {
+                d.driverId,
+                d.driverName,
+                d.shift,
+                d.plateNo,
+                d.applicantDept,
+                d.applicantName,
+                d.passengerCount,
+                d.startTime,
+                d.endTime,
+                stateText = d.isOnDuty ? "執勤中" : "待命中"
+            });
+
+            return Ok(result);
         }
 
 

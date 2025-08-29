@@ -780,13 +780,17 @@
             const tripType = ref("round");
 
             // 其他 reactive 物件
-            const applicant = reactive({
-              name: 'XXX',
-              birth: 'XXXX.XX.XX',
-              dept: '臺東分署 / 森林管理處 / 休憩管理科',
-              ext: '212',
-              email: 'XXXXX@forest.gov.tw'
-            });
+            const applicant = reactive({ name:'', birth:'', dept:'', ext:'', email:'' });
+                async function loadApplicant(){
+          try{
+            const res = await axios.get('/api/applicants/me');
+            // 後端沒有值時會回空字串，這邊直接覆寫
+            Object.assign(applicant, res.data || {});
+          }catch(err){
+            console.error('載入申請人失敗', err);
+            // 失敗就保持空白，讓使用者可以手填
+          }
+        }
             const useStart = ref(getLocalDateTimeString(now));
             const useEnd   = ref(
             new Date(now.getTime() + 60 * 60 * 1000).toISOString()
@@ -1059,6 +1063,8 @@
                 { onOrigin: (p) => { origin.value = p.text; }, onDestination: (p) => { destination.value = p.text; } },
                 { idleMs: 1000 }
               );
+              //載入申請者
+              loadApplicant();
               // 載入車輛
               loadVehicles();
             });

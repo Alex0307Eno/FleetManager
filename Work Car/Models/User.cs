@@ -5,6 +5,7 @@ namespace Cars.Models
 
     public class User
     {
+        [Key]
         public int UserId { get; set; }
         public string Account { get; set; }
         public string PasswordHash { get; set; }
