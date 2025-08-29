@@ -11,7 +11,7 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public DashboardController(ApplicationDbContext db) { _db = db; }
 
-        // ① 卡片數字
+        //  卡片數字
         [HttpGet("cards")]
         public async Task<IActionResult> Cards()
         {
@@ -34,33 +34,75 @@ namespace Cars.Controllers
             });
         }
 
-        // ② 今日排班（帶目前/最近一筆今天的派工與申請資訊）
+        //  今日排班
         [HttpGet("schedule/today")]
         public async Task<IActionResult> TodaySchedule()
         {
             var today = DateTime.Today;
 
-            var list = await _db.Schedules
-                .Where(s => s.WorkDate == today)
-                .Select(s => new
+            var list = await (
+                from s in _db.Schedules
+                where s.WorkDate == today
+                join d in _db.Drivers on s.DriverId equals d.DriverId
+                join dis in _db.Dispatches on s.DriverId equals dis.DriverId into disGroup
+                from dis in disGroup
+                    .Where(x => x.StartTime.HasValue && x.StartTime.Value.Date == today)
+                    .OrderBy(x => x.StartTime)
+                    .DefaultIfEmpty()
+                join a in _db.CarApplications on dis.ApplyId equals a.ApplyId into aa
+                from a in aa.DefaultIfEmpty()
+                join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
+                from v in vv.DefaultIfEmpty()
+                orderby s.Shift, dis.StartTime
+                select new
                 {
                     scheduleId = s.ScheduleId,
-                    shift = s.Shift,
+                    shift = s.Shift,   // AM/PM
                     driverId = s.DriverId,
-                    driverName = _db.Drivers
-                        .Where(d => d.DriverId == s.DriverId)
-                        .Select(d => d.DriverName)
+                    driverName = d.DriverName,
+                    hasDispatch = dis != null,
+                    startTime = dis.StartTime,
+                    endTime = dis.EndTime,
+                    route = dis != null ? (a.Origin ?? "") + "-" + (a.Destination ?? "") : "",
+                    applicantName = a.ApplicantName,
+                    applicantDept = a.ApplicantDept,
+                    passengerCount = a.PassengerCount,
+                    plateNo = v.PlateNo,
+                    tripDistance = a != null
+                        ? (a.TripType == "單程" ? a.SingleDistance : a.RoundTripDistance)
+                        : ""
+                }
+            ).ToListAsync();
+
+            return Ok(list);
+        }
+
+        //駕駛目前狀態
+        [HttpGet("drivers/today-status")]
+        public async Task<IActionResult> DriversTodayStatus()
+        {
+            var today = DateTime.Today;
+
+            var drivers = await _db.Drivers
+                .Select(d => new
+                {
+                    driverId = d.DriverId,
+                    driverName = d.DriverName,
+                    // 先帶班表資訊（如果有的話）
+                    shift = _db.Schedules
+                        .Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
+                        .Select(s => s.Shift)
                         .FirstOrDefault(),
 
-                    // 是否今天有任何派工
+                    // 今天有沒有派工
                     hasDispatch = _db.Dispatches.Any(dis =>
-                        dis.DriverId == s.DriverId &&
+                        dis.DriverId == d.DriverId &&
                         dis.StartTime.HasValue &&
                         dis.StartTime.Value.Date == today),
 
-                    // 取今天最早的一筆派工
+                    // 今天最早一筆派工的開始/結束時間
                     startTime = _db.Dispatches
-                        .Where(dis => dis.DriverId == s.DriverId &&
+                        .Where(dis => dis.DriverId == d.DriverId &&
                                       dis.StartTime.HasValue &&
                                       dis.StartTime.Value.Date == today)
                         .OrderBy(dis => dis.StartTime)
@@ -68,59 +110,17 @@ namespace Cars.Controllers
                         .FirstOrDefault(),
 
                     endTime = _db.Dispatches
-                        .Where(dis => dis.DriverId == s.DriverId &&
+                        .Where(dis => dis.DriverId == d.DriverId &&
                                       dis.StartTime.HasValue &&
                                       dis.StartTime.Value.Date == today)
                         .OrderBy(dis => dis.StartTime)
                         .Select(dis => dis.EndTime)
                         .FirstOrDefault(),
 
-                    // 路線（從該派工對應的申請單拿）
-                    route = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select (a.Origin ?? "") + "-" + (a.Destination ?? "")
-                    ).FirstOrDefault(),
-
-                    // 申請人/單位/人數
-                    applicantName = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.ApplicantName
-                    ).FirstOrDefault(),
-
-                    applicantDept = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.ApplicantDept
-                    ).FirstOrDefault(),
-
-                    passengerCount = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
-                              && dis.StartTime.HasValue
-                              && dis.StartTime.Value.Date == today
-                        orderby dis.StartTime
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.PassengerCount
-                    ).FirstOrDefault(),
-
-                    // 車牌
+                    // 車牌號碼
                     plateNo = (
                         from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
+                        where dis.DriverId == d.DriverId
                               && dis.StartTime.HasValue
                               && dis.StartTime.Value.Date == today
                         orderby dis.StartTime
@@ -128,26 +128,44 @@ namespace Cars.Controllers
                         select v.PlateNo
                     ).FirstOrDefault(),
 
-                    // 里程（你的欄位是字串 SingleDistance / RoundTripDistance，就直接回字串）
-                    tripDistance = (
+                    // 申請人 / 部門（可選）
+                    applicantDept = (
                         from dis in _db.Dispatches
-                        where dis.DriverId == s.DriverId
+                        where dis.DriverId == d.DriverId
                               && dis.StartTime.HasValue
                               && dis.StartTime.Value.Date == today
                         orderby dis.StartTime
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select (a.TripType == "單程"
-                                ? (string.IsNullOrEmpty(a.SingleDistance) ? "" : a.SingleDistance )
-                                : (string.IsNullOrEmpty(a.RoundTripDistance) ? "" : a.RoundTripDistance ))
+                        select a.ApplicantDept
+                    ).FirstOrDefault(),
+
+                    applicantName = (
+                        from dis in _db.Dispatches
+                        where dis.DriverId == d.DriverId
+                              && dis.StartTime.HasValue
+                              && dis.StartTime.Value.Date == today
+                        orderby dis.StartTime
+                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                        select a.ApplicantName
+                    ).FirstOrDefault(),
+
+                    passengerCount = (
+                        from dis in _db.Dispatches
+                        where dis.DriverId == d.DriverId
+                              && dis.StartTime.HasValue
+                              && dis.StartTime.Value.Date == today
+                        orderby dis.StartTime
+                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                        select a.PassengerCount
                     ).FirstOrDefault()
                 })
                 .ToListAsync();
 
-            return Ok(list);
+            return Ok(drivers);
         }
 
 
-        // ③ 未完成派工
+        //  未完成派工
         [HttpGet("dispatch/uncomplete")]
         public async Task<IActionResult> Uncomplete()
         {
@@ -209,7 +227,7 @@ namespace Cars.Controllers
             return Ok(data);
         }
 
-        // ④ 待審核申請
+        //  待審核申請
         [HttpGet("applications/pending")]
         public async Task<IActionResult> PendingApps()
         {

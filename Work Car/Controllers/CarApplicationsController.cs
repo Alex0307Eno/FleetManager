@@ -30,7 +30,7 @@ namespace Cars.Controllers
 
        
 
-        [HttpPost]
+        
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] AutoDispatcher dispatcher)
         {

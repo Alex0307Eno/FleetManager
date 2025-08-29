@@ -906,16 +906,6 @@
                 alert('請選擇車輛');
                 return;
               }
-                     if (!passengers.value.length) {
-          alert('請至少輸入一位乘客');
-          return;
-        }
-        for (const [i, p] of passengers.value.entries()) {
-          if (!p.name?.trim() || !p.deptTitle?.trim()) {
-            alert(`第 ${i + 1} 位乘客：姓名與單位職稱都必填`);
-            return;
-          }
-        }
               const startDt = new Date(useStart.value);               // 由 datetime-local 轉 Date（本地）
         let endDt = useEnd.value ? new Date(useEnd.value) : null; // 你之前可能已存 ISO
 

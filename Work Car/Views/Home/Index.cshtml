@@ -723,11 +723,10 @@
               const schedules  = ref([]);
               const unfinished = ref([]);
               const pending    = ref([]);
-              const rows       = ref([]);
+              const driverStatus = ref([]);
               const pendingFiltered = computed(() => {
               const isDoneOrRejected = (s) => {
                 const k = String(s || "").trim().toLowerCase();
-                // 同時支援中/英/多餘空白
                 return k === "完成審核" || k === "駁回" || k === "approved" || k === "rejected";
               };
               return (pending.value || []).filter(x => !isDoneOrRejected(x.status));
@@ -972,10 +971,11 @@
               async function get(url){ const res = await axios.get(url); return res.data; }
               async function loadAll(){
                 try{
-                  const [s,u,p] = await Promise.all([
+                  const [s,u,p,ds] = await Promise.all([
                     get('/api/dashboard/schedule/today'),
                     get('/api/dashboard/dispatch/uncomplete'),
-                    get('/api/dashboard/applications/pending')
+                    get('/api/dashboard/applications/pending'),
+                    get('/api/dashboard/drivers/today-status'),
                   ]);
               
 
@@ -1021,9 +1021,10 @@
                   });
                 schedules.value  = norm(s);
                 unfinished.value = u || [];
+                driverStatus.value = (ds || []).map(scheduleToDriverRow);
 
                 // 1) 先把各種可能的欄位統一成 .status（處理大小寫與空白）
-                                 const cleaned = (p || []).map(x => {
+               const cleaned = (p || []).map(x => {
                const rawStatus =
                  (x.status ?? x.Status ?? x.dispatchStatus ?? x.DispatchStatus ?? "")
                    .toString()
@@ -1052,8 +1053,8 @@
                 return d;
               };
 
-                      const scheduleToDriverRow = (x) => {
-          // 先安全轉成 Date
+                            const scheduleToDriverRow = (x) => {
+          // 安全轉換時間
           const st = x && x.startTime ? new Date(x.startTime) : null;
           const et = x && x.endTime   ? new Date(x.endTime)   : null;
 
@@ -1065,37 +1066,40 @@
             return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
           };
 
-
-          // 時間到就不再視為執勤
+          // 判斷是否在任務區間內
           const now = new Date();
-          const expired = (et instanceof Date) && !isNaN(et) && now >= et;
-          const onDuty  = !!x?.hasDispatch && !expired;
+          let onDuty = false;
+          if (st instanceof Date && !isNaN(st) && et instanceof Date && !isNaN(et)) {
+            onDuty = now >= st && now <= et;   // ✅ 現在時間在區間內 → 執勤中
+          }
 
-          const stateText    = onDuty ? '執勤中' : '待命中';
-          const stateDotClass= onDuty ? 'status-red' : 'status-green';
+          // === 狀態文字 ===
+          let stateText = onDuty ? '執勤中' : '待命中';
+          if (x?.leaveNote === '請假') stateText = '請假';
+          if (x?.leaveNote === '休息') stateText = '休息中';
 
-          // 預設（非執勤）→ 全部恢復原狀
+          // === 對應燈號 ===
+          let stateDotClass = 'status-green'; // 預設待命：綠
+          if (stateText === '執勤中') stateDotClass = 'status-red';
+          else if (stateText === '休息中') stateDotClass = 'status-orange';
+          else if (stateText === '請假') stateDotClass = 'status-gray';
+
+          // === 預設資訊 ===
           let taskWindow   = '';
           let etaBack      = '';
-          let earliestOut  = '即時可用';
+          let earliestOut  = (stateText === '待命中') ? '即時可用' : '-';
 
-          // 只有執勤中才帶入任務視窗/回來時間/最早可出車時間
-          if (onDuty) {
-            if (st instanceof Date && !isNaN(st) && et instanceof Date && !isNaN(et)) {
-              taskWindow = `${fmtHHmm(st)}-${fmtHHmm(et)}`;
-              etaBack    = fmtHHmm(et);
+          // === 若執勤中，帶任務時間 / 回來時間 / 最早可出車時間 ===
+          if (onDuty && st && et) {
+            taskWindow = `${fmtHHmm(st)}-${fmtHHmm(et)}`;
+            etaBack    = fmtHHmm(et);
 
-              // 你原本邏輯：結束後 15 分鐘才能再出
-              const addMinutes = (d, mins) => {
-                const t = new Date(d); t.setMinutes(t.getMinutes() + (mins || 0)); return t;
-              };
-              earliestOut = fmtHHmm(addMinutes(et, 15));
-            } else {
-              // 有執勤但沒時間資料時，保守顯示
-              taskWindow  = '';
-              etaBack     = '';
-              earliestOut = '-';
-            }
+            const addMinutes = (d, mins) => {
+              const t = new Date(d);
+              t.setMinutes(t.getMinutes() + (mins || 0));
+              return t;
+            };
+            earliestOut = fmtHHmm(addMinutes(et, 15));
           }
 
           const attendance = x?.leaveNote ? '請假' : '正常';
@@ -1110,24 +1114,17 @@
             plateNo: x?.plateNo ?? '-',
             stateText,
             stateDotClass,
-            taskWindow,   // ← 當前任務
-            etaBack,      // ← 預計回來時間
-            earliestOut,  // ← 最早可出車時間
+            taskWindow,
+            etaBack,
+            earliestOut,
             attendance,
             note
           };
         };
 
 
-        // 取代原本那段有去重/限 5 筆的計算
-        const driverStatus = computed(() => {
-          // 直接把今天的 schedule 每一筆都轉成一列（可重複）
-          return (schedules.value || []).map(scheduleToDriverRow);
-        });
-
 
               function openFleetStatus(){
-                // 如有專頁可改成實際連結：
                 // window.location.href = '/Vehicle/Status';
                 console.log('open fleet status');
               }
