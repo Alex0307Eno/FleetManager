@@ -631,33 +631,44 @@
 
                 <div class="form-group">
                     <label>可用駕駛</label>
-                    <select v-model.number="selectedDriverId">
+                    <select v-model.number="selectedDriverId" class="form-control"
+                            :disabled="currentDriver && (!availDrivers || availDrivers.length === 0)">
                         <option :value="null">（不指定）</option>
                         <!-- 當下的駕駛 -->
                         <option v-if="currentDriver" :value="currentDriver.driverId">
                             ★ 當前指派：{{ currentDriver.driverName }}
                         </option>
-                        <!-- 可用駕駛清單 -->
+                        <!-- 其他可用駕駛 -->
                         <option v-for="d in availDrivers" :key="d.driverId" :value="d.driverId">
                             {{ d.driverName }}
                         </option>
                     </select>
+                    <div v-if="currentDriver && (!availDrivers || availDrivers.length === 0)"
+                         style="color:#b91c1c; margin-top:6px;">
+                        ⚠️ 當下沒有可用司機
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>可用車輛</label>
-                    <select v-model.number="selectedVehicleId">
+                    <select v-model.number="selectedVehicleId" class="form-control"
+                            :disabled="currentVehicle && (!availVehicles || availVehicles.length === 0)">
                         <option :value="null">（不指定）</option>
                         <!-- 當下的車輛 -->
                         <option v-if="currentVehicle" :value="currentVehicle.vehicleId">
-                            ★ 當前指派：{{ currentVehicle.plateNo }}
+                            ★ 當前指派：{{ currentVehicle.plateNo }}({{ currentVehicle.capacity }}人座)
                         </option>
-                        <!-- 可用車輛清單 -->
+                        <!-- 其他可用車輛 -->
                         <option v-for="v in availVehicles" :key="v.vehicleId" :value="v.vehicleId">
                             {{ v.plateNo }}（{{ v.brand }} {{ v.model }} / 容量 {{ v.capacity }}）
                         </option>
                     </select>
+                    <div v-if="currentVehicle && (!availVehicles || availVehicles.length === 0)"
+                         style="color:#b91c1c; margin-top:6px;">
+                        ⚠️ 當下沒有可用車輛
+                    </div>
                 </div>
+
 
 
 
@@ -802,8 +813,13 @@
               : null;
 
             currentVehicle.value = veh
-              ? { vehicleId: Number(veh), plateNo: app.plateNo ?? r.plate ?? '(未知車輛)' }
-              : null;
+              ? {
+            vehicleId: Number(veh),
+            plateNo:   app.plateNo ?? r.plate ?? '(未知車輛)',
+            capacity:  app.vehicle?.capacity ?? '(未知容量)'
+              }
+            : null;
+
 
             // 抓可用清單
             const from = isoLocal(app.useStart ?? r.useStart);

@@ -251,6 +251,7 @@ namespace Cars.Controllers
                 driverName = app.Driver != null ? app.Driver.DriverName : null,
                 driverId = app.DriverId,
                 plateNo = app.Vehicle != null ? app.Vehicle.PlateNo : null,
+                capacity = app.Vehicle?.Capacity,
                 vehicleId = app.VehicleId
             });
         }
