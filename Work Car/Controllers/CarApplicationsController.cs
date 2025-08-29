@@ -31,6 +31,7 @@ namespace Cars.Controllers
        
 
         [HttpPost]
+        [HttpPost]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] AutoDispatcher dispatcher)
         {
             if (dto == null || dto.Application == null)
@@ -43,11 +44,11 @@ namespace Cars.Controllers
             if (model.UseEnd <= model.UseStart)
                 return BadRequest("結束時間必須晚於起始時間");
 
-
-            // 先存申請單，讓 DB 自動產生 ApplyId
+            // 先存申請單
             _context.CarApplications.Add(model);
             await _context.SaveChangesAsync();
 
+            // ===== 可選車 =====
             if (model.PurposeType == "公務車(可選車)")
             {
                 if (model.VehicleId == null) return BadRequest("請選擇車輛");
@@ -66,31 +67,27 @@ namespace Cars.Controllers
                     d.StartTime < model.UseEnd);
                 if (vUsed) return BadRequest("該車於申請時段已被派用，請改選其他車或調整時間");
 
-                // 找當班駕駛
+                // 嘗試找司機
                 model.DriverId = await dispatcher.FindOnDutyDriverIdAsync(model.UseStart, model.UseEnd);
-                await _context.SaveChangesAsync();
 
-                // 有駕駛 → 建立 Dispatch
-                if (model.DriverId.HasValue)
+                // 一律建立 Dispatch（有司機 = 執勤中 / 無司機 = 待指派）
+                var dispatch = new Cars.Models.Dispatch
                 {
-                    var dispatch = new Cars.Models.Dispatch
-                    {
-                        ApplyId = model.ApplyId,
-                        DriverId = model.DriverId.Value,
-                        VehicleId = model.VehicleId.Value,
-                        DispatchStatus = "執勤中",
-                        DispatchTime = DateTime.Now,
-                        StartTime = model.UseStart,
-                        EndTime = model.UseEnd,
-                        CreatedAt = DateTime.Now
-                    };
-                    _context.Dispatches.Add(dispatch);
-                    await _context.SaveChangesAsync();
-                }
+                    ApplyId = model.ApplyId,
+                    VehicleId = model.VehicleId.Value,
+                    DriverId = model.DriverId,   // 可能是 null
+                    DispatchStatus = model.DriverId.HasValue ? "執勤中" : "待指派",
+                    StartTime = model.UseStart,
+                    EndTime = model.UseEnd,
+                    CreatedAt = DateTime.Now
+                };
+
+                _context.Dispatches.Add(dispatch);
+                await _context.SaveChangesAsync();
             }
+            // ===== 不可選車 =====
             else if (model.PurposeType == "公務車(不可選車)")
             {
-                
                 await _context.SaveChangesAsync();
             }
 
@@ -105,7 +102,7 @@ namespace Cars.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // 自動派工
+            // 自動派工（不可選車）
             if (model.PurposeType == "公務車(不可選車)")
             {
                 var result = await dispatcher.AssignAsync(
@@ -114,13 +111,13 @@ namespace Cars.Controllers
                     model.UseEnd,
                     model.PassengerCount,
                     model.VehicleType
-                   
                 );
 
                 if (!result.Success)
                 {
                     return Ok(new { message = $"申請成功，但派工失敗：{result.Message}", id = model.ApplyId });
                 }
+
                 model.DriverId = result.DriverId;
                 model.VehicleId = result.VehicleId;
                 await _context.SaveChangesAsync();
@@ -134,7 +131,7 @@ namespace Cars.Controllers
                 });
             }
 
-            // 可選車 / 其他
+            // ===== 統一回傳訊息 =====
             string vehiclePlate = null;
             string driverName = null;
 
@@ -160,7 +157,7 @@ namespace Cars.Controllers
                 if (model.DriverId.HasValue)
                     msg = $"申請成功（已選車：{vehiclePlate}，駕駛：{driverName}）";
                 else
-                    msg = $"申請成功（已選車：{vehiclePlate}，未找到當下駕駛）";
+                    msg = $"申請成功（已選車：{vehiclePlate}，未找到當下駕駛，請稍後指派）";
             }
             else
             {
@@ -174,7 +171,6 @@ namespace Cars.Controllers
                 vehicleId = model.VehicleId,
                 driverId = model.DriverId
             });
-
         }
 
         // 取得全部申請單
@@ -292,7 +288,7 @@ namespace Cars.Controllers
 
             // 欄位覆寫（與你的資料表對齊）
             app.ApplicantName = model.ApplicantName;
-            app.ApplicantEmpId = model.ApplicantEmpId;
+            app.ApplicantBirth = model.ApplicantBirth;
             app.ApplicantDept = model.ApplicantDept;
             app.ApplicantExt = model.ApplicantExt;
             app.ApplicantEmail = model.ApplicantEmail;
@@ -339,17 +335,24 @@ namespace Cars.Controllers
 
             var q = _context.Vehicles.AsQueryable();
 
-            // 只要「可用」的車（排除 使用中 / 維修中）
+            // 只要「可用」的車
             q = q.Where(v => (v.Status ?? "") == "可用");
 
-            // 容量需要可承載（若你有這需求）
+            // 容量限制
             if (capacity.HasValue)
                 q = q.Where(v => v.Capacity >= capacity.Value);
-            // 避開該時段已被派工的車
+
+            // 🚫 避開該時段已被派工的車 (Dispatches)
             q = q.Where(v => !_context.Dispatches.Any(d =>
                 d.VehicleId == v.VehicleId &&
                 from < d.EndTime &&
                 d.StartTime < to));
+
+            // 🚫 避開該時段已經有申請單的車 (CarApplications)
+            q = q.Where(v => !_context.CarApplications.Any(a =>
+                a.VehicleId == v.VehicleId &&
+                from < a.UseEnd &&
+                a.UseStart < to));
 
             var list = await q
                 .OrderBy(v => v.PlateNo)
@@ -434,7 +437,6 @@ namespace Cars.Controllers
                     DriverId = dto.DriverId ?? 0,
                     VehicleId = dto.VehicleId ?? 0,
                     DispatchStatus = "執勤中",
-                    DispatchTime = DateTime.Now,
                     StartTime = from,
                     EndTime = to,
                     CreatedAt = DateTime.Now

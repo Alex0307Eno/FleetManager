@@ -30,6 +30,7 @@
             padding: 20px;
         }
 
+
         .container {
             max-width: 1080px;
             margin: 0 auto
@@ -55,10 +56,15 @@
             gap: 12px
         }
 
-            .section-hd small {
-                opacity: .9;
-                font-weight: 500
+            .section-hd small,
+            .section-hd small label {
+                color: #fff; /* 文字改成白色 */
             }
+
+                .section-hd small input {
+                    margin-right: 4px; /* 選項和文字之間留點間距 */
+                }
+
 
         .section-bd {
             padding: 16px
@@ -353,7 +359,7 @@
 <body>
     <div id="app" class="container" v-cloak>
         <form id="car-form">
-            <!-- 用車申請（藍條標題 + 兩欄布局，左：申請人/欄位 右：車輛卡） -->
+            <!-- 🚗 查詢區 (永遠顯示) -->
             <div class="section">
                 <div class="section-hd">
                     <div>用車申請</div>
@@ -362,109 +368,20 @@
                         <label><input type="radio" value="other" v-model="applyFor" /> 代他人申請</label>
                     </small>
                 </div>
-                <div class="section-bd">
-                    <div class="grid-2">
-                        <!-- 左側：申請人卡 + 欄位 -->
-                        <div>
-                            <div class="card profile" style="margin-bottom:12px">
-                                <div class="avatar">👤</div>
-                                <div>
-                                    <div style="font-weight:700; font-size:18px">{{ applicant.name }} <span class="muted" style="font-weight:500">({{ applicant.empId }})</span></div>
-                                    <div class="kv"><span class="label">單位</span><span class="val">{{ applicant.dept }}</span></div>
-                                    <div class="kv"><span class="label">分機</span><span class="val">{{ applicant.ext }}</span></div>
-                                    <div class="kv"><span class="label">Email</span><span class="val">{{ applicant.email }}</span></div>
-                                </div>
-                            </div>
-
-                            <div class="grid-3">
-                                <div>
-                                    <label>車輛類別 *</label>
-                                    <select v-model="vehicleType">
-                                        <option value="汽車">汽車</option>
-                                        
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>事由 *</label>
-                                    <select v-model="purposeType">
-                                        <option value="公務車(不可選車)">公務車(不可選車)</option>
-                                        <option value="公務車(可選車)">公務車(可選車)</option>
-                                    </select>
-                                </div>
-
-                                <!-- 只有選「公務車(可選車)」時才出現車輛下拉 -->
-                                <div v-if="purposeType === '公務車(可選車)'">
-                                    <label>車輛 *</label>
-                                    <select v-model="assign.vehicleId">
-                                        <option :value="null">（未選擇）</option>
-                                        <option v-for="v in availableVehicles"
-                                                :key="v.vehicleId"
-                                                :value="v.vehicleId">
-                                            {{ v.plateNo }} ({{ v.capacity }}人座)
-                                        </option>
-                                    </select>
-                                    <small class="muted">駕駛依班表自動指派，車輛由你挑選</small>
-                                </div>
-
-
-                            </div>
-
-                            <div class="grid-equal-2" style="margin-top:12px">
-                                <div>
-                                    <label>起始時間 *</label>
-                                    <input type="datetime-local" class="form-control"  v-model="useStart" />
-                                </div>
-                                <div>
-                                    <label>結束時間 *</label>
-                                    <input type="text" id="ArrivalDisplay" class="form-control" readonly>
-                                    <input type="hidden" id="useEnd" name="useEnd">
-                                </div>
-
-
-                            </div>
-                            <div class="grid-1" style="margin-top:12px">
-                                <div class="row-combined">
-                                    <div style="flex:0 0 180px;">
-                                        <label>事由類型</label>
-                                        <select v-model="reasonType" style="width:100%">
-                                            <option value="公務用">公務用</option>
-                                            
-                                        </select>
-                                    </div>
-                                    <div style="flex:1; margin-left:12px;">
-                                        <label>用車事由</label>
-                                        <input type="text" placeholder="簡述申請原因" v-model="applyReason" style="width:100%" />
-                                    </div>
-                                </div>
-                            </div>
-
-
-                        </div>
-
-                        <!-- 右側：車輛資訊摘要卡 -->
-                        <div class="vehicle-card">
-                            <div class="vehicle-icon">🚗</div>
-                            <div>
-                                <div style="font-weight:700">{{ vehicleType }}<br>{{ purposeType }}</div>
-                                <div class="muted" style="margin-top:6px">將於 <b>{{ useStart || '—' }}</b> 出車，<br />預計 <b>{{ useEnd || '—' }}</b> 歸還。</div>
-                                <div style="margin-top:8px"><a href="javascript:void(0)">more →</a></div>
-                            </div>
-                        </div>
+                <div>
+                    <label>起始時間 *</label>
+                    <input type="datetime-local" class="form-control" v-model="useStart" />
+                </div>
+                <div class="section">
+                    <!-- 標題列 -->
+                    <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
+                        <div class="col-3">出發地</div>
+                        <div class="col-3">目的地</div>
+                        <div class="col-3">來回 | 單程</div>
+                        <div class="col-2">動作</div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 出發與目的地（藍條 + 內有三欄：出發地、目的地、動作） -->
-            <div class="section">
-                <!-- 標題列 (整條藍底白字) -->
-                <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
-                    <div class="col-3">出發地</div>
-                    <div class="col-3">目的地</div>
-                    <div class="col-3">來回 | 單程</div>
-                    <div class="col-2">動作</div>
-                </div>
-
-                <!-- 內容列 -->
                 <div class="section-bd">
                     <div class="row align-items-center mb-2">
                         <div class="col-3">
@@ -489,7 +406,6 @@
                         </div>
                     </div>
 
-
                     <!-- 查詢結果 -->
                     <div v-if="singleDistance && singleDuration" class="row mt-3">
                         <div class="col">
@@ -508,72 +424,144 @@
                 </div>
             </div>
 
-            <!-- 人員與單位（含加減按鈕樣式） -->
-            <div class="section">
-                <!-- 標題列 -->
-                <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
-
-                    <div class="row mb-2">
-                        <div class="col-2">
-                            <div>搭乘人數 *</div>
-                        </div>
-                        <div class="col-3">
-                            <div>搭乘人員 *</div>
-                        </div>
-                        <div class="col-4">
-                            <div>所屬單位與職稱 *</div>
-                        </div>
-                        <div class="col-2 text-center">
-                            <div>動作</div>
-                        </div>
-                    </div>
-                </div>
-
-
-                <!-- 輸入列 -->
+            <!-- 其他表單內容 (查詢後才顯示) -->
+            <div v-show="showForm">
+                <!-- 用車申請（申請人 + 車輛卡） -->
                 <div class="section-bd">
+                    <div class="grid-2">
+                        <!-- 左側：申請人卡 + 欄位 -->
+                        <div>
+                            <div class="card profile" style="margin-bottom:12px">
+                                <div class="avatar">👤</div>
+                                <div>
+                                    <div style="font-weight:700; font-size:18px">
+                                        {{ applicant.name }}
+                                        <span class="muted" style="font-weight:500">({{ applicant.birth }})</span>
+                                    </div>
+                                    <div class="kv"><span class="label">單位</span><span class="val">{{ applicant.dept }}</span></div>
+                                    <div class="kv"><span class="label">分機</span><span class="val">{{ applicant.ext }}</span></div>
+                                    <div class="kv"><span class="label">Email</span><span class="val">{{ applicant.email }}</span></div>
+                                </div>
+                            </div>
 
-                    <div v-for="(p, x) in passengers" :key="x" class="row mb-2">
-                        <div class="col-1 text-center">
-                            <span>{{ x + 1 }}</span>
+                            <div class="grid-3">
+                                <div>
+                                    <label>車輛類別 *</label>
+                                    <select v-model="vehicleType">
+                                        <option value="汽車">汽車</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>事由 *</label>
+                                    <select v-model="purposeType">
+                                        <option value="公務車(不可選車)">公務車(不可選車)</option>
+                                        <option value="公務車(可選車)">公務車(可選車)</option>
+                                    </select>
+                                </div>
+
+                                <!-- 只有選「公務車(可選車)」時才出現車輛下拉 -->
+                                <div v-if="purposeType === '公務車(可選車)'">
+                                    <label>車輛 *</label>
+                                    <select v-model="assign.vehicleId">
+                                        <option :value="null">（未選擇）</option>
+                                        <option v-for="v in availableVehicles"
+                                                :key="v.vehicleId"
+                                                :value="v.vehicleId">
+                                            {{ v.plateNo }} ({{ v.capacity }}人座)
+                                        </option>
+                                    </select>
+                                    <small class="muted">駕駛依班表自動指派，車輛由你挑選</small>
+                                </div>
+                            </div>
+
+                            <div class="grid-equal-2" style="margin-top:12px">
+                                
+                                <div>
+                                    <label>結束時間 *</label>
+                                    <input type="text" id="ArrivalDisplay" class="form-control" readonly>
+                                    <input type="hidden" id="useEnd" name="useEnd">
+                                </div>
+                            </div>
+
+                            <div class="grid-1" style="margin-top:12px">
+                                <div class="row-combined">
+                                    <div style="flex:0 0 180px;">
+                                        <label>事由類型</label>
+                                        <select v-model="reasonType" style="width:100%">
+                                            <option value="公務用">公務用</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex:1; margin-left:12px;">
+                                        <label>用車事由</label>
+                                        <input type="text" placeholder="簡述申請原因" v-model="applyReason" style="width:100%" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-4">
-                            <input type="text" v-model="p.name" class="form-control" placeholder="姓名">
-                        </div>
-                        <div class="col-4">
-                            <input type="text" v-model="p.deptTitle" class="form-control" placeholder="單位與職稱">
-                        </div>
-                        <div class="col-2 text-center">
-                            <button type="button" class="btn btn-danger" @@click ="removePassenger(x)">刪除</button>
+
+                        <!-- 右側：車輛資訊摘要卡 -->
+                        <div class="vehicle-card">
+                            <div class="vehicle-icon">🚗</div>
+                            <div>
+                                <div style="font-weight:700">{{ vehicleType }}<br>{{ purposeType }}</div>
+                                <div class="muted" style="margin-top:6px">
+                                    將於 <b>{{ useStart || '—' }}</b> 出車，<br />
+                                    預計 <b>{{ useEnd || '—' }}</b> 歸還。
+                                </div>
+                                <div style="margin-top:8px"><a href="javascript:void(0)">more →</a></div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-2 align-items-end">
-                        <!-- 搭乘人數 -->
-                        <div class="col-3">
-                            <label>搭乘人數 *</label>
-                            <input type="number" class="form-control" :value="passengers.length" readonly>
-                        </div>
-
-                        <!-- 新增乘客按鈕 -->
-                        <div class="col-auto">
-                            <button type="button" class="btn btn-primary" @@click="addPassenger">新增乘客</button>
-                        </div>
-                    </div>
-
                 </div>
-            </div>
 
-            <!-- 動作列 -->
-            <div class="actions" style="margin-top:16px">
-                <a asp-action="Dispatch" asp-controller="Dispatches"
-                   class="btn"
-                   style="background:#6b7280; color:#fff; border-color:#6b7280;">
-                    返回清單
-                </a>
-                <form id="car-form">
-                    <!-- 其他欄位 -->
+                <!-- 人員與單位 -->
+                <div class="section" v-show="showForm">
+                    <!-- 標題列 -->
+                    <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
+                        <div class="col-2"><div>搭乘人數 *</div></div>
+                        <div class="col-3"><div>搭乘人員 *</div></div>
+                        <div class="col-4"><div>所屬單位與職稱 *</div></div>
+                        <div class="col-2 text-center"><div>動作</div></div>
+                    </div>
+
+                    <!-- 輸入列 -->
+                    <div class="section-bd">
+                        <div v-for="(p, x) in passengers" :key="x" class="row mb-2">
+                            <div class="col-1 text-center">
+                                <span>{{ x + 1 }}</span>
+                            </div>
+                            <div class="col-4">
+                                <input type="text" v-model="p.name" class="form-control" placeholder="姓名">
+                            </div>
+                            <div class="col-4">
+                                <input type="text" v-model="p.deptTitle" class="form-control" placeholder="單位與職稱">
+                            </div>
+                            <div class="col-2 text-center">
+                                <button type="button" class="btn btn-danger" @@click="removePassenger(x)">刪除</button>
+                            </div>
+                        </div>
+
+                        <div class="row mb-2 align-items-end">
+                            <div class="col-3">
+                                <label>搭乘人數 *</label>
+                                <input type="number" class="form-control" :value="passengers.length" readonly>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-primary" @@click="addPassenger">新增乘客</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 動作列 -->
+                <div class="actions" style="margin-top:16px" v-show="showForm">
+                    <a asp-action="Dispatch" asp-controller="Dispatches"
+                       class="btn"
+                       style="background:#6b7280; color:#fff; border-color:#6b7280;">
+                        返回清單
+                    </a>
                     <button type="button" class="btn btn-primary" @@click="onSubmit">送出申請</button>
-                </form>
+                </div>
             </div>
         </form>
     </div>
@@ -762,6 +750,8 @@
         }
 
             const now = new Date();
+            const showForm = ref(false);
+
 
             // 表單資料
             const applyFor     = ref("self");
@@ -792,7 +782,7 @@
             // 其他 reactive 物件
             const applicant = reactive({
               name: 'XXX',
-              empId: 'XXXX.XX.X',
+              birth: 'XXXX.XX.XX',
               dept: '臺東分署 / 森林管理處 / 休憩管理科',
               ext: '212',
               email: 'XXXXX@forest.gov.tw'
@@ -827,31 +817,49 @@
 
            
         // 車輛清單（改呼叫 /api/vehicles/available）
-        async function loadVehicles() {
-          try {
-                    const res = await axios.get('/api/vehicles/available', {
-          params: {
-            from: new Date(useStart.value).toISOString(),   
-            to:   useEnd.value
-                 || new Date(new Date(useStart.value).getTime() + 60 * 60 * 1000).toISOString(), 
-            capacity: passengerCount.value || undefined
-          }
-        });
-                    if (!res.data || res.data.length === 0) {
-          alert("⚠ 當下沒有可用車輛，請調整時間或人數");
-          window.location.href = "/Dispatches/Dispatch";
-          return;
+        function toLocalNaive(dtLike) {
+          const d = new Date(dtLike);
+          const pad = n => String(n).padStart(2,'0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
         }
 
-            vehicles.value = (res.data || []).map(v => ({
+        async function loadVehicles() {
+          if (!useStart.value || !useEnd.value) return;
+
+          try {
+            const fromStr = useStart.value;              // <input type="datetime-local"> 本來就是本地無Z
+            const toStr   = toLocalNaive(useEnd.value);  // 把 useEnd Date 轉成本地無Z
+
+            const res = await axios.get('/api/vehicles/available', {
+              params: {
+                from: fromStr,
+                to:   toStr,
+                capacity: passengers.value.length || undefined
+              }
+            });
+
+          if (!res.data || res.data.length === 0) {
+          alert("⚠ 當下沒有可用車輛，請調整時間或人數");
+        }
+
+
+            vehicles.value = res.data.map(v => ({
               vehicleId: v.vehicleId,
               plateNo:   v.plateNo ?? '',
               brand:     v.brand ?? '',
               model:     v.model ?? '',
               capacity:  v.capacity ?? 0,
               status:    v.status ?? '',
-              busy:      false   // 因為後端已經只回傳可用車，所以這裡都設成 false
+              busy:      false
             }));
+
+            // 預設選第一台（只有可選車才自動帶入）
+            if (purposeType.value === '公務車(可選車)') {
+              assign.vehicleId = vehicles.value[0]?.vehicleId ?? null;
+            } else {
+              assign.vehicleId = null;
+            }
+
           } catch (err) {
             console.error("❌ 載入可用車失敗", err);
             vehicles.value = [];
@@ -929,7 +937,7 @@
               try {
                 const payload = {
                   applicantName:  applicant.name,
-                  applicantEmpId: applicant.empId,
+                  ApplicantBirth: applicant.birth,
                   applicantDept:  applicant.dept,
                   applicantExt:   applicant.ext,
                   applicantEmail: applicant.email,
@@ -985,60 +993,72 @@
             alert('請輸入出發地與目的地');
             return;
           }
+
           try {
             const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
             const data = await res.json();
 
-                   if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
-          const distMeters = data.rows[0].elements[0].distance.value;
-          const durSecs = data.rows[0].elements[0].duration.value;
+            if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
+              const distMeters = data.rows[0].elements[0].distance.value;
+              const durSecs    = data.rows[0].elements[0].duration.value;
 
-          // 原本就有的顯示邏輯
-          singleDurationSec = durSecs;
-          roundTripDurationSec = durSecs * 2;
+              // 儲存秒數，後面會用來算結束時間
+              singleDurationSec    = durSecs;
+              roundTripDurationSec = durSecs * 2;
 
-          function formatDuration(seconds){
-            let hours=Math.floor(seconds/3600), mins=Math.round((seconds%3600)/60);
-            if (mins===60){ hours+=1; mins=0; }
-            let t=''; if (hours>0) t+=hours+' 小時'; if (mins>0) t+=(hours>0?' ':'')+mins+' 分鐘';
-            return t;
-          }
-          singleDistance.value    = (distMeters/1000).toFixed(1)+ ' 公里';
-          singleDuration.value    = formatDuration(durSecs);
-          roundTripDistance.value = (distMeters*2/1000).toFixed(1)+' 公里';
-          roundTripDuration.value = formatDuration(durSecs*2);
+              // 顯示距離/時間
+              function formatDuration(seconds) {
+                let hours = Math.floor(seconds / 3600);
+                let mins  = Math.round((seconds % 3600) / 60);
+                if (mins === 60) { hours += 1; mins = 0; }
+                let t = '';
+                if (hours > 0) t += hours + ' 小時';
+                if (mins > 0)  t += (hours > 0 ? ' ' : '') + mins + ' 分鐘';
+                return t;
+              }
+              singleDistance.value    = (distMeters / 1000).toFixed(1) + ' 公里';
+              singleDuration.value    = formatDuration(durSecs);
+              roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + ' 公里';
+              roundTripDuration.value = formatDuration(durSecs * 2);
 
-          // 🔻 新增區塊：按完「查詢」就計算並顯示結束時間
-                    const start = new Date(useStart.value);
-        if (!isNaN(start.getTime())) {
-          const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
-          if (secs > 0) {
-            const arrival = new Date(start.getTime() + secs * 1000);
-            useEnd.value = arrival.toISOString();  // 後端送 ISO
-            // 顯示用 AM/PM 格式
-            const pad = n => (n < 10 ? '0' + n : '' + n);
-            let hours = arrival.getHours();
-            const minutes = pad(arrival.getMinutes());
-            const seconds = pad(arrival.getSeconds());
-            const ampm = hours >= 12 ? '下午' : '上午';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const show = `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} ` +
-                         `${ampm} ${pad(hours)}:${minutes}:${seconds}`;
+              // 👉 算出結束時間
+              const start = new Date(useStart.value);
+              if (!isNaN(start.getTime())) {
+                const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
+                if (secs > 0) {
+                  const arrival = new Date(start.getTime() + secs * 1000);
 
-              const disp = document.getElementById('ArrivalDisplay');
-              if (disp) disp.value = show;
+                  // 送到後端用 ISO
+                  useEnd.value = arrival.toISOString();
 
-              // 若後端還會讀 hidden 欄位，就同步它
-              const hidden = document.getElementById('useEnd');
-              if (hidden) hidden.value = useEnd.value;
+                  // 顯示用 AM/PM 格式
+                  const pad = n => (n < 10 ? '0' + n : '' + n);
+                  let hours = arrival.getHours();
+                  const minutes = pad(arrival.getMinutes());
+                  const seconds = pad(arrival.getSeconds());
+                  const ampm = hours >= 12 ? '下午' : '上午';
+                  hours = hours % 12 || 12; // 轉成 12 小時制
+
+                  const show = `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} ` +
+                               `${ampm} ${pad(hours)}:${minutes}:${seconds}`;
+
+                  const disp = document.getElementById('ArrivalDisplay');
+                  if (disp) disp.value = show;
+
+                  const hidden = document.getElementById('useEnd');
+                  if (hidden) hidden.value = useEnd.value;
+
+                  // 👉 打開隱藏表單
+                  showForm.value = true;
+
+                  // 👉 查詢完立刻刷新可用車
+                  await loadVehicles();
+                }
+              }
+            } else {
+              alert('⚠️ 查無路線');
             }
-          }
-        } else {
-          alert('⚠️ 查無路線');
-        }
-
-          } catch(err){
+          } catch (err) {
             console.error('❌ 取得距離失敗', err);
           }
         }
@@ -1056,7 +1076,7 @@
             return {
               applyFor, vehicleType, purposeType,arrivalDisplay,
               passengerCount, useStart, useEnd, reasonType, applyReason,
-              origin, destination, tripType, applicant,
+              origin, destination, tripType, applicant,showForm,
               singleDistance, singleDuration, roundTripDistance, roundTripDuration,
               passengers, addPassenger, removePassenger,
               // 車輛相關（給 template 綁定）

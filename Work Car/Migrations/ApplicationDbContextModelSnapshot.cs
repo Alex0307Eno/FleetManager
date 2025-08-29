@@ -36,7 +36,7 @@ namespace Cars.Migrations
                     b.Property<string>("ApplicantEmail")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ApplicantEmpId")
+                    b.Property<string>("ApplicantBirth")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ApplicantExt")

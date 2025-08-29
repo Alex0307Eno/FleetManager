@@ -10,7 +10,7 @@ namespace Cars.Models
         public int ApplyId { get; set; }  // 主鍵
 
         public string? ApplicantName { get; set; }
-        public string? ApplicantEmpId { get; set; }
+        public string? ApplicantBirth { get; set; }
         public string? ApplicantDept { get; set; }
         public string? ApplicantExt { get; set; }
         public string? ApplicantEmail { get; set; }

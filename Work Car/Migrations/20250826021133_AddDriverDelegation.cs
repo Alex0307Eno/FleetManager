@@ -167,7 +167,7 @@ namespace Cars.Migrations
                     ApplyId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ApplicantName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ApplicantEmpId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ApplicantBirth = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ApplicantDept = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ApplicantExt = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ApplicantEmail = table.Column<string>(type: "nvarchar(max)", nullable: true),
