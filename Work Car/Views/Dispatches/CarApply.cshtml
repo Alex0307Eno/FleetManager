@@ -400,7 +400,7 @@
                                         <option v-for="v in availableVehicles"
                                                 :key="v.vehicleId"
                                                 :value="v.vehicleId">
-                                            {{ v.plateNo }} ({{ v.brand }} {{ v.model }})
+                                            {{ v.plateNo }} ({{ v.capacity }}人座)
                                         </option>
                                     </select>
                                     <small class="muted">駕駛依班表自動指派，車輛由你挑選</small>
@@ -756,6 +756,11 @@
               return `${year}-${month}-${day}T${hour}:${minute}`;
             }
 
+                    function toLocalISOString(date) {
+          const tzOffset = date.getTimezoneOffset() * 60000; // 負數=東八區
+          return new Date(date.getTime() - tzOffset).toISOString().slice(0, -1);
+        }
+
             const now = new Date();
 
             // 表單資料
@@ -792,9 +797,10 @@
               ext: '212',
               email: 'XXXXX@forest.gov.tw'
             });
-                    const useStart = ref(getLocalDateTimeString(now));
-        const useEnd   = ref("");   // 真正送到後端的值
-
+            const useStart = ref(getLocalDateTimeString(now));
+            const useEnd   = ref(
+            new Date(now.getTime() + 60 * 60 * 1000).toISOString()
+              );
         // 自動算到達時間（出發時間 + 路程時間）
         const arrivalDisplay = computed(() => {
           if (!useStart.value) return "";
@@ -823,13 +829,14 @@
         // 車輛清單（改呼叫 /api/vehicles/available）
         async function loadVehicles() {
           try {
-            const res = await axios.get('/api/vehicles/available', {
-              params: {
-                from: useStart.value,
-                to: useEnd.value,
-                capacity: passengerCount.value
-              }
-            });
+                    const res = await axios.get('/api/vehicles/available', {
+          params: {
+            from: new Date(useStart.value).toISOString(),   
+            to:   useEnd.value
+                 || new Date(new Date(useStart.value).getTime() + 60 * 60 * 1000).toISOString(), 
+            capacity: passengerCount.value || undefined
+          }
+        });
                     if (!res.data || res.data.length === 0) {
           alert("⚠ 當下沒有可用車輛，請調整時間或人數");
           window.location.href = "/Dispatches/Dispatch";
@@ -901,6 +908,23 @@
             return;
           }
         }
+              const startDt = new Date(useStart.value);               // 由 datetime-local 轉 Date（本地）
+        let endDt = useEnd.value ? new Date(useEnd.value) : null; // 你之前可能已存 ISO
+
+        // 若尚未計算結束時間，保底用 +1 小時（或依你實際邏輯改成用查到的路程秒數）
+        if (!endDt || isNaN(endDt.getTime())) {
+          const secs = (tripType.value === 'round') ? (roundTripDurationSec || 3600*2) : (singleDurationSec || 3600);
+          endDt = new Date(startDt.getTime() + secs * 1000);
+        }
+
+        const normUseStart = toLocalISOString(new Date(useStart.value));
+        const normUseEnd   = toLocalISOString(new Date(useEnd.value));
+
+
+        if (new Date(normUseEnd) <= new Date(normUseStart)) {
+          alert('結束時間必須晚於起始時間'); // 與後端驗證一致
+          return;
+        }
 
               try {
                 const payload = {
@@ -913,8 +937,8 @@
                   vehicleType:    vehicleType.value,
                   purposeType:    purposeType.value,
                   passengerCount: passengers.value.length,
-                  useStart:       useStart.value,
-                  useEnd:         useEnd.value,
+                  useStart:       normUseStart,
+                  useEnd:         normUseEnd,
                   reasonType:     reasonType.value,
                   applyReason:    applyReason.value,
                   origin:         origin.value,
@@ -924,7 +948,6 @@
                   singleDuration: singleDuration.value,
                   roundTripDistance: roundTripDistance.value,
                   roundTripDuration: roundTripDuration.value,
-                  // 送車輛編號：可選車 → 車號；其他 → null
                   vehicleId: (purposeType.value === '公務車(可選車)') ? (assign.vehicleId ?? null) : null
                 };
 
@@ -986,26 +1009,22 @@
           roundTripDuration.value = formatDuration(durSecs*2);
 
           // 🔻 新增區塊：按完「查詢」就計算並顯示結束時間
-          const start = new Date(useStart.value);
-          if (!isNaN(start.getTime())) {
-            const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
-            if (secs > 0) {
-              const arrival = new Date(start.getTime() + secs * 1000);
-
-              // 更新 Vue 變數（右側卡片會跟著變）
-              useEnd.value = arrival.toISOString();
-
-              // 更新頁面上的結束時間輸入框
-              const pad = n => (n < 10 ? '0' + n : '' + n);
-                      let hours = arrival.getHours();
-        const minutes = pad(arrival.getMinutes());
-        const seconds = pad(arrival.getSeconds());
-        const ampm = hours >= 12 ? '下午' : '上午';
-        hours = hours % 12;
-        hours = hours ? hours : 12; // 0 轉成 12
-
-        const show = `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} ` +
-                     `${ampm} ${pad(hours)}:${minutes}:${seconds}`;
+                    const start = new Date(useStart.value);
+        if (!isNaN(start.getTime())) {
+          const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
+          if (secs > 0) {
+            const arrival = new Date(start.getTime() + secs * 1000);
+            useEnd.value = arrival.toISOString();  // 後端送 ISO
+            // 顯示用 AM/PM 格式
+            const pad = n => (n < 10 ? '0' + n : '' + n);
+            let hours = arrival.getHours();
+            const minutes = pad(arrival.getMinutes());
+            const seconds = pad(arrival.getSeconds());
+            const ampm = hours >= 12 ? '下午' : '上午';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const show = `${arrival.getFullYear()}/${arrival.getMonth() + 1}/${arrival.getDate()} ` +
+                         `${ampm} ${pad(hours)}:${minutes}:${seconds}`;
 
               const disp = document.getElementById('ArrivalDisplay');
               if (disp) disp.value = show;

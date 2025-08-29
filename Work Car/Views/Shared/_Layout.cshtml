@@ -103,7 +103,7 @@
             &copy; 2025 - Cars - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
-    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    @* <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rounded-4 shadow-lg">
                 <div class="modal-header bg-primary text-white">
@@ -127,11 +127,11 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> *@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    <script>
+    @* <script>
         // 頁面載入後自動顯示登入視窗
         document.addEventListener("DOMContentLoaded", function () {
             var loginModal = new bootstrap.Modal(document.getElementById("loginModal"), {
@@ -140,7 +140,7 @@
             });
             loginModal.show();
         });
-    </script>
+    </script> *@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
