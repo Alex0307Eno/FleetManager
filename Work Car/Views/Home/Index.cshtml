@@ -204,6 +204,7 @@
                 transition: filter .2s ease;
             }
 
+        /* 左下角資訊列 */
         .badge-row {
             position: absolute;
             left: 8px;
@@ -211,34 +212,48 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            font-family: "Noto Sans TC","Microsoft JhengHei",sans-serif;
         }
 
+        /* 車牌 + 駕駛 (深底白字) */
         .badge-dark {
-            background: rgba(0,0,0,.85);
+            background: rgba(0, 0, 0, 0.75);
             color: #fff;
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 12px;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.3;
+            white-space: nowrap;
         }
 
+        /* 狀態膠囊 (根據不同狀態改顏色) */
         .badge-pill {
             border-radius: 999px;
-            padding: 4px 10px;
+            padding: 4px 12px;
             font-size: 12px;
             font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
         }
 
+        /* 出勤中 → 紅色 */
         .badge-on {
-            background: #e6fffa;
-            color: #0f766e;
-            border: 1px solid #99f6e4;
+            background: #ef4444; /* tailwind red-500 */
         }
 
+        /* 待命中 → 綠色 */
         .badge-idle {
-            background: #f3f4f6;
-            color: #111827;
-            border: 1px solid #e5e7eb;
+            background: #22c55e; /* tailwind green-500 */
         }
+
+        /* 休息中 → 藍灰色 */
+        .badge-break {
+            background: #3b82f6; /* tailwind blue-500 */
+        }
+
+        /* 其他狀態可以再加 */
+
 
         .chip {
             font-size: 12px;
@@ -549,8 +564,17 @@
                         <div v-for="(card, idx) in driverCards.slice(0,3)" :key="card.key" class="map-cell">
                             <div class="gmap" :id="'gmap_'+idx"></div>
                             <div class="badge-row">
-                                <div class="badge-dark">{{ card.plate }} <br>{{ card.driver }}</div>
-                                <div class="badge-pill" :class="card.statusType === 'on' ? 'badge-on' : 'badge-idle'">{{ card.statusText }}</div>
+                                <div class="badge-dark">
+                                    {{ card.plate ? card.plate.slice(-4) : '—' }}{{ card.driver }}
+                                </div>
+                                <div class="badge-pill"
+                                     :class="{
+                                      'badge-on': card.statusType === 'on',
+                                      'badge-idle': card.statusType === 'idle',
+                                      'badge-break': card.statusType === 'break'
+                                    }">
+                                    {{ card.statusText }}
+                                </div>
                             </div>
                         </div>
 
@@ -559,8 +583,17 @@
                             <div v-for="(card, i) in driverCards.slice(3,5)" :key="card.key" class="map-cell">
                                 <div class="gmap" :id="'gmap_'+(i+3)"></div>
                                 <div class="badge-row">
-                                    <div class="badge-dark">{{ card.plate }}<br> {{ card.driver }}</div>
-                                    <div class="badge-pill" :class="card.statusType === 'on' ? 'badge-on' : 'badge-idle'">{{ card.statusText }}</div>
+                                    <div class="badge-dark">
+                                        {{ card.plate ? card.plate.slice(-4) : '—' }}{{ card.driver }}
+                                    </div>
+                                    <div class="badge-pill"
+                                         :class="{
+                                         'badge-on': card.statusType === 'on',
+                                         'badge-idle': card.statusType === 'idle',
+                                         'badge-break': card.statusType === 'break'
+                                       }">
+                                        {{ card.statusText }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -820,7 +853,9 @@
                 // 待機就加暗（.gmap.idle），執勤就移除
                 if (card.statusType === 'idle') el.classList.add('idle');
                 else el.classList.remove('idle');
-
+                //休息(灰色)
+                if (card.statusType === 'break') el.classList.add('break');
+                else el.classList.remove('break');
                 // 座標（沒有就用 myCenter）
                 const hasLat = Number.isFinite(+card.lat), hasLng = Number.isFinite(+card.lng);
                 const pos = (hasLat && hasLng) ? { lat:+card.lat, lng:+card.lng } : myCenter;
@@ -879,8 +914,8 @@
             key: d.key,
             plate: (d.plateNo || '').trim() || '—',
             driver: (d.driverName || '').trim() || '—',
-            statusText: d.stateText,                 // ← 改用 driverStatus 的判斷結果
-            statusType: (d.stateText==='執勤中') ? 'on' : 'idle',  // ← 跟 stateText 對應
+            statusText: d.stateText,                 
+            statusType: (d.stateText==='執勤中') ? 'on' : 'idle',  
             // 把地圖座標一律換成我的定位
             lat: validLatLng(myLat, myLng) ? myLat : null,
             lng: validLatLng(myLat, myLng) ? myLng : null
@@ -1072,6 +1107,7 @@
             driverName: x?.driverName ?? '-',
             shiftLabel: x?.shiftLabel || '一般',
             shiftClass: x?.shiftClass || 'general',
+            plateNo: x?.plateNo ?? '-',
             stateText,
             stateDotClass,
             taskWindow,   // ← 當前任務
@@ -1083,42 +1119,11 @@
         };
 
 
-              const driverStatus = computed(()=>{
-                const rows = (schedules.value || []).map(scheduleToDriverRow);
-
-                // 同名駕駛只取一筆（執勤中優先）
-                const picked = new Map();
-                for (const r of rows) {
-                  const k = r.driverName || r.key;
-                  if (!picked.has(k)) picked.set(k, r);
-                  else {
-                    const old = picked.get(k);
-                    const score = (r.stateText==='執勤中') ? 2 : (r.taskWindow ? 1 : 0);
-                    const oldScore = (old.stateText==='執勤中') ? 2 : (old.taskWindow ? 1 : 0);
-                    if (score > oldScore) picked.set(k, r);
-                  }
-                }
-
-                let list = Array.from(picked.values());
-                list.sort((a,b)=>{
-                  const aw = (a.stateText==='執勤中') ? 0 : 1;
-                  const bw = (b.stateText==='執勤中') ? 0 : 1;
-                  if (aw !== bw) return aw - bw;
-                  return String(a.driverName).localeCompare(String(b.driverName),'zh-Hant');
-                });
-
-                while (list.length < 5) {
-                  list.push({
-                    key: 'placeholder_'+list.length,
-                    driverName: '—',
-                    shiftLabel: '一般', shiftClass: 'general',
-                    stateText: '待命中', stateDotClass:'status-green',
-                    taskWindow: '', etaBack:'', earliestOut:'即時可用',
-                    attendance: '正常', note:''
-                  });
-                }
-                return list.slice(0,5);
-              });
+        // 取代原本那段有去重/限 5 筆的計算
+        const driverStatus = computed(() => {
+          // 直接把今天的 schedule 每一筆都轉成一列（可重複）
+          return (schedules.value || []).map(scheduleToDriverRow);
+        });
 
 
               function openFleetStatus(){
