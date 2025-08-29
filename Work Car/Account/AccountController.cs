@@ -1,12 +1,17 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
-namespace Cars.Account
+namespace Cars.Controllers
 {
     public class AccountController : Controller
     {
-        public IActionResult Login()
+        [HttpGet("/Account/Login")]
+        public IActionResult Login() => View();
+
+        [HttpPost("/Account/Logout")]
+        public IActionResult Logout()
         {
-            return View();
+            HttpContext.Session.Clear();
+            return RedirectToAction("Login");
         }
     }
 }

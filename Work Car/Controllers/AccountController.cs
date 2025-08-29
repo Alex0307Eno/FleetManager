@@ -1,59 +1,74 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Cars.Data;
-using Cars.Models;
-using System.Security.Cryptography;
-using System.Text;
+using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
-    public class AccountController : Controller
+    [ApiController]
+    [Route("api/[controller]")]
+    public class AuthController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        public AccountController(ApplicationDbContext context)
+
+        public AuthController(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        [HttpGet]
-        public IActionResult Login()
+        public class LoginDto
         {
-            return View();
+            public string UserName { get; set; }
+            public string Password { get; set; }
         }
 
-        [HttpPost]
-        public IActionResult Login(string userName, string password)
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
-            string hash = GetHash(password);
+            if (dto == null || string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password))
+                return BadRequest(new { message = "帳號或密碼不可為空" });
 
-            var user = _context.Users
-                .FirstOrDefault(u => u.UserName == userName && u.PasswordHash == hash);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Account == dto.UserName);
 
-            if (user != null)
+            if (user == null)
+                return Unauthorized(new { message = "帳號或密碼錯誤" });
+
+            bool valid = false;
+
+            // 1️⃣ 嘗試用 BCrypt 驗證
+            try
             {
-                // 寫入 Session
-                HttpContext.Session.SetString("UserName", user.UserName);
-                HttpContext.Session.SetString("Role", user.Role ?? "User");
-
-                return RedirectToAction("Index", "Home");
+                valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+            }
+            catch
+            {
+                valid = false;
             }
 
-            ViewBag.Error = "帳號或密碼錯誤";
-            return View();
-        }
-
-        public IActionResult Logout()
-        {
-            HttpContext.Session.Clear();
-            return RedirectToAction("Login");
-        }
-
-        private string GetHash(string input)
-        {
-            using (var sha = SHA256.Create())
+            // 2️⃣ 如果 BCrypt 驗證失敗，檢查是不是明碼
+            if (!valid && user.PasswordHash == dto.Password)
             {
-                var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
-                return Convert.ToBase64String(bytes);
+                // ⚡ 登入成功 → 立即轉成 BCrypt 並更新
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+                await _context.SaveChangesAsync();
+                valid = true;
             }
+
+            if (!valid)
+                return Unauthorized(new { message = "帳號或密碼錯誤" });
+
+            // ✅ 登入成功 → 存 Session
+            HttpContext.Session.SetString("UserId", user.UserId.ToString());
+            HttpContext.Session.SetString("UserName", user.Account);
+
+            return Ok(new
+            {
+                message = "登入成功",
+                userId = user.UserId,
+                userName = user.Account,
+                displayName = user.DisplayName
+            });
         }
     }
 }

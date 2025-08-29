@@ -3,6 +3,7 @@ using Cars.Models;
 using Cars.Services;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace Cars
 {
     public class Program
@@ -28,6 +29,13 @@ namespace Cars
 
             // MVC
             builder.Services.AddControllersWithViews();
+            builder.Services.AddDistributedMemoryCache(); // Session 的暫存
+            builder.Services.AddSession(options =>
+            {
+                options.IdleTimeout = TimeSpan.FromHours(8); // session 有效時間
+                options.Cookie.HttpOnly = true;
+                options.Cookie.IsEssential = true;
+            });
 
             Console.WriteLine("Connection string = " + builder.Configuration.GetConnectionString("DefaultConnection"));
 
@@ -93,7 +101,7 @@ namespace Cars
             app.UseStaticFiles();
 
             app.UseRouting();
-
+            app.UseSession();
             app.UseAuthorization();
 
             app.MapControllerRoute(

@@ -1,31 +1,76 @@
 ﻿@{
     ViewData["Title"] = "登入";
+    Layout = "_Layout";
 }
+<div class="container" style="max-width:380px;margin:72px auto;">
+    <div class="card shadow-sm" style="padding:20px;">
+        <h1 class="h5 text-center mb-3">系統登入</h1>
 
-<div class="d-flex justify-content-center align-items-center vh-100 bg-light">
-    <div class="card shadow-lg" style="width: 400px; border-radius: 12px;">
-        <div class="card-body p-4">
-            <h3 class="card-title text-center mb-4 fw-bold">🚗 公務車派車系統</h3>
+        <!-- 提示訊息 -->
+        <div id="msg" class="alert d-none" role="alert"></div>
 
-            @if (ViewBag.Error != null)
-            {
-                <div class="alert alert-danger text-center">@ViewBag.Error</div>
-            }
-
-            <form method="post">
-                <div class="mb-3">
-                    <label class="form-label">帳號</label>
-                    <input type="text" name="username" class="form-control form-control-lg" placeholder="輸入帳號" required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">密碼</label>
-                    <input type="password" name="password" class="form-control form-control-lg" placeholder="輸入密碼" required />
-                </div>
-                <button type="submit" class="btn btn-primary w-100 btn-lg">登入</button>
-            </form>
-        </div>
-        <div class="card-footer text-center text-muted" style="font-size: 13px;">
-            &copy; 2025 公務車派車系統
-        </div>
+        <form id="loginForm" autocomplete="off" novalidate>
+            <div class="mb-3">
+                <label class="form-label">帳號</label>
+                <input id="username" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">密碼</label>
+                <input id="password" type="password" class="form-control" required />
+            </div>
+            <button id="btnLogin" type="submit" class="btn btn-primary w-100">登入</button>
+        </form>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (() => {
+          const form = document.getElementById('loginForm');
+          const btn  = document.getElementById('btnLogin');
+          const msg  = document.getElementById('msg');
+
+          function show(kind, text){
+            msg.className = 'alert alert-' + kind;
+            msg.textContent = text;
+          }
+
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userName = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!userName || !password) {
+              show('warning', '請輸入帳號與密碼');
+              return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '登入中…';
+
+            try {
+              const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ userName, password })
+              });
+
+              const data = await res.json().catch(() => ({}));
+
+              if (res.ok) {
+                show('success', data?.message || '登入成功，將跳轉首頁…');
+                setTimeout(() => { window.location.href = '/'; }, 800);
+              } else {
+                show('danger', data?.message || `登入失敗（${res.status}）`);
+              }
+            } catch (err) {
+              console.error(err);
+              show('danger', '無法連線伺服器，請稍後再試');
+            } finally {
+              btn.disabled = false;
+              btn.textContent = '登入';
+            }
+          });
+        })();
+    </script>
+}
