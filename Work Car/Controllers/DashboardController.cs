@@ -53,6 +53,9 @@ namespace Cars.Controllers
                 from a in aa.DefaultIfEmpty()
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
+                    // 🔗 這裡多加 Applicants join
+                join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into appGroup
+                from ap in appGroup.DefaultIfEmpty()
                 orderby s.Shift, dis.StartTime
                 select new
                 {
@@ -64,8 +67,8 @@ namespace Cars.Controllers
                     startTime = dis.StartTime,
                     endTime = dis.EndTime,
                     route = dis != null ? (a.Origin ?? "") + "-" + (a.Destination ?? "") : "",
-                    applicantName = a.ApplicantName,
-                    applicantDept = a.ApplicantDept,
+                    applicantName = ap != null ? ap.Name : null,   // ✅ 從 Applicants 取
+                    applicantDept = ap != null ? ap.Dept : null,   // ✅ 從 Applicants 取
                     passengerCount = a.PassengerCount,
                     plateNo = v.PlateNo,
                     tripDistance = a != null
@@ -116,7 +119,7 @@ namespace Cars.Controllers
                         select v.PlateNo
                     ).FirstOrDefault(),
 
-                    // 申請人 / 部門 / 人數（也抓當下的派工）
+                    // 🔑 申請人部門
                     applicantDept = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
@@ -124,9 +127,11 @@ namespace Cars.Controllers
                               && dis.StartTime.Value <= now
                               && dis.EndTime.Value >= now
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.ApplicantDept
+                        join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
+                        select ap.Dept
                     ).FirstOrDefault(),
 
+                    // 🔑 申請人姓名
                     applicantName = (
                         from dis in _db.Dispatches
                         where dis.DriverId == d.DriverId
@@ -134,7 +139,8 @@ namespace Cars.Controllers
                               && dis.StartTime.Value <= now
                               && dis.EndTime.Value >= now
                         join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.ApplicantName
+                        join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
+                        select ap.Name
                     ).FirstOrDefault(),
 
                     passengerCount = (
@@ -168,7 +174,7 @@ namespace Cars.Controllers
                 })
                 .ToListAsync();
 
-            // 將狀態文字統一處理
+            // 統一處理狀態文字
             var result = drivers.Select(d => new {
                 d.driverId,
                 d.driverName,
@@ -191,15 +197,19 @@ namespace Cars.Controllers
         public async Task<IActionResult> Uncomplete()
         {
             var today = DateTime.Today;
+
             var raw = await (
                 from d in _db.Dispatches
                 join a in _db.CarApplications on d.ApplyId equals a.ApplyId
+                join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into apj
+                from ap in apj.DefaultIfEmpty()
                 join drv in _db.Drivers on d.DriverId equals drv.DriverId into drvj
                 from drv in drvj.DefaultIfEmpty()
                 join v in _db.Vehicles on d.VehicleId equals v.VehicleId into vj
                 from v in vj.DefaultIfEmpty()
                 where (d.DispatchStatus != "已完成"
-                      || d.DriverId == null || d.VehicleId == null || d.DispatchStatus == "待派車" )&& a.UseEnd.Date == today
+                       || d.DriverId == null || d.VehicleId == null || d.DispatchStatus == "待派車")
+                      && a.UseEnd.Date == today
                 orderby a.UseStart
                 select new
                 {
@@ -208,7 +218,7 @@ namespace Cars.Controllers
                     a.UseEnd,
                     Route = (a.Origin ?? "") + "-" + (a.Destination ?? ""),
                     a.ApplyReason,
-                    a.ApplicantName,
+                    ApplicantName = ap != null ? ap.Name : null,   // ✅ 從 Applicants.Name
                     PassengerCount = a.PassengerCount,
                     a.TripType,
                     a.SingleDistance,
@@ -253,11 +263,32 @@ namespace Cars.Controllers
         public async Task<IActionResult> PendingApps()
         {
             var today = DateTime.Today;
-            var raw = await _db.CarApplications
-                .Where(a => (a.Status == "待審核" || a.Status == "審核中")
-                && a.UseStart.Date == today)
-                .OrderBy(a => a.UseStart)
-                .ToListAsync();
+
+            var raw = await (
+                from a in _db.CarApplications
+                where (a.Status == "待審核" || a.Status == "審核中")
+                      && a.UseStart.Date == today
+                join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into apj
+                from ap in apj.DefaultIfEmpty()
+                orderby a.UseStart
+                select new
+                {
+                    a.ApplyId,
+                    a.UseStart,
+                    a.UseEnd,
+                    a.Origin,
+                    a.Destination,
+                    a.ApplyReason,
+                    ApplicantName = ap != null ? ap.Name : null,   // ✅ 改用 Applicants.Name
+                    a.PassengerCount,
+                    a.TripType,
+                    a.SingleDistance,
+                    a.RoundTripDistance,
+                    a.SingleDuration,
+                    a.RoundTripDuration,
+                    a.Status
+                }
+            ).ToListAsync();
 
             var data = raw.Select(a => new
             {

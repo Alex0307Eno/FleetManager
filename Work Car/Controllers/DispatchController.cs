@@ -24,21 +24,22 @@ namespace Cars.Controllers
             var data = _db.DispatchOrders
                 .Select(o => new
                 {
-                    vehicleId = o.VehicleId,
-                    plateNo = o.PlateNo,
-                    driverId = o.DriverId,
-                    driverName = o.DriverName,
-                    applyId = o.ApplyId,
-                    applicantName = o.ApplicantName,
-                    applicantDept = o.ApplicantDept,
-                    passengerCount = o.PassengerCount,
-                    useDate = o.UseDate,
-                    useTime = o.UseTime,
-                    route = o.Route,
-                    reason = o.Reason,
-                    tripDistance = o.TripDistance,
-                    tripType = o.TripType,
-                    status = o.Status
+                    o.VehicleId,
+                    o.PlateNo,
+                    o.DriverId,
+                    o.DriverName,
+                    o.ApplyId,
+                    ApplicantId = o.ApplicantId,
+                    ApplicantName = o.ApplicantName, // 直接用 View.Name
+                    ApplicantDept = o.ApplicantDept, // 直接用 View.Dept
+                    o.PassengerCount,
+                    o.UseDate,
+                    o.UseTime,
+                    o.Route,
+                    o.Reason,
+                    o.TripDistance,
+                    o.TripType,
+                    o.Status
                 })
                 .ToList();
 

@@ -9,11 +9,11 @@ namespace Cars.Models
 
         public int ApplyId { get; set; }  // 主鍵
 
-        public string? ApplicantName { get; set; }
-        public string? ApplicantBirth { get; set; }
-        public string? ApplicantDept { get; set; }
-        public string? ApplicantExt { get; set; }
-        public string? ApplicantEmail { get; set; }
+        //public string? ApplicantName { get; set; }
+        //public string? ApplicantBirth { get; set; }
+        //public string? ApplicantDept { get; set; }
+        //public string? ApplicantExt { get; set; }
+        //public string? ApplicantEmail { get; set; }
 
         public string? ApplyFor { get; set; }
         public string? VehicleType { get; set; }
@@ -41,6 +41,8 @@ namespace Cars.Models
         public string? RoundTripDuration { get; set; }
 
         public string Status { get; set; } = "待審核";
+        public Applicant Applicant { get; set; }  // 導航屬性
+
         public int? ApplicantId { get; set; }
         public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>();
         public Driver? Driver { get; set; }

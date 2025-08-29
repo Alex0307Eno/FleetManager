@@ -38,8 +38,7 @@ namespace Cars.Models
         [Display(Name = "緊急聯絡電話"), MaxLength(50)]
         public string? EmergencyContactPhone { get; set; }
 
-        public int? UserId { get; set; }
-        public User User { get; set; }
+       
 
         // 🔗 關聯 (一個駕駛可以有多筆派車單)
         public virtual ICollection<Dispatch>? Dispatches { get; set; }

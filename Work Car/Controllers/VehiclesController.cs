@@ -29,29 +29,33 @@ namespace Cars.Controllers
             int? driverId, string? plate, string? applicant, string? dept)
         {
             var q = _db.CarApplications
-                .Include(x => x.DispatchOrders)
-                .Include(x => x.Passengers)
-                .AsNoTracking()
-                .Select(x => new
-                {
-                    id = x.ApplyId,
-                    driveDate = x.UseStart.Date,
-                    driverId = x.DispatchOrders
-                    .Select(d => d.Driver.DriverId)
-                    .FirstOrDefault(),
-                    driverName = x.DispatchOrders
-                        .Select(d => d.Driver.DriverName)
-                        .FirstOrDefault(), 
-                    plateNo = x.DispatchOrders
-                        .Select(d => d.Vehicle.PlateNo)
-                        .FirstOrDefault(),
-                    applicantDept = x.ApplicantDept,
-                    applicantName = x.ApplicantName,
-                    km = ParseKm(x.SingleDistance, x.RoundTripDistance),
-                    trips = 1,
-                    longShort = x.TripType == "single" ? "短差" :
-                                x.TripType == "round" ? "長差" : "未知"
-                });
+    .Include(x => x.DispatchOrders)
+        .ThenInclude(d => d.Driver)
+    .Include(x => x.DispatchOrders)
+        .ThenInclude(d => d.Vehicle)
+    .Include(x => x.Applicant)   // 👈 加這個
+    .AsNoTracking()
+    .Select(x => new
+    {
+        id = x.ApplyId,
+        driveDate = x.UseStart.Date,
+        driverId = x.DispatchOrders
+            .Select(d => d.Driver.DriverId)
+            .FirstOrDefault(),
+        driverName = x.DispatchOrders
+            .Select(d => d.Driver.DriverName)
+            .FirstOrDefault(),
+        plateNo = x.DispatchOrders
+            .Select(d => d.Vehicle.PlateNo)
+            .FirstOrDefault(),
+        applicantDept = x.Applicant != null ? x.Applicant.Dept : null,   // ✅ 改這裡
+        applicantName = x.Applicant != null ? x.Applicant.Name : null,   // ✅ 改這裡
+        km = ParseKm(x.SingleDistance, x.RoundTripDistance),
+        trips = 1,
+        longShort = x.TripType == "single" ? "短差" :
+                    x.TripType == "round" ? "長差" : "未知"
+    });
+
 
             // 篩選條件
             if (dateFrom.HasValue) q = q.Where(x => x.driveDate >= dateFrom.Value.Date);

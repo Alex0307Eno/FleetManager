@@ -26,31 +26,33 @@ namespace Cars.Controllers.Api
 
 
             var q =
-         from d in _db.Dispatches.AsNoTracking()
-         join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId
-         join r in _db.Drivers.AsNoTracking() on d.DriverId equals r.DriverId
-         join a in _db.CarApplications.AsNoTracking() on d.ApplyId equals a.ApplyId
-         select new
-         {
-             d.DispatchId,
-             a.ApplyId,
-             a.UseStart,
-             a.UseEnd,
-             a.Origin,
-             a.Destination,
-             a.ReasonType,
-             a.ApplyReason,
-             a.ApplicantName,
-             a.PassengerCount,
-             a.TripType,            
-             a.SingleDistance,      
-             a.RoundTripDistance,   
-             a.Status,
-             r.DriverId,
-             r.DriverName,
-             v.VehicleId,
-             v.PlateNo
-         };
+      from d in _db.Dispatches.AsNoTracking()
+      join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId
+      join r in _db.Drivers.AsNoTracking() on d.DriverId equals r.DriverId
+      join a in _db.CarApplications.AsNoTracking() on d.ApplyId equals a.ApplyId
+      join p in _db.Applicants.AsNoTracking() on a.ApplicantId equals p.ApplicantId
+      select new
+      {
+          d.DispatchId,
+          a.ApplyId,
+          a.UseStart,
+          a.UseEnd,
+          a.Origin,
+          a.Destination,
+          a.ReasonType,
+          a.ApplyReason,
+          ApplicantName = p.Name,   
+          a.PassengerCount,
+          a.TripType,
+          a.SingleDistance,
+          a.RoundTripDistance,
+          a.Status,
+          r.DriverId,
+          r.DriverName,
+          v.VehicleId,
+          v.PlateNo
+      };
+
 
             // 篩選
             if (dateFrom.HasValue)
@@ -115,14 +117,14 @@ namespace Cars.Controllers.Api
         public async Task<IActionResult> GetOne(int id)
         {
             var d = await _db.Dispatches
-                .AsNoTracking()
-                .Include(x => x.Vehicle)
-                .Include(x => x.Driver)
-                .Include(x => x.CarApply) // CarApplications
-                .FirstOrDefaultAsync(x => x.DispatchId == id);
+            .AsNoTracking()
+            .Include(x => x.Vehicle)
+            .Include(x => x.Driver)
+            .Include(x => x.CarApply)
+                .ThenInclude(ca => ca.Applicant)   
+            .FirstOrDefaultAsync(x => x.DispatchId == id);
 
             if (d == null) return NotFound();
-
             return Ok(new
             {
                 d.DispatchId,
@@ -132,7 +134,7 @@ namespace Cars.Controllers.Api
                 d.CreatedAt,
                 Driver = d.Driver?.DriverName,
                 PlateNo = d.Vehicle?.PlateNo,
-                Applicant = d.CarApply?.ApplicantName,
+                Applicant = d.CarApply?.Applicant?.Name,   
                 ReasonType = d.CarApply?.ReasonType,
                 Reason = d.CarApply?.ApplyReason,
                 Origin = d.CarApply?.Origin,

@@ -2,7 +2,7 @@
 
 namespace Cars.Models
 {
-    [Keyless] // 沒有主鍵的 View
+    [Keyless] // View 沒有主鍵
     public class DispatchOrder
     {
         public int DispatchId { get; set; }
@@ -11,20 +11,16 @@ namespace Cars.Models
         public int? DriverId { get; set; }
         public string? DriverName { get; set; }
         public int? ApplyId { get; set; }
-        public string? ApplicantName { get; set; }
-        public string? ApplicantDept { get; set; }
+        public int? ApplicantId { get; set; }
+        public string? ApplicantName { get; set; }   // 對應 View.Name
+        public string? ApplicantDept { get; set; }   // 對應 View.Dept
         public int? PassengerCount { get; set; }
-
         public string? UseDate { get; set; }
         public string? UseTime { get; set; }
-
         public string? Route { get; set; }
         public string? Reason { get; set; }
-
         public string? TripDistance { get; set; }
-
         public string? TripType { get; set; }
         public string? Status { get; set; }
-        public Vehicle Vehicle { get; set; }
     }
 }
