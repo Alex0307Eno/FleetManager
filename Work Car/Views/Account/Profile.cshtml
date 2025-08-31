@@ -1,0 +1,53 @@
+﻿@model Cars.Controllers.AccountController.ProfileVm
+@{
+    ViewData["Title"] = "個人資料";
+}
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h2>個人資料</h2>
+
+    @if (TempData["ok"] != null)
+    {
+      <div class="alert alert-success">@TempData["ok"]</div>
+    }
+
+    <form asp-action="Profile" method="post">
+      @Html.AntiForgeryToken()
+      <input type="hidden" asp-for="UserId" />
+
+      <div class="form-group">
+        <label>帳號</label>
+        <input class="form-control" asp-for="Account" readonly />
+      </div>
+
+      <div class="form-group">
+        <label>顯示名稱</label>
+        <input class="form-control" asp-for="DisplayName" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group col">
+          <label>單位</label>
+          <input class="form-control" asp-for="Dept" />
+        </div>
+        <div class="form-group col">
+          <label>分機</label>
+          <input class="form-control" asp-for="Ext" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-control" asp-for="Email" />
+      </div>
+
+      <div class="form-group">
+        <label>生日</label>
+        <input class="form-control" asp-for="Birth" type="date"/>
+      </div>
+
+      <button class="btn btn-primary btn-block">儲存</button>
+    </form>
+  </div>
+</div>

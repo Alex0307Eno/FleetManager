@@ -1,110 +1,87 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Cars.Data;
-using System.Threading.Tasks;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using System.Security.Claims;
+
 namespace Cars.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    [Authorize]
+    public class AccountController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ApplicationDbContext _db;
+        public AccountController(ApplicationDbContext db) { _db = db; }
 
-        public AuthController(ApplicationDbContext context)
+        [HttpGet]
+        public async Task<IActionResult> Profile()
         {
-            _context = context;
-        }
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return RedirectToAction("Login");
 
-        public class LoginDto
-        {
-            public string UserName { get; set; }
-            public string Password { get; set; }
-        }
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto)
-        {
-            try
+            int userId = int.Parse(uid);
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId);
+            var applicant = await _db.Applicants.FirstOrDefaultAsync(x => x.UserId == userId);
+
+            var vm = new ProfileVm
             {
-                if (dto == null || string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password))
-                    return BadRequest(new { message = "帳號或密碼不可為空" });
-
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Account == dto.UserName);
-
-                if (user == null)
-                    return Unauthorized(new { message = "帳號或密碼錯誤" });
-
-                bool valid = false;
-                if (!string.IsNullOrEmpty(user.PasswordHash))
-                {
-                    try
-                    {
-                        valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-                    }
-                    catch { valid = false; }
-                }
-
-                if (!valid && user.PasswordHash == dto.Password)
-                {
-                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-                    await _context.SaveChangesAsync();
-                    valid = true;
-                }
-
-                if (!valid)
-                    return Unauthorized(new { message = "帳號或密碼錯誤" });
-
-                // ===== 加入 ClaimsPrincipal =====
-                var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.Name, user.DisplayName ?? user.Account),
-            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-            new Claim(ClaimTypes.Role, user.Role ?? "User")
-        };
-
-                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                var authProps = new AuthenticationProperties
-                {
-                    IsPersistent = true, // 記住登入
-                    ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
-                };
-
-                await HttpContext.SignInAsync(
-                    CookieAuthenticationDefaults.AuthenticationScheme,
-                    new ClaimsPrincipal(claimsIdentity),
-                    authProps);
-
-                // 如果你還需要 Session，可以保留
-                HttpContext.Session.SetString("UserId", user.UserId.ToString());
-                HttpContext.Session.SetString("UserName", user.Account);
-
-                return Ok(new
-                {
-                    message = "登入成功",
-                    userId = user.UserId,
-                    userName = user.Account,
-                    displayName = user.DisplayName
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "伺服器錯誤", error = ex.Message, stack = ex.StackTrace });
-            }
+                UserId = userId,
+                Account = user?.Account,
+                DisplayName = user?.DisplayName,
+                Dept = applicant?.Dept,
+                Ext = applicant?.Ext,
+                Email = applicant?.Email,
+                Birth = applicant?.Birth
+            };
+            return View(vm);
         }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Profile(ProfileVm vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == vm.UserId);
+            if (user != null) user.DisplayName = vm.DisplayName?.Trim();
+
+            var applicant = await _db.Applicants.FirstOrDefaultAsync(x => x.UserId == vm.UserId);
+            if (applicant != null)
+            {
+                applicant.Email = vm.Email?.Trim();
+                applicant.Ext = vm.Ext?.Trim();
+                applicant.Dept = vm.Dept?.Trim();
+                applicant.Birth = vm.Birth;
+            }
+
+            await _db.SaveChangesAsync();
+            TempData["ok"] = "已更新個人資料";
+            return RedirectToAction(nameof(Profile));
+        }
+
         [HttpPost]
         public async Task<IActionResult> Logout()
         {
-            // 登出：清除 cookie 驗證
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-
-            // 清除 Session
+            await HttpContext.SignOutAsync();
             HttpContext.Session.Clear();
+            return RedirectToAction("Login", "Account");
+        }
 
-            // 導回首頁或登入頁
-            return RedirectToAction("Index", "Home");
-            // 或者直接 return RedirectToAction("Login", "Account");
+        [AllowAnonymous]
+        public IActionResult Login()
+        {
+            return View();
+        }
+
+        public class ProfileVm
+        {
+            public int UserId { get; set; }
+            public string? Account { get; set; }
+            public string? DisplayName { get; set; }
+            public string? Dept { get; set; }
+            public string? Ext { get; set; }
+            public string? Email { get; set; }
+            public DateTime? Birth { get; set; }
         }
     }
 }

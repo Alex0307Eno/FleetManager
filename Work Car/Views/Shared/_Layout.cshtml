@@ -64,13 +64,14 @@
                         </ul>
                     </li>
                     <!-- 登入/登出 -->
-                        @if (User.Identity.IsAuthenticated)
-                        {
+                    @if (User.Identity.IsAuthenticated)
+                    {
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                                 👤 @User.Identity.Name
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">個人資料</a></li>
                                 <li>
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="dropdown-item p-0">
                                         <button type="submit" class="btn btn-link w-100 text-start">登出</button>
@@ -78,13 +79,13 @@
                                 </li>
                             </ul>
                         </li>
-                        }
-                        else
-                        {
+                    }
+                    else
+                    {
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Account" asp-action="Login">登入</a>
                         </li>
-                        }
+                    }
                 </ul>
             </div>
         </div>
