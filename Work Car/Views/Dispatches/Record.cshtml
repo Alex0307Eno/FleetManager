@@ -708,7 +708,7 @@
               const now = new Date();
               const y = now.getFullYear(), m = now.getMonth();
               const first = new Date(y, m, 2);
-              const last  = new Date(y, m+1, 0);
+              const last  = new Date(y, m+1, 1);
               const f = d => d.toISOString().slice(0,10);
               return { start: f(first), end: f(last) };
             }

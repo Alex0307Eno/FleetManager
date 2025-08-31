@@ -901,86 +901,108 @@
               if (!ok) assign.vehicleId = list[0]?.vehicleId ?? null;
             });
 
-            async function onSubmit() {
-              if (!origin.value || !destination.value) {
-                alert('請輸入出發地與目的地');
-                return;
-              }
-              if (purposeType.value === '公務車(可選車)' && !assign.vehicleId) {
-                alert('請選擇車輛');
-                return;
-              }
-              const startDt = new Date(useStart.value);               // 由 datetime-local 轉 Date（本地）
-        let endDt = useEnd.value ? new Date(useEnd.value) : null; // 你之前可能已存 ISO
+        async function onSubmit() {
+          if (!origin.value || !destination.value) {
+            alert('請輸入出發地與目的地');
+            return;
+          }
+          if (purposeType.value === '公務車(可選車)' && !assign.vehicleId) {
+            alert('請選擇車輛');
+            return;
+          }
 
-        // 若尚未計算結束時間，保底用 +1 小時（或依你實際邏輯改成用查到的路程秒數）
-        if (!endDt || isNaN(endDt.getTime())) {
-          const secs = (tripType.value === 'round') ? (roundTripDurationSec || 3600*2) : (singleDurationSec || 3600);
-          endDt = new Date(startDt.getTime() + secs * 1000);
-        }
+          const startDt = new Date(useStart.value);
+          let endDt = useEnd.value ? new Date(useEnd.value) : null;
 
-        const normUseStart = toLocalISOString(new Date(useStart.value));
-        const normUseEnd   = toLocalISOString(new Date(useEnd.value));
+          // 若沒選結束時間，用行程秒數或預設秒數補
+          if (!endDt || isNaN(endDt.getTime())) {
+            const secs = (tripType.value === 'round')
+              ? (window.roundTripDurationSec || 7200)  // 來回，預設 2 小時
+              : (window.singleDurationSec || 3600);    // 單程，預設 1 小時
+            endDt = new Date(startDt.getTime() + secs * 1000);
+          }
 
+          // 這裡要用「剛算好的」startDt / endDt 來正規化！
+          const normUseStart = toLocalISOString(startDt);
+          const normUseEnd   = toLocalISOString(endDt);
 
-        if (new Date(normUseEnd) <= new Date(normUseStart)) {
-          alert('結束時間必須晚於起始時間'); // 與後端驗證一致
-          return;
-        }
+          if (endDt <= startDt) {
+            alert('結束時間必須晚於起始時間');
+            return;
+          }
 
-              try {
-                const payload = {
-                  applicantName:  applicant.name,
-                  ApplicantBirth: applicant.birth,
-                  applicantDept:  applicant.dept,
-                  applicantExt:   applicant.ext,
-                  applicantEmail: applicant.email,
-                  applyFor:       applyFor.value,
-                  vehicleType:    vehicleType.value,
-                  purposeType:    purposeType.value,
-                  passengerCount: passengers.value.length,
-                  useStart:       normUseStart,
-                  useEnd:         normUseEnd,
-                  reasonType:     reasonType.value,
-                  applyReason:    applyReason.value,
-                  origin:         origin.value,
-                  destination:    destination.value,
-                  tripType:       tripType.value,
-                  singleDistance: singleDistance.value,
-                  singleDuration: singleDuration.value,
-                  roundTripDistance: roundTripDistance.value,
-                  roundTripDuration: roundTripDuration.value,
-                  vehicleId: (purposeType.value === '公務車(可選車)') ? (assign.vehicleId ?? null) : null
-                };
+          // 先過濾出有效乘客，再用長度當人數，避免不一致
+          const pax = (passengers.value || []).filter(p => p && p.name && p.name.trim());
 
-                const dto = {
-                  application: payload,
-                  passengers: (passengers.value || []).map(p => ({
-                    name: p.name, deptTitle: p.deptTitle
-                  }))
-                };
+          const payload = {
+            applyFor: applyFor.value,
+            vehicleType: vehicleType.value,
+            purposeType: purposeType.value,
+            passengerCount: pax.length,            // ← 用過濾後的長度
+            useStart: normUseStart,
+            useEnd: normUseEnd,
+            reasonType: reasonType.value,
+            applyReason: applyReason.value,
+            origin: origin.value,
+            destination: destination.value,
+            tripType: tripType.value,
+            singleDistance: String(singleDistance.value ?? ''),
+            singleDuration: String(singleDuration.value ?? ''),
+            roundTripDistance: String(roundTripDistance.value ?? ''),
+            roundTripDuration: String(roundTripDuration.value ?? ''),
+            vehicleId: (purposeType.value === '公務車(可選車)')
+              ? (Number(assign.vehicleId) || null)
+              : null,
+            status: '待審核'
+          };
 
-                console.log("📤 準備送出資料：", dto);
+          const dto = {
+            application: payload,
+            passengers: pax.map(p => ({
+              name: p.name.trim(),
+              deptTitle: p.deptTitle || null
+            }))
+          };
 
-                const res = await fetch('/api/CarApplications', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(dto)
+          console.log('📤 準備送出資料：', dto);
 
-                });
+          try {
+            const res = await axios.post('/api/CarApplications', dto, {
+              withCredentials: true,
+              headers: { 'Content-Type': 'application/json' }
+            });
 
-                console.log("📥 Response 狀態：", res.status);
-                window.location.href = "/Dispatches/Dispatch";
-                let data = null;
-                try { data = await res.json(); } catch { data = null; }
-
-                console.log("📥 Response 內容：", data);
-                alert((data && data.message) || "送出成功");
-              } catch (err) {
-                console.error("❌ 送出失敗", err);
-                alert("❌ 送出失敗，請檢查後端 API");
-              }
+                    console.log("📥 Response 狀態：", res.status);
+        console.log("📥 Response 內容：", res.data);
+        alert(res.data.message || "申請成功");
+            // 成功後直接導頁，不要再 res.json()
+            window.location.href = '/Dispatches/Dispatch';
+          } catch (err) {
+            if (err.response) {
+              // 這裡可看到 ApiController 的 ProblemDetails 與 errors
+              console.error('❌ 狀態：', err.response.status);
+              console.error('❌ 內容：', err.response.data);
+              const msg = problemDetailsToText(err.response.data);
+              alert(`❌ 送出失敗\n${msg}`);
+            } else {
+              console.error('❌ 網路錯誤：', err.message);
+              alert('❌ 無法連線伺服器');
             }
+          }
+        }
+
+        // 把 ProblemDetails 的 errors 攤平成字串顯示
+        function problemDetailsToText(pd) {
+          if (pd && pd.errors) {
+            return Object.entries(pd.errors)
+              .map(([field, arr]) => `${field}: ${arr.join('；')}`)
+              .join('\n');
+          }
+          if (pd && (pd.title || pd.detail)) {
+            return `${pd.title || ''} ${pd.detail || ''}`.trim();
+          }
+          return '未知錯誤';
+        }
 
         async function calcDistance() {
           if (!origin.value || !destination.value) {

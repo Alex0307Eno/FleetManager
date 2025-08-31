@@ -44,34 +44,41 @@ namespace Cars.Controllers
                 from s in _db.Schedules
                 where s.WorkDate == today
                 join d in _db.Drivers on s.DriverId equals d.DriverId
-                join dis in _db.Dispatches on s.DriverId equals dis.DriverId into disGroup
+                join dis0 in _db.Dispatches on s.DriverId equals dis0.DriverId into disGroup
                 from dis in disGroup
                     .Where(x => x.StartTime.HasValue && x.StartTime.Value.Date == today)
                     .OrderBy(x => x.StartTime)
                     .DefaultIfEmpty()
-                join a in _db.CarApplications on dis.ApplyId equals a.ApplyId into aa
+                join a0 in _db.CarApplications on dis.ApplyId equals a0.ApplyId into aa
                 from a in aa.DefaultIfEmpty()
-                join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
+                join v0 in _db.Vehicles on dis.VehicleId equals v0.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
-                    // 🔗 這裡多加 Applicants join
-                join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into appGroup
+                join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
                 orderby s.Shift, dis.StartTime
                 select new
                 {
                     scheduleId = s.ScheduleId,
-                    shift = s.Shift,   // AM/PM
+                    shift = s.Shift,
                     driverId = s.DriverId,
                     driverName = d.DriverName,
+
                     hasDispatch = dis != null,
-                    startTime = dis.StartTime,
-                    endTime = dis.EndTime,
-                    route = dis != null ? (a.Origin ?? "") + "-" + (a.Destination ?? "") : "",
-                    applicantName = ap != null ? ap.Name : null,   // ✅ 從 Applicants 取
-                    applicantDept = ap != null ? ap.Dept : null,   // ✅ 從 Applicants 取
-                    passengerCount = a.PassengerCount,
-                    plateNo = v.PlateNo,
-                    tripDistance = a != null
+                    startTime = (DateTime?)(dis != null ? dis.StartTime : null),
+                    endTime = (DateTime?)(dis != null ? dis.EndTime : null),
+
+                    // ★ a 可能為 null，所以用 a != null 判斷
+                    route = (a != null) ? ((a.Origin ?? "") + "-" + (a.Destination ?? "")) : "",
+
+                    applicantName = ap != null ? ap.Name : null,
+                    applicantDept = ap != null ? ap.Dept : null,
+
+                    // ★ 避免把 null 投到非可空型別
+                    passengerCount = (a != null ? a.PassengerCount : 0),
+
+                    plateNo = v != null ? v.PlateNo : null,
+
+                    tripDistance = (a != null)
                         ? (a.TripType == "單程" ? a.SingleDistance : a.RoundTripDistance)
                         : ""
                 }

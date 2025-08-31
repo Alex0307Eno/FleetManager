@@ -31,64 +31,123 @@ namespace Cars.Controllers
        
 
         
+      
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] AutoDispatcher dispatcher)
         {
-            if (dto == null || dto.Application == null)
+            Console.WriteLine("=== [CarApplicationsController.Create] 開始 ===");
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(x => x.Value.Errors.Count > 0)
+                    .Select(x => new {
+                        Field = x.Key,
+                        Errors = x.Value.Errors.Select(e => e.ErrorMessage)
+                    });
+
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(errors));
+            }
+
+
+            // 驗證 DTO
+            if (dto == null)
+            {
+                Console.WriteLine("❌ dto 是 null");
                 return BadRequest("申請資料不得為空");
+            }
+            if (dto.Application == null)
+            {
+                Console.WriteLine("❌ dto.Application 是 null");
+                return BadRequest("申請資料不得為空");
+            }
+
+            // 印出前端送來的 Application JSON
+            Console.WriteLine("📥 Application JSON: " +
+                System.Text.Json.JsonSerializer.Serialize(dto.Application));
+            Console.WriteLine("👥 Passengers: " +
+                (dto.Passengers == null ? "null" : dto.Passengers.Count.ToString()));
 
             var model = dto.Application;
 
-            // 🔑 找申請者
+            // 🔑 檢查 Session UserId
             var userIdStr = HttpContext.Session.GetString("UserId");
-            if (int.TryParse(userIdStr, out var userId))
-            {
-                var applicant = await _context.Applicants
-                    .FirstOrDefaultAsync(ap => ap.UserId == userId);
+            Console.WriteLine("🔑 Session UserId = " + userIdStr);
 
-                if (applicant != null)
-                {
-                    model.ApplicantId = applicant.ApplicantId;
-                }
-                else
-                {
-                    return BadRequest("找不到對應的申請人資料");
-                }
-            }
-            else
+            if (!int.TryParse(userIdStr, out var userId))
             {
+                Console.WriteLine("❌ 取不到 UserId，回傳 401");
                 return Unauthorized("尚未登入或 Session 遺失");
             }
 
+            // 🔍 查 Applicant
+            var applicant = await _context.Applicants
+                .FirstOrDefaultAsync(ap => ap.UserId == userId);
+
+            if (applicant == null)
+            {
+                Console.WriteLine("❌ 找不到 Applicant, userId = " + userId);
+                return BadRequest("找不到對應的申請人資料");
+            }
+
+            Console.WriteLine($"✅ ApplicantId = {applicant.ApplicantId}, Name = {applicant.Name}");
+
+            model.ApplicantId = applicant.ApplicantId;
+
+            // 基本驗證
             if (model.UseStart == default || model.UseEnd == default)
+            {
+                Console.WriteLine("❌ 時間欄位為空");
                 return BadRequest("起訖時間不得為空");
+            }
             if (model.UseEnd <= model.UseStart)
+            {
+                Console.WriteLine("❌ UseEnd <= UseStart");
                 return BadRequest("結束時間必須晚於起始時間");
+            }
 
             // 存申請單
             _context.CarApplications.Add(model);
             await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ 已建立申請單 ApplyId = {model.ApplyId}");
 
-            // === 以下保留你原本的派車/乘客邏輯 ===
+            // === 可選車邏輯 ===
             if (model.PurposeType == "公務車(可選車)")
             {
-                if (model.VehicleId == null) return BadRequest("請選擇車輛");
+                if (model.VehicleId == null)
+                {
+                    Console.WriteLine("❌ 可選車但 VehicleId = null");
+                    return BadRequest("請選擇車輛");
+                }
 
                 var vehicle = await _context.Vehicles
                     .AsNoTracking()
                     .FirstOrDefaultAsync(v => v.VehicleId == model.VehicleId.Value);
-                if (vehicle == null) return BadRequest("車輛不存在");
+
+                if (vehicle == null)
+                {
+                    Console.WriteLine("❌ 找不到車輛 VehicleId = " + model.VehicleId);
+                    return BadRequest("車輛不存在");
+                }
 
                 if ((vehicle.Status ?? "").Trim() != "可用")
+                {
+                    Console.WriteLine($"❌ 車輛 {vehicle.PlateNo} 狀態不可用");
                     return BadRequest("該車輛目前不可用");
+                }
 
                 var vUsed = await _context.Dispatches.AnyAsync(d =>
                     d.VehicleId == model.VehicleId &&
                     model.UseStart < d.EndTime &&
                     d.StartTime < model.UseEnd);
-                if (vUsed) return BadRequest("該車於申請時段已被派用");
+
+                if (vUsed)
+                {
+                    Console.WriteLine("❌ 車輛在時段內已被派用");
+                    return BadRequest("該車於申請時段已被派用");
+                }
 
                 model.DriverId = await dispatcher.FindOnDutyDriverIdAsync(model.UseStart, model.UseEnd);
+                Console.WriteLine("🚗 指派 DriverId = " + (model.DriverId?.ToString() ?? "null"));
 
                 var dispatch = new Cars.Models.Dispatch
                 {
@@ -103,12 +162,15 @@ namespace Cars.Controllers
 
                 _context.Dispatches.Add(dispatch);
                 await _context.SaveChangesAsync();
+                Console.WriteLine("✅ 已建立 Dispatch");
             }
             else if (model.PurposeType == "公務車(不可選車)")
             {
+                Console.WriteLine("ℹ️ 不可選車模式");
                 await _context.SaveChangesAsync();
             }
 
+            // 乘客
             if (dto.Passengers != null && dto.Passengers.Any())
             {
                 foreach (var p in dto.Passengers)
@@ -117,10 +179,13 @@ namespace Cars.Controllers
                     _context.CarPassengers.Add(p);
                 }
                 await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ 已新增乘客數 = {dto.Passengers.Count}");
             }
 
+            // === 不可選車的派工 ===
             if (model.PurposeType == "公務車(不可選車)")
             {
+                Console.WriteLine("🚦 呼叫自動派工 AssignAsync");
                 var result = await dispatcher.AssignAsync(
                     model.ApplyId,
                     model.UseStart,
@@ -131,12 +196,15 @@ namespace Cars.Controllers
 
                 if (!result.Success)
                 {
+                    Console.WriteLine("⚠️ 派工失敗：" + result.Message);
                     return Ok(new { message = $"申請成功，但派工失敗：{result.Message}", id = model.ApplyId });
                 }
 
                 model.DriverId = result.DriverId;
                 model.VehicleId = result.VehicleId;
                 await _context.SaveChangesAsync();
+
+                Console.WriteLine($"✅ 派工完成 DriverId={result.DriverId}, VehicleId={result.VehicleId}");
 
                 return Ok(new
                 {
@@ -147,6 +215,7 @@ namespace Cars.Controllers
                 });
             }
 
+            // 取車牌 / 駕駛
             string vehiclePlate = null;
             string driverName = null;
 
@@ -177,6 +246,8 @@ namespace Cars.Controllers
             {
                 msg = "申請成功";
             }
+
+            Console.WriteLine("🎉 完成回傳：" + msg);
 
             return Ok(new
             {

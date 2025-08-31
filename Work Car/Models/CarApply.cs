@@ -41,7 +41,8 @@ namespace Cars.Models
         public string? RoundTripDuration { get; set; }
 
         public string Status { get; set; } = "待審核";
-        public Applicant Applicant { get; set; }  // 導航屬性
+
+        public Applicant? Applicant { get; set; }  // 導航屬性
 
         public int? ApplicantId { get; set; }
         public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>();

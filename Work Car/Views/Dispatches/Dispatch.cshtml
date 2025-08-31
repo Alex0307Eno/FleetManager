@@ -408,6 +408,7 @@
                             <option v-for="d in drivers" :key="d" :value="d">{{ d }}</option>
                         </select>
                     </div>
+
                     <div class="f-item">
                         <label>申請人</label>
                         <select v-model="filters.applicant">
@@ -483,9 +484,9 @@
         <div v-if="viewing" class="modal-mask">
             <div class="modal-container">
                 <h3 class="modal-title">派車單詳細資料</h3>
-                <p class="modal-subtitle">#{{ viewing.app.applyId }}</p>
+                <p class="modal-subtitle">#{{ viewing.app?.applyId }}</p>
 
-                <div class="form-group">
+                <div class="form-group" v-if="viewing && viewing.app">
                     <label>申請人</label>
                     <div>{{ viewing.app.applicantName }}</div>
                 </div>
@@ -500,7 +501,7 @@
                     <div>{{ viewing.plateNo || '未指派' }}</div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" v-if="viewing && viewing.app">
                     <label>事由</label>
                     <div>
                         <span v-if="viewing.app.reasonType">({{ viewing.app.reasonType }})</span>
@@ -508,7 +509,7 @@
                     </div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" v-if="viewing && viewing.app">
                     <label>狀態</label>
                     <div>{{ viewing.app.status }}</div>
                 </div>
@@ -523,7 +524,7 @@
         <div v-if="editing" class="modal-mask">
             <div class="modal-container">
                 <h3 class="modal-title">編輯審核狀態</h3>
-                <p class="modal-subtitle">派車單 #{{ editing.applyId }}</p>
+                <p class="modal-subtitle" v-if="editing">派車單 #{{ editing?.applyId }}</p>
 
                 <div class="form-group">
                     <label for="statusSelect">審核狀態</label>
@@ -563,7 +564,7 @@
               const now = new Date();
               const y = now.getFullYear(), m = now.getMonth();
               const first = new Date(y, m, 2);
-              const last  = new Date(y, m+1, 0);
+              const last  = new Date(y, m+1, 1);
               const f = d => d.toISOString().slice(0,10);
               return { start: f(first), end: f(last) };
             }

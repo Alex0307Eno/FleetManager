@@ -1,5 +1,5 @@
 ﻿/* 頂部列 */
-.topbar {
+.topbarnav {
     background: linear-gradient(90deg,#3c6f97 0%, #407aa7 100%);
     color: #fff;
     height: 56px;
@@ -9,7 +9,16 @@
     font-size: 15px;
     z-index: 1050;
 }
-
+.topbar {
+    background: linear-gradient(90deg,#3c6f97 0%, #407aa7 100%);
+    color: #fff;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+    font-size: 15px;
+    
+}
 /* 左邊品牌 */
 .navbar-brand {
     font-size: 20px;

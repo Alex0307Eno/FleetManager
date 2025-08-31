@@ -24,7 +24,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="topbar navbar navbar-expand-lg navbar-light bg-light shadow-sm sticky-top">
+    <header class="topbarnav navbar navbar-expand-lg navbar-light bg-light shadow-sm sticky-top">
         <div class="container-fluid">
             <!-- 左邊 Logo -->
             <a class="navbar-brand fw-bold text-white" href="/">公務車派車系統</a>
@@ -64,8 +64,8 @@
                         </ul>
                     </li>
                     <!-- 登入/登出 -->
-                    @if (User.Identity.IsAuthenticated)
-                    {
+                        @if (User.Identity.IsAuthenticated)
+                        {
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                                 👤 @User.Identity.Name
@@ -78,13 +78,13 @@
                                 </li>
                             </ul>
                         </li>
-                    }
-                    else
-                    {
+                        }
+                        else
+                        {
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Account" asp-action="Login">登入</a>
                         </li>
-                    }
+                        }
                 </ul>
             </div>
         </div>

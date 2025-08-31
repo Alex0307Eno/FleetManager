@@ -1,6 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
 
@@ -38,7 +39,14 @@ namespace Cars
             });
 
             Console.WriteLine("Connection string = " + builder.Configuration.GetConnectionString("DefaultConnection"));
+            builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+            options.LoginPath = "/Account/Login";   // 沒登入時導向
+            options.LogoutPath = "/Account/Logout"; // 登出路徑
+            });
 
+            builder.Services.AddAuthorization();
             var app = builder.Build();
 
             // === CSP (Content-Security-Policy) ===
@@ -102,6 +110,7 @@ namespace Cars
 
             app.UseRouting();
             app.UseSession();
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllerRoute(

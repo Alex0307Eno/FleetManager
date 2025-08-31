@@ -2,7 +2,9 @@
 using Microsoft.EntityFrameworkCore;
 using Cars.Data;
 using System.Threading.Tasks;
-
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Claims;
 namespace Cars.Controllers
 {
     [ApiController]
@@ -21,7 +23,6 @@ namespace Cars.Controllers
             public string UserName { get; set; }
             public string Password { get; set; }
         }
-
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -55,6 +56,27 @@ namespace Cars.Controllers
                 if (!valid)
                     return Unauthorized(new { message = "帳號或密碼錯誤" });
 
+                // ===== 加入 ClaimsPrincipal =====
+                var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.Name, user.DisplayName ?? user.Account),
+            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new Claim(ClaimTypes.Role, user.Role ?? "User")
+        };
+
+                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                var authProps = new AuthenticationProperties
+                {
+                    IsPersistent = true, // 記住登入
+                    ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+                };
+
+                await HttpContext.SignInAsync(
+                    CookieAuthenticationDefaults.AuthenticationScheme,
+                    new ClaimsPrincipal(claimsIdentity),
+                    authProps);
+
+                // 如果你還需要 Session，可以保留
                 HttpContext.Session.SetString("UserId", user.UserId.ToString());
                 HttpContext.Session.SetString("UserName", user.Account);
 
@@ -71,6 +93,18 @@ namespace Cars.Controllers
                 return StatusCode(500, new { message = "伺服器錯誤", error = ex.Message, stack = ex.StackTrace });
             }
         }
+        [HttpPost]
+        public async Task<IActionResult> Logout()
+        {
+            // 登出：清除 cookie 驗證
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
+            // 清除 Session
+            HttpContext.Session.Clear();
+
+            // 導回首頁或登入頁
+            return RedirectToAction("Index", "Home");
+            // 或者直接 return RedirectToAction("Login", "Account");
+        }
     }
 }
