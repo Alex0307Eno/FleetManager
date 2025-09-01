@@ -1,4 +1,5 @@
 ﻿using Cars.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +7,7 @@ namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     public class FuelController : ControllerBase
     {
         private readonly ApplicationDbContext _db;

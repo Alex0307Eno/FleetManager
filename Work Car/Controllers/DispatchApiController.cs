@@ -1,11 +1,14 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace Cars.Controllers.Api
 {
+    [Authorize]
     [ApiController]
     [Route("api/dispatch")]
     public class DispatchApiController : ControllerBase
@@ -53,7 +56,25 @@ namespace Cars.Controllers.Api
           v.PlateNo
       };
 
+            // 🔒 若為司機角色，只看自己的派工
+            if (User.IsInRole("Driver"))
+            {
+                var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier); // 登入時放的 userId
+                if (!int.TryParse(uidStr, out var userId))
+                    return Forbid();
 
+                // 假設 Drivers 有 UserId 欄位可對應登入帳號
+                var myDriverId = await _db.Drivers
+                    .AsNoTracking()
+                    .Where(d => d.UserId == userId)
+                    .Select(d => d.DriverId)
+                    .FirstOrDefaultAsync();
+
+                if (myDriverId == 0)
+                    return Forbid(); // 帳號未綁定司機
+
+                q = q.Where(x => x.DriverId == myDriverId);
+            }
             // 篩選
             if (dateFrom.HasValue)
             {

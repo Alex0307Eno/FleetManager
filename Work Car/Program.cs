@@ -42,14 +42,14 @@ namespace Cars
             builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-            options.LoginPath = "/Account/Login";   // 沒登入時導向
-            options.LogoutPath = "/Account/Logout"; // 登出路徑
+                options.Cookie.Name = "CarsAuth";
+                options.LoginPath = "/Auth/Login";   // 沒登入時導向
+                options.LogoutPath = "/Auth/Logout"; // 登出路徑
             });
 
             builder.Services.AddAuthorization();
             var app = builder.Build();
 
-            // === CSP (Content-Security-Policy) ===
             // 注意：不要在這裡額外放一條「無條件」CSP，避免覆蓋與衝突
             if (app.Environment.IsDevelopment())
             {

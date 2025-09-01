@@ -9,6 +9,7 @@ using Cars.Models;
 namespace Cars.Controllers
 {
     [Route("Drivers")]
+
     public class DriversController : Controller
     {
         private readonly ApplicationDbContext _db;

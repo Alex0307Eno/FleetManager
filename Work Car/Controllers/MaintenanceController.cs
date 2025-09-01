@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,7 @@ namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     public class MaintenanceController : ControllerBase
     {
         private readonly ApplicationDbContext _db;

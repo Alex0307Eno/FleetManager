@@ -517,6 +517,8 @@
             <div class=" topbar d-flex align-items-center justify-content-between">
                 <h5 class="mb-0 fw-bold">派車紀錄</h5>
                 <div class="d-flex gap-2">
+                    @if (User.IsInRole("Admin"))
+                    {
                     <a class="btn btn-warning fw-bold" asp-controller="Dispatches" asp-action="Dispatch">
                         用車申請
                     </a>
@@ -526,6 +528,7 @@
                     <button class="btn btn-outline" @@click="exportCsv">
                         <i class="fa-solid fa-file-export"></i> 匯出
                     </button>
+                    }
                 </div>
             </div>
 
@@ -578,10 +581,11 @@
                                 <th style="width:120px">駕駛員</th>
                                 <th style="width:90px">車輛</th>
                                 <th style="width:70px">長/短差</th>
-                                <th style="width:140px">功能</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <th style="width:140px">功能</th>
+                                }
+                                <tbody>
                             <tr v-for="r in shown" :key="r.dispatchId">
                                 <td class="mono">{{ rocDate(r.useStart) }}</td>
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
@@ -602,12 +606,15 @@
                                     </a>
                                 </td>
                                 <td>
-                                    <div class="actions">
-                                        <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
-                                        <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
-                                    </div>
-                                </td>
+                                            @if (User.IsInRole("Admin"))
+                                            {
+                                                <div class="actions">
+                                                    <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
+                                                    <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
+                                                    <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
+                                                </div>
+                                            }
+                                        </td>
                             </tr>
                             <tr v-if="!shown.length">
                                 <td colspan="12" style="text-align:center;color:#94a3b8;padding:16px">目前沒有資料</td>

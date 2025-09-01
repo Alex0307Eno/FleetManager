@@ -67,7 +67,7 @@ namespace Cars.Controllers
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 var authProps = new AuthenticationProperties
                 {
-                    IsPersistent = true, // 記住登入
+                    IsPersistent = false, 
                     ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
                 };
 
@@ -107,6 +107,13 @@ namespace Cars.Controllers
             // 或者直接 return RedirectToAction("Login", "Account");
         }
 
+        [HttpGet("Logout")]
+        public async Task<IActionResult> LogoutGet()
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            HttpContext.Session.Clear();
+            return RedirectToAction("Index", "Home");
+        }
 
     }
 }

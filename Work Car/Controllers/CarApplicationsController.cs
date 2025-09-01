@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,7 @@ namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     public class CarApplicationsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

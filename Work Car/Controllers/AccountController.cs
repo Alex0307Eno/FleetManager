@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 namespace Cars.Controllers
 {
     [Authorize]
+    [Authorize(Roles = "Admin")]
     public class AccountController : Controller
     {
         private readonly ApplicationDbContext _db;

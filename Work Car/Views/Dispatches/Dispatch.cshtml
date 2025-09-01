@@ -460,7 +460,7 @@
                             <td><span class="pill" :class="r.driverName ? '' : 's-muted'">{{ r.driverName || '未指派' }}</span></td>
                             <td><span class="pill blue" :class="r.plateNo ? '' : 's-muted'">{{ r.plateNo || '未指派' }}</span></td>
                             <td class="text-center">
-                                <span v-if="r.passengerCount > 1" class="text-success fw-bold">✔</span>
+                                <span v-if="r.passengerCount > 0" class="text-success fw-bold">✔</span>
                                 <span v-else>-</span>
                             </td>
                             <td class="row-actions">
@@ -484,12 +484,13 @@
         <div v-if="viewing" class="modal-mask">
             <div class="modal-container">
                 <h3 class="modal-title">派車單詳細資料</h3>
-                <p class="modal-subtitle">#{{ viewing.app?.applyId }}</p>
+                <p class="modal-subtitle">#{{ viewing.applyId }}</p>
 
-                <div class="form-group" v-if="viewing && viewing.app">
+                <div class="form-group">
                     <label>申請人</label>
-                    <div>{{ viewing.app.applicantName }}</div>
+                    <div>{{ viewing.applicant ? viewing.applicant.name : '' }}</div>
                 </div>
+
 
                 <div class="form-group">
                     <label>駕駛人</label>
@@ -501,17 +502,17 @@
                     <div>{{ viewing.plateNo || '未指派' }}</div>
                 </div>
 
-                <div class="form-group" v-if="viewing && viewing.app">
+                <div class="form-group" >
                     <label>事由</label>
                     <div>
-                        <span v-if="viewing.app.reasonType">({{ viewing.app.reasonType }})</span>
-                        {{ viewing.app.applyReason }}
+                        <span v-if="viewing.reasonType">({{ viewing.reasonType }})</span>
+                        {{ viewing.applyReason }}
                     </div>
                 </div>
 
-                <div class="form-group" v-if="viewing && viewing.app">
+                <div class="form-group" >
                     <label>狀態</label>
-                    <div>{{ viewing.app.status }}</div>
+                    <div>{{ viewing.status }}</div>
                 </div>
 
                 <div class="modal-actions">

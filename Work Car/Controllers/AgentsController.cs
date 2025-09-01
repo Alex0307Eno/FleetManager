@@ -1,15 +1,17 @@
-﻿using System;
+﻿using Cars.Data;
+using Cars.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Cars.Data;
-using Cars.Models;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Controllers
 {
     [Route("Agents")]
+    [Authorize(Roles = "Admin")]
     public class AgentsController : Controller
     {
         private readonly ApplicationDbContext _db;
