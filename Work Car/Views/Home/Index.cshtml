@@ -502,10 +502,13 @@
                     <div class="card" style="margin-top:12px;">
                         <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;">
                             <div>駕駛目前狀態</div>
-                            <button class="btn" style="background:#ffb020;border-color:#ffb020;color:#111827;font-weight:700"
-                                    @@click="enterMyLocationView">
-                                車輛現況
-                            </button>
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <button class="btn" style="background:#ffb020;border-color:#ffb020;color:#111827;font-weight:700"
+                                @@click="enterMyLocationView">
+                                    車輛現況
+                                </button>
+                            }
                         </div>
                         <div class="card-bd no-pad">
                             <table class="table-flat">
@@ -549,13 +552,16 @@
 
                 <!-- B. 駕駛位置（五張地圖：上3下2、含車子 Marker） -->
                 <div v-else class="card">
-                    <div class="card-hd">
-                        <div>目前各車輛位置</div>
-                        <div style="display:flex;gap:8px;align-items:center">
-                            
-                            <button class="btn" @@click="exitMyLocationView">返回</button>
+                   
+                    
+                        <div class="card-hd">
+                            <div>目前各車輛位置</div>
+                            <div style="display:flex;gap:8px;align-items:center">
+
+                                <button class="btn" @@click="exitMyLocationView">返回</button>
+                            </div>
                         </div>
-                    </div>
+                    
 
                     <div v-if="locError" class="card-bd" style="color:#b91c1c;">⚠️ {{ locError }}</div>
 
@@ -635,7 +641,10 @@
                                     <th style="text-align:left;padding:6px 8px">申請人</th>
                                     <th style="text-align:left;padding:6px 8px">派車時間</th>
                                     <th style="text-align:left;padding:6px 8px">派車地點</th>
-                                    <th style="text-align:center;padding:6px 8px">審核</th>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <th style="text-align:center;padding:6px 8px">審核</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
@@ -644,10 +653,13 @@
                                     <td style="padding:8px 8px">{{ p.applicantName }}</td>
                                     <td style="padding:8px 8px" class="mono">{{ (p.useTime || '').split('-')[1] || p.useTime }}</td>
                                     <td style="padding:8px 8px">{{ (p.route || '').split('-').slice(-1)[0] }}</td>
-                                    <td style="padding:8px 8px" class="actions">
-                                        <button class="btn btn-yes" @@click="approve(p)">✓</button>
-                                        <button class="btn btn-no" @@click="reject(p)">✕</button>
-                                    </td>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <td style="padding:8px 8px" class="actions">
+                                            <button class="btn btn-yes" @@click="approve(p)">✓</button>
+                                            <button class="btn btn-no" @@click="reject(p)">✕</button>
+                                        </td>
+                                    }
                                 </tr>
                                 <tr v-if="pending.length === 0">
                                     <td colspan="4" style="text-align:center;color:#999;padding:10px">沒有待審核申請</td>

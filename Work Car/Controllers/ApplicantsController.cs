@@ -7,7 +7,7 @@ namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Applicant")]
     public class ApplicantsController : ControllerBase
     {
         private readonly ApplicationDbContext _db;

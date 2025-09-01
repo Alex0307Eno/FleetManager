@@ -9,7 +9,6 @@ namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
     public class DistanceController : ControllerBase
     {
         private readonly GoogleMapsSettings _settings;

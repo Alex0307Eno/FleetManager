@@ -1,8 +1,10 @@
 ﻿using Cars.Data;
+using Cars.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
-using Cars.Models;
+using System.Security.Claims;
 
 namespace Cars.Controllers
 {
@@ -19,10 +21,53 @@ namespace Cars.Controllers
         }
 
         // 取得派車單列表
+        [Authorize(Roles = "Admin,Applicant")]
         [HttpGet("list")]
-        public IActionResult GetList()
+        public async Task<IActionResult> GetList()
         {
-            var data = _db.DispatchOrders
+            // 取得目前登入者
+            var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userName = User.Identity?.Name;
+
+            // 先取出基本查詢
+            var query = _db.DispatchOrders.AsQueryable();
+
+            // Admin 可看全部；非 Admin 只能看自己
+            if (!User.IsInRole("Admin"))
+            {
+                // 優先用 Applicants.UserId 關聯（建議的做法）
+                if (int.TryParse(uidStr, out var userId))
+                {
+                    var myApplicantId = await _db.Applicants
+                        .Where(a => a.UserId == userId)          
+                        .Select(a => (int?)a.ApplicantId)
+                        .FirstOrDefaultAsync();
+
+                    if (myApplicantId.HasValue)
+                    {
+                        query = query.Where(o => o.ApplicantId == myApplicantId.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(userName))
+                    {
+                        // 後備方案：用名字比對（若你的 View 有 ApplicantName）
+                        query = query.Where(o => o.ApplicantName == userName);
+                    }
+                    else
+                    {
+                        return Ok(Array.Empty<object>());
+                    }
+                }
+                else if (!string.IsNullOrEmpty(userName))
+                {
+                    // 身分不是 int 的情形，退回用名稱
+                    query = query.Where(o => o.ApplicantName == userName);
+                }
+                else
+                {
+                    return Ok(Array.Empty<object>());
+                }
+            }
+            var data = await query
                 .Select(o => new
                 {
                     o.VehicleId,
@@ -42,7 +87,7 @@ namespace Cars.Controllers
                     o.TripType,
                     o.Status
                 })
-                .ToList();
+                .ToListAsync();
 
             return Ok(data);
         }

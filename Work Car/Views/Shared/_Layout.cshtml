@@ -83,6 +83,13 @@
                         </li>
 
                     }
+                    @if (User.IsInRole("Applicant"))
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @(isActive("Dispatches", "Dispatch") ? "is-active" : "")"
+                            href="/Dispatches/Dispatch">用車申請</a>
+                        </li>
+                    }
                     <!-- 登入/登出 -->
                     @if (User.Identity.IsAuthenticated)
                     {

@@ -7,13 +7,14 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Applicant")]
     public class CarApplicationsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -260,18 +261,40 @@ namespace Cars.Controllers
             });
         }
         // 取得全部申請單
+        [Authorize(Roles = "Admin,Applicant")]
         [HttpGet]
         public async Task<IActionResult> GetAll(
-    [FromQuery] DateTime? dateFrom,
-    [FromQuery] DateTime? dateTo,
-    [FromQuery] string? q)
+     [FromQuery] DateTime? dateFrom,
+     [FromQuery] DateTime? dateTo,
+     [FromQuery] string? q)
         {
+            // 基本查詢
             var baseQuery = _context.CarApplications
                 .Include(a => a.Vehicle)
                 .Include(a => a.Driver)
                 .AsNoTracking()
                 .AsQueryable();
 
+            // 如果不是 Admin，就只能看自己
+            if (!User.IsInRole("Admin"))
+            {
+                var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!int.TryParse(uidStr, out var userId))
+                    return Forbid();
+
+                var myApplicantId = await _context.Applicants
+                    .AsNoTracking()
+                    .Where(a => a.UserId == userId)
+                    .Select(a => (int?)a.ApplicantId)
+                    .FirstOrDefaultAsync();
+
+                if (myApplicantId == null)
+                    return Forbid();
+
+                baseQuery = baseQuery.Where(a => a.ApplicantId == myApplicantId.Value);
+            }
+
+            // 日期篩選
             if (dateFrom.HasValue)
                 baseQuery = baseQuery.Where(a => a.UseStart >= dateFrom.Value.Date);
 
@@ -280,36 +303,35 @@ namespace Cars.Controllers
 
             // 🔗 左連接 Applicants
             var query =
-    from a in baseQuery
-    join ap in _context.Applicants.AsNoTracking()
-        on a.ApplicantId equals ap.ApplicantId into apg
-    from ap in apg.DefaultIfEmpty()
-    select new
-    {
-        a.ApplyId,
-        ApplicantName = ap != null ? ap.Name : null,
-        ApplicantDept = ap != null ? ap.Dept : null,
-        a.UseStart,
-        a.UseEnd,
-        a.Origin,
-        a.Destination,
-        a.PassengerCount,
-        a.TripType,
-        a.SingleDistance,
-        a.RoundTripDistance,
-        a.Status,
+                from a in baseQuery
+                join ap in _context.Applicants.AsNoTracking()
+                    on a.ApplicantId equals ap.ApplicantId into apg
+                from ap in apg.DefaultIfEmpty()
+                select new
+                {
+                    a.ApplyId,
+                    ApplicantName = ap != null ? ap.Name : null,
+                    ApplicantDept = ap != null ? ap.Dept : null,
+                    a.UseStart,
+                    a.UseEnd,
+                    a.Origin,
+                    a.Destination,
+                    a.PassengerCount,
+                    a.TripType,
+                    a.SingleDistance,
+                    a.RoundTripDistance,
+                    a.Status,
 
-        // 事由
-        a.ReasonType,
-        a.ApplyReason,
+                    // 事由
+                    a.ReasonType,
+                    a.ApplyReason,
 
-        // 車輛
-        PlateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
+                    // 車輛
+                    PlateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
 
-        // 駕駛人
-        DriverName = a.Driver != null ? a.Driver.DriverName : null
-    };
-
+                    // 駕駛人
+                    DriverName = a.Driver != null ? a.Driver.DriverName : null
+                };
 
             // 🔍 關鍵字搜尋
             if (!string.IsNullOrWhiteSpace(q))
@@ -327,6 +349,7 @@ namespace Cars.Controllers
 
             return Ok(list);
         }
+
 
 
         // 取得單筆申請單 + 搭乘人員
