@@ -1,13 +1,16 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using Cars.Data;
+using Cars.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Cars.Data;
-using Cars.Models;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [Route("Drivers")]
 
     public class DriversController : Controller
@@ -128,5 +131,54 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
+        // 司機自己的班表頁
+        [Authorize(Roles = "Driver")]
+        [HttpGet("MySchedule")] 
+        public IActionResult MySchedule() => View();
+
+        [Authorize(Roles = "Driver")]
+        [HttpGet("MySchedule/Events")]
+        public async Task<IActionResult> MyScheduleEvents(DateTime? start, DateTime? end)
+        {
+            var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(uidStr, out var userId))
+                return Forbid();
+
+            // 從 Drivers 表找到對應的 DriverId
+            var myDriverId = await _db.Drivers
+                .AsNoTracking()
+                .Where(d => d.UserId == userId)       // ⚠️ 這裡用 Driver.UserId
+                .Select(d => (int?)d.DriverId)
+                .FirstOrDefaultAsync();
+
+            if (myDriverId == null || myDriverId == 0)
+                return Forbid(); // 這個使用者沒有綁定司機
+
+            // 查 Schedules 表，只抓自己的班表
+            var q = _db.Schedules
+                .AsNoTracking()
+                .Where(s => s.DriverId == myDriverId.Value);
+
+            if (start.HasValue) q = q.Where(s => s.WorkDate >= start.Value);
+            if (end.HasValue) q = q.Where(s => s.WorkDate <= end.Value);
+
+            var events = await q
+                .OrderBy(s => s.WorkDate)
+                .Select(s => new {
+                    id = s.ScheduleId,
+                    title = s.Shift,          // 直接顯示班別 (早班/午班…)
+                    start = s.WorkDate,       // FullCalendar 會自動轉 ISO
+                    end = s.WorkDate,       // 如果 Shift 沒有結束時間，就先用同一天
+                    extendedProps = new
+                    {
+                        driverId = s.DriverId
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(events);
+        }
+
+
     }
 }

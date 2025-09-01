@@ -216,7 +216,7 @@ namespace Cars.Controllers
                 from v in vj.DefaultIfEmpty()
                 where (d.DispatchStatus != "已完成"
                        || d.DriverId == null || d.VehicleId == null || d.DispatchStatus == "待派車")
-                      && a.UseEnd.Date == today
+                      && a.UseEnd.Date == today && a.UseEnd > DateTime.Now
                 orderby a.UseStart
                 select new
                 {
@@ -225,7 +225,7 @@ namespace Cars.Controllers
                     a.UseEnd,
                     Route = (a.Origin ?? "") + "-" + (a.Destination ?? ""),
                     a.ApplyReason,
-                    ApplicantName = ap != null ? ap.Name : null,   // ✅ 從 Applicants.Name
+                    ApplicantName = ap != null ? ap.Name : null,  
                     PassengerCount = a.PassengerCount,
                     a.TripType,
                     a.SingleDistance,

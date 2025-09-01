@@ -74,7 +74,11 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">駕駛員管理</a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/Drivers/Schedule">值勤排班</a></li>
+                                <li>
+                                    <a class="dropdown-item" asp-area="Driver" asp-controller="Drivers" asp-action="MySchedule">
+                                        值勤排班
+                                    </a>
+                                </li>
                             </ul>
                         </li>
 
