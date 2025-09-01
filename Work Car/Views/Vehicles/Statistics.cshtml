@@ -205,11 +205,22 @@
         createApp({
           setup(){
             const currentTab = ref('table'); // 預設顯示表格
-            const q = ref({ dateFrom:'', dateTo:'', driverId:null, plate:'', applicant:'', dept:'' });
+            const today = new Date();
+            const pad = n=>String(n).padStart(2,'0');
+            // 算出當月的 1 號
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            // 算出當月的最後一天
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            const q = ref({
+              dateFrom: `${firstDay.getFullYear()}-${pad(firstDay.getMonth() + 1)}-${pad(firstDay.getDate())}`,
+              dateTo: `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`,
+              driverId: null,
+              plate: '',
+              applicant: '',
+              dept: ''
+            });            
             const rows = ref([]);
             const drivers = ref([]);
-
-            const pad = n=>String(n).padStart(2,'0');
             const rocDate = d=>{
               const x=new Date(d); if(isNaN(x)) return '';
               return `${x.getFullYear()-1911}/${pad(x.getMonth()+1)}/${pad(x.getDate())}`;
@@ -228,7 +239,7 @@
               const res = await axios.get('/Vehicles/TripStats',{ params:q.value });
               rows.value = Array.isArray(res.data) ? res.data : [];
               drawCharts();
-                console.log("🚗 TripStats data:", res.data); // ← 檢查這裡
+                console.log("🚗 TripStats data:", res.data); 
 
             }
 
@@ -262,7 +273,17 @@
               }});
             }
 
-            onMounted(async()=>{ await loadDrivers(); await reload(); });
+                   onMounted(async () => {
+          const now = new Date();
+          const start = new Date(now.getFullYear(), now.getMonth(), 1);
+          const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+          q.value.dateFrom = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+          q.value.dateTo   = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+
+          await reload();
+          await loadDrivers();
+        });
 
             return { currentTab, q, rows, drivers, reload, rocDate, shortDept, sumKm, sumTrips };
           }

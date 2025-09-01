@@ -29,12 +29,14 @@ namespace Cars.Controllers.Api
 
 
             var q =
-      from d in _db.Dispatches.AsNoTracking()
-      join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId
-      join r in _db.Drivers.AsNoTracking() on d.DriverId equals r.DriverId
-      join a in _db.CarApplications.AsNoTracking() on d.ApplyId equals a.ApplyId
-      join p in _db.Applicants.AsNoTracking() on a.ApplicantId equals p.ApplicantId
-      select new
+    from d in _db.Dispatches.AsNoTracking()
+    join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId into vg
+    from v in vg.DefaultIfEmpty()   // 🚗 車輛可空
+    join r in _db.Drivers.AsNoTracking() on d.DriverId equals r.DriverId into rg
+    from r in rg.DefaultIfEmpty()   // 👨‍✈️ 駕駛可空
+    join a in _db.CarApplications.AsNoTracking() on d.ApplyId equals a.ApplyId
+    join p in _db.Applicants.AsNoTracking() on a.ApplicantId equals p.ApplicantId
+    select new
       {
           d.DispatchId,
           a.ApplyId,
@@ -50,11 +52,11 @@ namespace Cars.Controllers.Api
           a.SingleDistance,
           a.RoundTripDistance,
           a.Status,
-          r.DriverId,
-          r.DriverName,
-          v.VehicleId,
-          v.PlateNo
-      };
+          DriverId = r != null ? r.DriverId : (int?)null,
+          DriverName = r != null ? r.DriverName : null,
+          VehicleId = v != null ? v.VehicleId : (int?)null,
+          PlateNo = v != null ? v.PlateNo : null
+    };
 
             // 🔒 若為司機角色，只看自己的派工
             if (User.IsInRole("Driver"))

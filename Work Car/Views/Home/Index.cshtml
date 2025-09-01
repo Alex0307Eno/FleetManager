@@ -529,6 +529,7 @@
                                         <td class="mono">{{ idx+1 }}</td>
                                         <td>{{ d.driverName }}</td>
                                         <td><span class="pill" :class="d.shiftClass">{{ d.shiftLabel }}</span></td>
+
                                         <td>
                                             <span class="status-dot" :class="d.stateDotClass"></span>
                                             {{ d.stateText }}
@@ -1065,74 +1066,71 @@
                 return d;
               };
 
-                            const scheduleToDriverRow = (x) => {
+        function scheduleToDriverRow(x){
           // 安全轉換時間
           const st = x && x.startTime ? new Date(x.startTime) : null;
           const et = x && x.endTime   ? new Date(x.endTime)   : null;
+
+          let onDuty = false;
+          const now = new Date();
+          if (st instanceof Date && !isNaN(st) && et instanceof Date && !isNaN(et)) {
+            onDuty = now >= st && now <= et;
+          }
+
+          // 狀態文字
+          let stateText = onDuty ? '執勤中' : '待命中';
+          if ((x?.leaveNote || '').trim()==='請假') stateText='請假';
+          if ((x?.leaveNote || '').trim()==='休息') stateText='休息中';
+
+          // 狀態燈顏色
+          let stateDotClass = 'status-green';
+          if(stateText==='執勤中') stateDotClass='status-red';
+          else if(stateText==='休息中') stateDotClass='status-orange';
+          else if(stateText==='請假') stateDotClass='status-gray';
+
+          // 班別轉換
+          const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();
+          let label='一般', cls='general';
+          if(rawShift==='AM'){ label='早班'; cls='am'; }
+          else if(rawShift==='PM'){ label='午班'; cls='pm'; }
+          else if(rawShift==='G1'||rawShift==='G2'||rawShift==='G3'){ label='一般'; cls='general'; }
 
           const pad = (n) => n.toString().padStart(2,'0');
           const fmtHHmm = (d) => {
             if (!d) return '';
             const dt = (d instanceof Date) ? new Date(d) : new Date(d);
             if (isNaN(dt)) return '';
-            return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+            return `${pad(dt.getHours())}:${dt.getMinutes().toString().padStart(2,'0')}`;
           };
 
-          // 判斷是否在任務區間內
-          const now = new Date();
-          let onDuty = false;
-          if (st instanceof Date && !isNaN(st) && et instanceof Date && !isNaN(et)) {
-            onDuty = now >= st && now <= et;   // ✅ 現在時間在區間內 → 執勤中
-          }
+          const arrivalTimeRaw = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
+          const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
+          const arrivalDisplay = (fmtHHmm(arrivalTimeRaw) && arrivalPlaceRaw)
+            ? `${fmtHHmm(arrivalTimeRaw)} ${arrivalPlaceRaw}` : '';
 
-          // === 狀態文字 ===
-          let stateText = onDuty ? '執勤中' : '待命中';
-          if (x?.leaveNote === '請假') stateText = '請假';
-          if (x?.leaveNote === '休息') stateText = '休息中';
-
-          // === 對應燈號 ===
-          let stateDotClass = 'status-green'; // 預設待命：綠
-          if (stateText === '執勤中') stateDotClass = 'status-red';
-          else if (stateText === '休息中') stateDotClass = 'status-orange';
-          else if (stateText === '請假') stateDotClass = 'status-gray';
-
-          // === 預設資訊 ===
-          let taskWindow   = '';
-          let etaBack      = '';
-          let earliestOut  = (stateText === '待命中') ? '即時可用' : '-';
-
-          // === 若執勤中，帶任務時間 / 回來時間 / 最早可出車時間 ===
-          if (onDuty && st && et) {
-            taskWindow = `${fmtHHmm(st)}-${fmtHHmm(et)}`;
-            etaBack    = fmtHHmm(et);
-
-            const addMinutes = (d, mins) => {
-              const t = new Date(d);
-              t.setMinutes(t.getMinutes() + (mins || 0));
-              return t;
-            };
-            earliestOut = fmtHHmm(addMinutes(et, 15));
-          }
-
-          const attendance = x?.leaveNote ? '請假' : '正常';
-          const note = x?.leaveNote || '';
+          const earliestOut = (stateText==='待命中')
+            ? '即時可用'
+            : (et ? fmtHHmm(new Date(new Date(et).getTime()+15*60000)) : '-');
 
           return {
-            key: x?.key || `${x?.driverName || 'D'}_${x?.shiftLabel || ''}`,
+            key: `${x?.driverId || 'D'}_${rawShift}`,
             driverId: x?.driverId ?? null,
             driverName: x?.driverName ?? '-',
-            shiftLabel: x?.shiftLabel || '一般',
-            shiftClass: x?.shiftClass || 'general',
-            plateNo: x?.plateNo ?? '-',
+            shiftLabel: label,
+            shiftClass: cls,
+            plateNo: x.plateNo ?? '-',
             stateText,
             stateDotClass,
-            taskWindow,
-            etaBack,
+            taskWindow: (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '',
+            etaBack: et ? fmtHHmm(et) : '-',
             earliestOut,
-            attendance,
-            note
+            attendance: x?.leaveNote ? '請假' : '正常',
+            applicantDept: arrivalPlaceRaw || '-',
+            applicantName: x?.applicantName ?? '-',
+            passengerCount: x?.passengerCount ?? '-',
+            note: x?.leaveNote || ''
           };
-        };
+        }
 
 
 

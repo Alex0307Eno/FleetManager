@@ -101,7 +101,7 @@ namespace Cars.Controllers
                     driverName = d.DriverName,
 
                     // 班表
-                    shift = _db.Schedules
+                   shift = _db.Schedules
                         .Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
                         .Select(s => s.Shift)
                         .FirstOrDefault(),
@@ -113,6 +113,7 @@ namespace Cars.Controllers
                         dis.EndTime.HasValue &&
                         dis.StartTime.Value <= now &&
                         dis.EndTime.Value >= now
+
                     ),
 
                     // 當前派工的車牌

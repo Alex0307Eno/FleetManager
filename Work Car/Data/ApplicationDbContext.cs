@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Cars.Models;
+﻿using Cars.Models;
+using Microsoft.AspNetCore.SignalR.Protocol;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Data
 {
@@ -30,6 +31,8 @@ namespace Cars.Data
         public DbSet<RepairRequest> RepairRequests { get; set; }
 
         public DbSet<PlaceAlias> PlaceAliases { get; set; }
+
+  
 
     }
 }
