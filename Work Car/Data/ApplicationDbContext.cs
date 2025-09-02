@@ -28,9 +28,9 @@ namespace Cars.Data
         public DbSet<FuelFillUp> FuelFillUps { get; set; }
         public DbSet<RepairRequest> RepairRequests { get; set; }
 
-        public DbSet<PlaceAlias> PlaceAliases { get; set; }
+        public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
 
-  
+
 
     }
 }

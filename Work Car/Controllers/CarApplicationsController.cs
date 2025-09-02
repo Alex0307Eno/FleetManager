@@ -647,31 +647,6 @@ namespace Cars.Controllers
         }
 
 
-        [HttpGet("Search")]
-        public async Task<IActionResult> Search(
-            string origin,
-            string destination,
-            [FromServices] PlaceAliasService aliasService)
-        {
-            var q = _context.CarApplications.AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(origin))
-            {
-                var realOrigin = await aliasService.ResolveAsync(origin);
-                q = q.Where(a => a.Origin.Contains(realOrigin));
-            }
-
-            if (!string.IsNullOrWhiteSpace(destination))
-            {
-                var realDest = await aliasService.ResolveAsync(destination);
-                q = q.Where(a => a.Destination.Contains(realDest));
-            }
-
-            var list = await q
-                .OrderByDescending(a => a.ApplyId)
-                .ToListAsync();
-
-            return Ok(list);
-        }
+       
     }
 }

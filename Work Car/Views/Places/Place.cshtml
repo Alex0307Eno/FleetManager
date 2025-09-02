@@ -1,5 +1,133 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
-@{
+﻿@{
+    ViewData["Title"] = "常用地點管理";
+    Layout = "_Layout";
 }
+<div class="container" style="max-width:720px;margin:40px auto;">
+    <div class="card shadow-sm p-4">
+        <h3 class="mb-3">📍 常用地點管理</h3>
+
+        <!-- 新增表單 -->
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3">
+                <label class="form-label">別名</label>
+                <input id="favName" class="form-control" placeholder="例如：公司、家">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">地址</label>
+                <input id="favAddr" class="form-control" placeholder="輸入地址或從自動完成選擇">
+            </div>
+            <div class="col-md-3">
+                <button id="btnSaveFav" class="btn btn-primary w-100">新增</button>
+            </div>
+        </div>
+
+        <div id="favMsg" class="small text-muted mb-3"></div>
+
+        <!-- 常用地點清單 -->
+        <ul id="favList" class="list-group"></ul>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    let favPlaceId = null, favLat = null, favLng = null;
+
+    // 初始化 Google Autocomplete
+    function initAutocomplete() {
+      if (window.google && google.maps && google.maps.places) {
+        var input = document.getElementById("favAddr");
+        var ac = new google.maps.places.Autocomplete(input, {
+          fields: ["geometry","formatted_address","name","place_id"],
+          componentRestrictions: { country: "tw" }
+        });
+
+        ac.addListener("place_changed", function(){
+          var p = ac.getPlace();
+          if (!p || !p.geometry) return;
+          document.getElementById("favAddr").value = p.formatted_address || p.name || "";
+          favPlaceId = p.place_id || null;
+          favLat = p.geometry.location ? p.geometry.location.lat() : null;
+          favLng = p.geometry.location ? p.geometry.location.lng() : null;
+        });
+
+        loadList(); // 頁面載入時拉取清單
+      }
+    }
+
+    async function loadList(){
+      try{
+        const { data } = await axios.get('/api/FavoriteLocations');
+        renderList(data || []);
+      }catch(err){
+        document.getElementById("favMsg").textContent = "讀取失敗";
+      }
+    }
+
+    function renderList(items){
+      const ul = document.getElementById("favList");
+      ul.innerHTML = "";
+      if(items.length === 0){
+        ul.innerHTML = '<li class="list-group-item text-muted">目前沒有常用地點</li>';
+        return;
+      }
+      items.forEach(x=>{
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+        li.innerHTML = `
+          <div>
+            <div class="fw-bold">${x.customName}</div>
+            <div class="small text-muted">${x.address}</div>
+          </div>
+          <button class="btn btn-sm btn-outline-danger">刪除</button>
+        `;
+        li.querySelector("button").addEventListener("click", ()=> removeItem(x.id));
+        ul.appendChild(li);
+      });
+    }
+
+    document.getElementById("btnSaveFav").addEventListener("click", async function(){
+      const customName = document.getElementById("favName").value.trim();
+      const address = document.getElementById("favAddr").value.trim();
+      const msgEl = document.getElementById("favMsg");
+
+      if(!customName || !address){
+        msgEl.textContent = "請輸入別名與地址";
+        msgEl.className = "text-danger";
+        return;
+      }
+
+      try{
+        const { data } = await axios.post('/api/FavoriteLocations', {
+          customName: customName,
+          address: address,
+          placeId: favPlaceId,
+          lat: favLat,
+          lng: favLng
+        });
+        msgEl.textContent = "✅ 已新增：" + data.customName;
+        msgEl.className = "text-success";
+        document.getElementById("favName").value = "";
+        document.getElementById("favAddr").value = "";
+        favPlaceId = favLat = favLng = null;
+        loadList(); // 重新載入清單
+      }catch(err){
+        msgEl.textContent = err?.response?.data?.message || "❌ 儲存失敗";
+        msgEl.className = "text-danger";
+      }
+    });
+
+    async function removeItem(id){
+      if(!confirm("確定刪除這個地點？")) return;
+      try{
+        await axios.delete('/api/FavoriteLocations/' + id);
+        loadList();
+      }catch(err){
+        alert(err?.response?.data?.message || "刪除失敗");
+      }
+    }
+</script>
+
+<!-- Google Maps API (一定要帶 callback) -->
+<script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=@ViewBag.GoogleMapsKey&libraries=places&language=zh-TW&region=TW&callback=initAutocomplete">
+</script>
