@@ -659,7 +659,7 @@
                         <option :value="null">（不指定）</option>
                         <!-- 當下的車輛 -->
                         <option v-if="currentVehicle" :value="currentVehicle.vehicleId">
-                            ★ 當前指派：{{ currentVehicle.plateNo }}({{ currentVehicle.capacity }}人座)
+                            ★ 當前指派：{{ currentVehicle.plateNo }}(容量{{ currentVehicle.capacity }})
                         </option>
                         <!-- 其他可用車輛 -->
                         <option v-for="v in availVehicles" :key="v.vehicleId" :value="v.vehicleId">
@@ -747,7 +747,6 @@
                     if (plate && !String(r.plate).includes(plate)) return false
                     return true
                   })
-                  .sort((a,b)=> new Date(a.useStart) - new Date(b.useStart))
               })
 
               // 工具
@@ -781,13 +780,20 @@
           viewing.value = null;
         };
         //現在時間>出發時間不可編輯
-                             function canEdit(r) {
+         function canEdit(r) {
+          // 沒駕駛 → 一律可編輯
+          if (!r.driverId) return true;
+
+          // 沒有出發時間 → 不可編輯
           if (!r.useStart) return false;
+
           const start = new Date(r.useStart);
           if (isNaN(start)) return false;
 
+          // 有駕駛 → 只能在出發前編輯
           return start > new Date();
         }
+
 
 
 
@@ -811,7 +817,7 @@
             editing.value = r;
 
             const appRes = await axios.get(`/api/carapplications/${r.applyId}`);
-            const app = appRes.data?.app ?? {};
+            const app = appRes.data || {};
 
             // 設定當下 driver/vehicle
             let drv = app.driverId ?? app.DriverId ?? r.driverId ?? null;
@@ -829,7 +835,7 @@
               ? {
             vehicleId: Number(veh),
             plateNo:   app.plateNo ?? r.plate ?? '(未知車輛)',
-            capacity:  app.vehicle?.capacity ?? '(未知容量)'
+            capacity:  app.capacity ?? r.capacity ?? '(未知容量)'
               }
             : null;
 
@@ -914,7 +920,7 @@
                 URL.revokeObjectURL(url)
               }
 
-              // 載入資料（有 API 就打，沒有就用 mock）
+              // 載入資料
               async function reload(){
                 try{
                   const params = {
@@ -922,9 +928,10 @@
                     dateTo:   q.value.dateTo   || undefined,
                     driver:   q.value.driver   || undefined,
                     applicant:q.value.applicant|| undefined,
-                    plate:    q.value.plate    || undefined
+                    plate:    q.value.plate    || undefined,
+                    order:    'id_desc'
                   }
-                  const res = await axios.get('/api/dispatch/records', { params })
+                  const res = await axios.get('/api/dispatch/records', { params: { order: 'id_desc' } })
                   rows.value = (res.data || []).map(normalize)
                 }catch{
                   rows.value = mockRows().map(normalize)

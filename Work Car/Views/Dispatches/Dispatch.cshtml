@@ -773,7 +773,6 @@
             await axios.patch(`/api/carApplications/${editing.value.applyId}/status`, {
               status: newStatus.value
             });
-            alert("狀態已更新為：" + newStatus.value);
             editing.value = null;
             await loadData(); // 重新載入列表
           } catch (err) {

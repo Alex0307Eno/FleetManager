@@ -24,7 +24,8 @@ namespace Cars.Controllers.Api
             [FromQuery] DateTime? dateTo,
             [FromQuery] string? driver,
             [FromQuery] string? applicant,
-            [FromQuery] string? plate)
+            [FromQuery] string? plate,
+            [FromQuery] string? order)
         {
 
 
@@ -102,7 +103,27 @@ namespace Cars.Controllers.Api
             }
 
             // 排序
-            q = q.OrderBy(x => x.UseStart);
+            
+            var today = DateTime.Today;
+
+            q = (order ?? "id_desc").ToLower() switch
+            {
+                // 今天 & 未來先排 → 然後依 UseStart 排
+                "today_first" or "future_first"
+                    => q.OrderBy(x => x.UseStart >= today ? 0 : 1)
+                         .ThenBy(x => x.UseStart),
+
+                // 最新 DispatchId 在最上
+                "id_desc" or "latest"
+                    => q.OrderByDescending(x => x.DispatchId),
+
+                // UseStart 降冪
+                "start_desc"
+                    => q.OrderByDescending(x => x.UseStart),
+
+                // 預設：UseStart 升冪
+                _ => q.OrderBy(x => x.UseStart)
+            };
 
             // 先抓 rawRows（字串都保留）
             var rawRows = await q.ToListAsync();

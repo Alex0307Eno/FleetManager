@@ -122,7 +122,7 @@ namespace Cars.Controllers
 
         // 刪除
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> DeleteMaintenance(int id)
         {
             var one = await _db.VehicleMaintenances.FindAsync(id);
             if (one == null) return NotFound();
@@ -153,17 +153,23 @@ namespace Cars.Controllers
                 VehicleId = dto.VehicleId,
                 PlateNo = dto.PlateNo ?? "",
                 Date = dto.Date,
-                Issue = dto.Issue,
+                Issue = dto.Issue.Trim(),
                 CostEstimate = dto.CostEstimate,
-                Note = dto.Note,
+                Note =  dto.Note,
                 Status = "待處理"
             };
 
             _db.RepairRequests.Add(entity);
-            await _db.SaveChangesAsync();
 
+            // ★ 同時把車輛狀態改為「維修中」
+            var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == dto.VehicleId);
+            if (v != null)
+                v.Status = "維修中";
+
+            await _db.SaveChangesAsync();
             return Ok(new { message = "報修已送出", id = entity.RepairRequestId });
         }
+
 
         // 查詢某車的報修紀錄
         [HttpGet("repairs")]
@@ -183,6 +189,19 @@ namespace Cars.Controllers
 
             return Ok(await q.ToListAsync());
         }
+        // 刪除報修紀錄
+        [HttpDelete("repair/{id}")]
+        public async Task<IActionResult> DeleteRepair(int id)
+        {
+            var record = await _db.RepairRequests.FindAsync(id);
+            if (record == null) return NotFound();
+
+            _db.RepairRequests.Remove(record);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "報修紀錄已刪除", id });
+        }
+
 
 
         // 更新狀態（例如 維修完成）
@@ -192,11 +211,26 @@ namespace Cars.Controllers
             var v = await _db.Vehicles.FindAsync(id);
             if (v == null) return NotFound();
 
+            // 更新車輛狀態
             v.Status = status;
+
+            // 如果維修完成 → 找出該車輛尚未完成的報修單，更新狀態
+            if (status == "可用" || status == "維修完成")
+            {
+                var openRepairs = _db.RepairRequests
+                    .Where(r => r.VehicleId == id && r.Status != "維修完成");
+
+                await foreach (var r in openRepairs.AsAsyncEnumerable())
+                {
+                    r.Status = "維修完成";
+                }
+            }
+
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "狀態已更新", status });
         }
+
 
 
 
