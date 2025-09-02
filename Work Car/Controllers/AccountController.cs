@@ -5,6 +5,7 @@ using Cars.Data;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Cars.Models;
 
 namespace Cars.Controllers
 {
@@ -24,7 +25,7 @@ namespace Cars.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId);
             var applicant = await _db.Applicants.FirstOrDefaultAsync(x => x.UserId == userId);
 
-            var vm = new ProfileVm
+            var vm = new Profile
             {
                 UserId = userId,
                 Account = user?.Account,
@@ -38,7 +39,7 @@ namespace Cars.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> Profile(ProfileVm vm)
+        public async Task<IActionResult> Profile(Profile vm)
         {
             if (!ModelState.IsValid) return View(vm);
 
@@ -73,15 +74,6 @@ namespace Cars.Controllers
             return View();
         }
 
-        public class ProfileVm
-        {
-            public int UserId { get; set; }
-            public string? Account { get; set; }
-            public string? DisplayName { get; set; }
-            public string? Dept { get; set; }
-            public string? Ext { get; set; }
-            public string? Email { get; set; }
-            public DateTime? Birth { get; set; }
-        }
+        
     }
 }

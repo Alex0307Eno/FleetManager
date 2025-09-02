@@ -287,7 +287,7 @@
 </style>
 
 <div id="app" class="wrap" v-cloak>
-    <div class="topbar" style="background:#1e6fb8;">
+    <div class="topbar">
         <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 車輛維護</h2>
         <div class="vehicle-info">
             <span class="plate">{{ vehicleDetail.plate || '未選擇車輛' }}</span>
@@ -555,7 +555,11 @@
               { withCredentials:true, headers: { 'Content-Type': 'application/json' } }
             );
             vehicleDetail.value.status = "可用";
+            const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
+            if (idx >= 0) vehicles.value[idx].status = "可用";
+            await loadRepairs();
             alert("✅ 維修完成，車輛已可用");
+            
           } catch (err) {
             console.error("狀態更新失敗", err);
             alert("更新失敗");
@@ -664,13 +668,14 @@
             });
             const newId = res.data?.id;
 
-            // 改車輛狀態為「維修中」(你的 API 需要純字串 body)
+            // 改車輛狀態為「維修中」
             await axios.put(
               `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
               JSON.stringify("維修中"),
               { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
             );
-
+            const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
+            if (idx >= 0) vehicles.value[idx].status = "維修中";
             // 重新載入狀態與清單
             await loadVehicleDetail();
             await loadRepairs();

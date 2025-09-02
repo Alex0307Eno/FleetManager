@@ -1,0 +1,38 @@
+﻿@model Cars.Areas.Admin.Controllers.UserVm
+@{
+    ViewData["Title"] = "新增使用者";
+}
+<h2>新增使用者</h2>
+<form asp-area="Admin" asp-controller="Users" asp-action="Create" method="post">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label class="form-label">帳號</label>
+        <input asp-for="Account" class="form-control" />
+        <span asp-validation-for="Account" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">顯示名稱</label>
+        <input asp-for="DisplayName" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">角色</label>
+        <select asp-for="Role" class="form-select">
+            <option>Applicant</option>
+            <option>Driver</option>
+            <option>Admin</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">初始密碼</label>
+        <input asp-for="Password" class="form-control" type="password" />
+    </div>
+    <div class="form-check mb-3">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label class="form-check-label" asp-for="IsActive">啟用</label>
+    </div>
+    <button class="btn btn-primary">儲存</button>
+    <a asp-area="Admin" asp-controller="Users" asp-action="Index" class="btn btn-secondary">返回</a>
+</form>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

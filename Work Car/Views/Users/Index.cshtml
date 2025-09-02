@@ -1,0 +1,75 @@
+﻿@model IEnumerable<Cars.Models.User>
+@{
+    ViewData["Title"] = "使用者管理";
+    var q = ViewBag.Query as string;
+    var role = ViewBag.Role as string;
+    bool? active = ViewBag.Active as bool?;
+}
+
+<h2 class="mb-3">使用者管理</h2>
+
+@if (TempData["ok"] != null){ <div class="alert alert-success">@TempData["ok"]</div> }
+@if (TempData["err"] != null){ <div class="alert alert-danger">@TempData["err"]</div> }
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <input name="q" value="@q" class="form-control" placeholder="帳號/姓名 搜尋" />
+    </div>
+    <div class="col-auto">
+        <select name="role" class="form-select">
+            <option value="">全部角色</option>
+            <option value="Admin" @@(role=="Admin"?"selected":null)>Admin</option>
+            <option value="Driver" @@(role=="Driver"?"selected":null)>Driver</option>
+            <option value="Applicant" @@(role= ="Applicant" ?"selected":null)>Applicant</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <select name="active" class="form-select">
+            <option value="">全部狀態</option>
+            <option value="true"  @@(active==true?"selected":null)>啟用</option>
+            <option value="false" @@(active==false?"selected":null)>停用</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary">查詢</button>
+        <a class="btn btn-success" asp-area="Admin" asp-controller="Users" asp-action="Create">新增使用者</a>
+    </div>
+</form>
+
+<table class="table table-bordered align-middle">
+    <thead class="table-light">
+        <tr>
+            <th style="width:90px;">ID</th>
+            <th>帳號</th>
+            <th>姓名</th>
+            <th style="width:120px;">角色</th>
+            <th style="width:100px;">狀態</th>
+            <th style="width:200px;">建立時間</th>
+            <th style="width:240px;">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var u in Model)
+    {
+        <tr>
+            <td>@u.UserId</td>
+            <td>@u.Account</td>
+            <td>@(u.DisplayName ?? "—")</td>
+            <td>@(u.Role ?? "User")</td>
+            <td>@(u.IsActive ? "啟用" : "停用")</td>
+            <td>@(u.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm"))</td>
+            <td>
+                <div class="d-flex flex-wrap gap-1">
+                    <a class="btn btn-sm btn-primary" asp-area="Admin" asp-controller="Users" asp-action="Edit" asp-route-id="@u.UserId">編輯</a>
+                    <form asp-area="Admin" asp-controller="Users" asp-action="ToggleActive" asp-route-id="@u.UserId" method="post">
+                        <button class="btn btn-sm btn-warning" onclick="return confirm('確定切換啟用狀態？')">@((u.IsActive) ? "停用" : "啟用")</button>
+                    </form>
+                    <form asp-area="Admin" asp-controller="Users" asp-action="Delete" asp-route-id="@u.UserId" method="post">
+                        <button class="btn btn-sm btn-danger" onclick="return confirm('確定刪除？')">刪除</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

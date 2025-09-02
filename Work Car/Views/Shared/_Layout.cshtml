@@ -100,6 +100,13 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">個人資料</a></li>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <li class="nav-item">
+                                        <a class="nav-link"asp-controller="Users" asp-action="Index">使用者管理</a>
+                                    </li>
+                                }
+
                                 <li>
                                     <form action="/api/Auth/Logout" method="get" class="dropdown-item p-0">
                                         <button type="submit" class="dropdown-item">登出</button>

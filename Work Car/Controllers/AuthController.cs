@@ -36,6 +36,12 @@ namespace Cars.Controllers
                 if (user == null)
                     return Unauthorized(new { message = "帳號或密碼錯誤" });
 
+                if (user.IsActive == false)
+                {
+                    return Unauthorized(new { message = "帳號已停用，請聯絡管理員" });
+                }
+
+
                 bool valid = false;
                 if (!string.IsNullOrEmpty(user.PasswordHash))
                 {

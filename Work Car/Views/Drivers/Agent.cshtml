@@ -88,6 +88,13 @@
         margin-left: 6px
     }
 
+        .icon-btn.view {
+            color: #0ea5e9
+        }
+
+        .icon-btn.edit {
+            color: #22c55e
+        }
         .icon-btn:hover {
             background: #f3f6fb
         }
@@ -287,7 +294,7 @@
                    <td>${r.tripCount}</td>
                    <td>${r.distanceKm}</td>
                    <td class="td-actions">
-                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
+                      <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
                         <i class="fa-regular fa-eye"></i>
                       </a>
                    </td>`;
@@ -317,11 +324,11 @@
                    <td>${show(r.mobile)}</td>
                    <td>${show(r.emergency)}</td>
                    <td class="td-actions">
-                      <a class="icon-btn" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
+                      <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
                         <i class="fa-regular fa-eye"></i>
                       </a>
 
-                      <a class="icon-btn" title="編輯" href="/Drivers/Edit/${r.id}">
+                      <a class="icon-btn edit" title="編輯" href="/Drivers/Edit/${r.id}">
                         <i class="fa-regular fa-pen-to-square"></i>
                       </a>
                    </td>`;
