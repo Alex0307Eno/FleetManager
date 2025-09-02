@@ -27,6 +27,8 @@ namespace Cars.Data
         public DbSet<VehicleMaintenance> VehicleMaintenances { get; set; }
         public DbSet<FuelFillUp> FuelFillUps { get; set; }
         public DbSet<RepairRequest> RepairRequests { get; set; }
+        public DbSet<VehicleInspection> VehicleInspections { get; set; }
+        public DbSet<TrafficViolation> TrafficViolations { get; set; }
 
         public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
 
