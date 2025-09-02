@@ -327,13 +327,13 @@
             </div>
         </section>
 
-        <!-- 右：保養/維修 -->
+        <!-- 右：保養/維修/驗車/違規/總覽 -->
         <section class="card">
             <div class="tabs">
                 <div class="tab" :class="{active: tab==='maint'}" @@click ="tab='maint'">保養修配</div>
                 <div class="tab" :class="{active: tab==='repair'}" @@click ="tab='repair'">維修紀錄</div>
                 <div class="tab" :class="{active: tab==='inspection'}" @@click ="tab='inspection'">驗車紀錄</div>
-                <div class="tab" :class="{active: tab==='Violation'}" @@click ="tab='Violation'">違規紀錄</div>
+                <div class="tab" :class="{active: tab==='violation'}" @@click ="tab='violation'">違規紀錄</div>
                 <div class="tab" :class="{active: tab==='record'}" @@click ="tab='record'">紀錄總覽</div>
             </div>
 
@@ -476,6 +476,150 @@
                     </table>
                 </div>
             </div>
+            <!-- 驗車紀錄 -->
+            <div v-if="tab==='inspection'">
+                <div class="card-hd">
+                    <div class="title">驗車紀錄</div>
+                    <div class="toolbar">
+                        <button class="btn btn-primary" @@click="toggleInspectionForm">
+                            {{ showInspectionAdd ? '取消' : (inspectionEditId ? '取消編輯' : '新增') }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 新增/編輯表單 -->
+                <div class="card-bd" v-if="showInspectionAdd">
+                    <div class="form-row" style="grid-template-columns: repeat(6,1fr);">
+                        <input type="date" v-model="inspectionForm.date" />
+                        <input type="text" v-model="inspectionForm.station" placeholder="驗車站 / 監理站" />
+                        <select v-model="inspectionForm.result">
+                            <option value="合格">合格</option>
+                            <option value="不合格">不合格</option>
+                        </select>
+                        <input type="date" v-model="inspectionForm.nextDueDate" />
+                        <input type="number" v-model.number="inspectionForm.odometerKm" placeholder="里程(KM)" />
+                        <input type="text" v-model="inspectionForm.notes" placeholder="備註" />
+                    </div>
+                    <div style="text-align:right">
+                        <button class="btn" @@click="cancelInspection">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveInspection">
+                            {{ inspectionEditId ? '更新' : '儲存' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-bd table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">驗車日</th>
+                                <th style="width:160px">驗車站</th>
+                                <th style="width:80px">結果</th>
+                                <th style="width:120px">下次到期</th>
+                                <th style="width:100px">里程</th>
+                                <th style="width:200px">備註</th>
+                                <th style="width:90px">功能</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in inspectionRows" :key="r.id">
+                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td>{{ r.station || '' }}</td>
+                                <td>{{ r.result || '' }}</td>
+                                <td class="mono">{{ r.nextDueDate || '' }}</td>
+                                <td class="mono">{{ r.odometerKm ?? '' }}</td>
+                                <td>{{ r.notes || '' }}</td>
+                                <td class="row-actions">
+                                    <button class="icon-btn" title="編輯" @@click="startEditInspection(r)">✏️</button>
+                                    <button class="icon-btn" title="刪除" @@click="removeInspection(r.id)">🗑️</button>
+                                </td>
+                            </tr>
+                            <tr v-if="!inspectionRows.length">
+                                <td colspan="7" style="text-align:center; color:#64748b">尚無驗車紀錄</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 違規紀錄 -->
+            <div v-if="tab==='violation'">
+                <div class="card-hd">
+                    <div class="title">違規紀錄</div>
+                    <div class="toolbar">
+                        <button class="btn btn-primary" @@click="toggleViolationForm">
+                            {{ showViolationAdd ? '取消' : (violationEditId ? '取消編輯' : '新增') }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 新增/編輯表單 -->
+                <div class="card-bd" v-if="showViolationAdd">
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;">
+                        <input type="date" v-model="violationForm.date" />
+                        <input type="text" v-model="violationForm.location" placeholder="地點" />
+                        <input type="text" v-model="violationForm.category" placeholder="類別(如：超速)" />
+                        <input type="number" v-model.number="violationForm.points" placeholder="記點" />
+                        <input type="number" v-model.number="violationForm.fineAmount" placeholder="罰鍰(元)" />
+                        <select v-model="violationForm.status">
+                            <option value="未繳">未繳</option>
+                            <option value="已繳">已繳</option>
+                            <option value="申訴中">申訴中</option>
+                        </select>
+                        <input type="text" v-model="violationForm.notes" placeholder="備註" />
+                    </div>
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                        <input type="date" v-model="violationForm.dueDate" placeholder="繳費期限" />
+                        <input type="date" v-model="violationForm.paidDate" placeholder="繳費日期" />
+                    </div>
+                    <div style="text-align:right">
+                        <button class="btn" @@click="cancelViolation">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveViolation">
+                            {{ violationEditId ? '更新' : '儲存' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-bd table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">日期</th>
+                                <th style="width:160px">地點</th>
+                                <th style="width:120px">類別</th>
+                                <th style="width:80px">記點</th>
+                                <th style="width:100px">罰鍰</th>
+                                <th style="width:100px">狀態</th>
+                                <th style="width:120px">期限</th>
+                                <th style="width:120px">繳費日</th>
+                                <th style="width:200px">備註</th>
+                                <th style="width:90px">功能</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in violationRows" :key="r.id">
+                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td>{{ r.location || '' }}</td>
+                                <td>{{ r.category || '' }}</td>
+                                <td class="mono">{{ r.points ?? '' }}</td>
+                                <td class="mono">{{ fmtMoney(r.fineAmount) }}</td>
+                                <td>{{ r.status || '' }}</td>
+                                <td class="mono">{{ r.dueDate || '' }}</td>
+                                <td class="mono">{{ r.paidDate || '' }}</td>
+                                <td>{{ r.notes || '' }}</td>
+                                <td class="row-actions">
+                                    <button class="icon-btn" title="編輯" @@click="startEditViolation(r)">✏️</button>
+                                    <button class="icon-btn" title="刪除" @@click="removeViolation(r.id)">🗑️</button>
+                                </td>
+                            </tr>
+                            <tr v-if="!violationRows.length">
+                                <td colspan="10" style="text-align:center; color:#64748b">尚無違規紀錄</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </section>
     </div>
 </div>
