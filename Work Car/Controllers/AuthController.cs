@@ -1,10 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Cars.Data;
-using System.Threading.Tasks;
+﻿using Cars.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Threading.Tasks;
 namespace Cars.Controllers
 {
     [ApiController]
@@ -85,14 +86,23 @@ namespace Cars.Controllers
                 // 如果你還需要 Session，可以保留
                 HttpContext.Session.SetString("UserId", user.UserId.ToString());
                 HttpContext.Session.SetString("UserName", user.Account);
+                var role = user.Role ?? "User";
+                string redirectUrl = role == "Admin" ? Url.Action("Index", "Home") :
+                                     role == "Driver" ? Url.Action("Record", "Dispatches") :
+                                     role == "Applicant" ? Url.Action("Dispatch", "Dispatches") : null;
 
+                if (redirectUrl == null) return Forbid();
                 return Ok(new
                 {
                     message = "登入成功",
                     userId = user.UserId,
                     userName = user.Account,
-                    displayName = user.DisplayName
+                    displayName = user.DisplayName,
+                    role = role,
+                    redirectUrl = redirectUrl
+
                 });
+
             }
             catch (Exception ex)
             {
@@ -109,7 +119,7 @@ namespace Cars.Controllers
             HttpContext.Session.Clear();
 
             // 導回首頁或登入頁
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Login", "Account");
             // 或者直接 return RedirectToAction("Login", "Account");
         }
 
@@ -118,7 +128,7 @@ namespace Cars.Controllers
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             HttpContext.Session.Clear();
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Login", "Account");
         }
 
     }

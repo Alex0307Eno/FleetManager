@@ -470,9 +470,9 @@
                                 <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
                                 @if (User.IsInRole("Admin"))
                                 {
-                                <button  class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
                                 }
-                                <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
+                                <button v-if="r.status !== '完成審核'" class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>
                         <tr v-if="!loading && filtered.length===0">
@@ -787,6 +787,22 @@
         const cancelEdit = () => {
           editing.value = null;
         };
+        //狀態為完成審核不可編輯
+                function canEdit(r) {
+          if (String(r.status).trim() === "完成審核") return false;
+
+          // 沒駕駛 → 可編輯
+          if (!r.driverId) return true;
+
+          // 沒有出發時間 → 不可編輯
+          if (!r.useStart) return false;
+
+          const start = new Date(r.useStart);
+          if (isNaN(start)) return false;
+
+          // 有駕駛 → 只能在出發前編輯
+          return start > new Date();
+        }
 
 
         // D: 刪除
@@ -804,7 +820,7 @@
 
 
             return {
-              rows, loading, error,
+              rows, loading, error,canEdit,
               filters, drivers, applicants, cars,
               filtered, statusText, statusClass,
               reloadByDate, resetFilters, exportCSV,

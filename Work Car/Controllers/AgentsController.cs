@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [Route("Agents")]
     [Authorize(Roles = "Admin")]
     public class AgentsController : Controller

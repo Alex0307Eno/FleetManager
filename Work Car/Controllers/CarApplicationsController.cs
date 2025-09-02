@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "Admin,Applicant")]
@@ -81,11 +82,22 @@ namespace Cars.Controllers
                 Console.WriteLine("❌ 取不到 UserId，回傳 401");
                 return Unauthorized("尚未登入或 Session 遺失");
             }
+            Cars.Models.Applicant applicant = null;
 
-            // 🔍 查 Applicant
-            var applicant = await _context.Applicants
-                .FirstOrDefaultAsync(ap => ap.UserId == userId);
+            if (model.ApplyFor == "self")
+            {
+                // 自己申請 → 用自己綁定的 Applicant
+                applicant = await _context.Applicants
+                    .FirstOrDefaultAsync(ap => ap.UserId == userId);
+            }
+            else if (model.ApplyFor == "other" && model.ApplicantId.HasValue)
+            {
+                // 代他人申請 → 用前端傳來的 ApplicantId
+                applicant = await _context.Applicants
+                    .FirstOrDefaultAsync(ap => ap.ApplicantId == model.ApplicantId.Value);
+            }
 
+      
             if (applicant == null)
             {
                 Console.WriteLine("❌ 找不到 Applicant, userId = " + userId);
@@ -259,6 +271,20 @@ namespace Cars.Controllers
                 vehicleId = model.VehicleId,
                 driverId = model.DriverId
             });
+        }
+        // 取得全部申請人
+        [HttpGet("applicants")] 
+        public async Task<IActionResult> GetApplicants()
+        {
+            var list = await _context.Applicants.AsNoTracking()
+                .OrderBy(a => a.Name)
+                .Select(a => new {
+                    applicantId = a.ApplicantId,
+                    name = a.Name,
+                    dept = a.Dept
+                })
+                .ToListAsync();
+            return Ok(list);
         }
         // 取得全部申請單
         [Authorize(Roles = "Admin,Applicant")]

@@ -8,6 +8,7 @@ using System.Security.Claims;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
 

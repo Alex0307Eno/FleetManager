@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class DistanceController : ControllerBase

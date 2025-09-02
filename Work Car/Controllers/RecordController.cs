@@ -11,10 +11,10 @@ namespace Cars.Controllers.Api
     [Authorize]
     [ApiController]
     [Route("api/dispatch")]
-    public class DispatchApiController : ControllerBase
+    public class RecordController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        public DispatchApiController(ApplicationDbContext db) => _db = db;
+        public RecordController(ApplicationDbContext db) => _db = db;
 
 
         [HttpGet("records")]

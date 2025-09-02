@@ -112,10 +112,10 @@ namespace Cars
             app.UseSession();
             app.UseAuthentication();
             app.UseAuthorization();
-
+            app.MapControllers();
             app.MapControllerRoute(
                 name: "default",
-                pattern: "{controller=Home}/{action=Index}/{id?}");
+                pattern: "{controller=Account}/{action=Login}/{id?}");
 
             app.Run();
         }

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "Admin")]

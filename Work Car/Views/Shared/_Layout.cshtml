@@ -28,13 +28,28 @@
         <div class="container-fluid">
 
             @* 左邊 Logo  *@
-            <a class="navbar-brand fw-bold text-white" href="/">公務車派車系統</a>
+            @if (User.IsInRole("Admin") )
+            {
+                <a class="navbar-brand fw-bold text-white" asp-controller="Home" asp-action="Index">
+                    公務車派車系統
+                </a>
+            }
+            else
+            {
+                <span class="navbar-brand fw-bold text-white opacity-75">公務車派車系統</span>
+            }
+
 
             @* 右邊選單  *@
             <div class="collapse navbar-collapse justify-content-end">
                 <ul class="navbar-nav">
                     @if (User.IsInRole("Admin"))
                     {
+                        @*常用地點*@
+                        <li class="nav-item">
+                            <a class="nav-link @(isActive("Places", "Place") ? "is-active" : "")"
+                               href="/Places/Place">常用地點</a>
+                        </li>
                         @* 派車管理 *@
                         <li class="nav-item">
                             <a class="nav-link @(isActive("Dispatches", "Dispatch") ? "is-active" : "")"
@@ -117,12 +132,12 @@
                             </ul>
                         </li>
                     }
-                    else
+                    @* else
                     {
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Account" asp-action="Login">登入</a>
                         </li>
-                    }
+                    } *@
                 </ul>
             </div>
         </div>
