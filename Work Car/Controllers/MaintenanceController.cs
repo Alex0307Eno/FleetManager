@@ -57,6 +57,16 @@ namespace Cars.Controllers
                 v.Retired
             });
         }
+        [HttpPut("vehicle/{vehicleId}/status")]
+        public async Task<IActionResult> UpdateVehicleStatus(int vehicleId, [FromBody] string status)
+        {
+            var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == vehicleId);
+            if (v == null) return NotFound();
+            v.Status = status?.Trim();
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
 
 
         // 查某車的保養紀錄
@@ -120,7 +130,25 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return Ok(new { message = "新增成功", id = entity.VehicleMaintenanceId });
         }
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> UpdateMaintenance(int id, [FromBody] VehicleMaintenance body)
+        {
+            var m = await _db.VehicleMaintenances.FirstOrDefaultAsync(x => x.VehicleMaintenanceId == id);
+            if (m == null) return NotFound();
 
+            // 只更新允許的欄位
+            m.Date = body.Date == default ? m.Date : body.Date;
+            m.Odometer = body.Odometer;
+            m.Item = body.Item ?? m.Item;
+            m.Unit = body.Unit;
+            m.Qty = body.Qty;
+            m.Amount = body.Amount;
+            m.Vendor = body.Vendor;
+            m.Note = body.Note;
+
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
         // 刪除
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteMaintenance(int id)
@@ -149,7 +177,7 @@ namespace Cars.Controllers
             if (dto.VehicleId <= 0) return BadRequest("VehicleId 必填");
             if (string.IsNullOrWhiteSpace(dto.Issue)) return BadRequest("故障內容必填");
 
-            var entity = new RepairRequest
+            var entity = new VehicleRepair
             {
                 VehicleId = dto.VehicleId,
                 PlateNo = dto.PlateNo ?? "",
@@ -160,7 +188,7 @@ namespace Cars.Controllers
                 Status = "待處理"
             };
 
-            _db.RepairRequests.Add(entity);
+            _db.VehicleRepairs.Add(entity);
 
             // ★ 同時把車輛狀態改為「維修中」
             var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == dto.VehicleId);
@@ -176,7 +204,7 @@ namespace Cars.Controllers
         [HttpGet("repairs")]
         public async Task<IActionResult> ListRepairs([FromQuery] int vehicleId)
         {
-            var q = _db.RepairRequests
+            var q = _db.VehicleRepairs
                 .Where(r => r.VehicleId == vehicleId)
                 .OrderByDescending(r => r.Date)
                 .Select(r => new {
@@ -194,10 +222,10 @@ namespace Cars.Controllers
         [HttpDelete("repair/{id}")]
         public async Task<IActionResult> DeleteRepair(int id)
         {
-            var record = await _db.RepairRequests.FindAsync(id);
+            var record = await _db.VehicleRepairs.FindAsync(id);
             if (record == null) return NotFound();
 
-            _db.RepairRequests.Remove(record);
+            _db.VehicleRepairs.Remove(record);
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "報修紀錄已刪除", id });
@@ -205,34 +233,196 @@ namespace Cars.Controllers
 
 
 
-        // 更新狀態（例如 維修完成）
-        [HttpPut("vehicle/{id}/status")]
-        public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
+        
+
+        [HttpGet("inspections")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetInspections([FromQuery] int vehicleId)
         {
-            var v = await _db.Vehicles.FindAsync(id);
-            if (v == null) return NotFound();
+            if (vehicleId <= 0) return BadRequest(new { message = "vehicleId 必填" });
 
-            // 更新車輛狀態
-            v.Status = status;
+            var list = await _db.VehicleInspections
+                .AsNoTracking()
+                .Where(x => x.VehicleId == vehicleId)
+                .OrderByDescending(x => x.InspectionDate)
+                .Select(x => new {
+                    x.InspectionId,
+                    x.VehicleId,
+                    date = x.InspectionDate,
+                    station = x.Station,
+                    result = x.Result,
+                    nextDueDate = x.NextDueDate,
+                    odometerKm = x.OdometerKm,
+                    notes = x.Notes
+                })
+                .ToListAsync();
 
-            // 如果維修完成 → 找出該車輛尚未完成的報修單，更新狀態
-            if (status == "可用" || status == "維修完成")
-            {
-                var openRepairs = _db.RepairRequests
-                    .Where(r => r.VehicleId == id && r.Status != "維修完成");
-
-                await foreach (var r in openRepairs.AsAsyncEnumerable())
-                {
-                    r.Status = "維修完成";
-                }
-            }
-
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "狀態已更新", status });
+            return Ok(list);
         }
 
+        public class SaveInspectionDto
+        {
+            public int VehicleId { get; set; }
+            public DateTime InspectionDate { get; set; }
+            public string? Station { get; set; }
+            public string Result { get; set; } = "合格";
+            public DateTime? NextDueDate { get; set; }
+            public int? OdometerKm { get; set; }
+            public string? Notes { get; set; }
+        }
 
+        [HttpPost("inspections")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateInspection([FromBody] SaveInspectionDto dto)
+        {
+            if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
+
+            var m = new VehicleInspection
+            {
+                VehicleId = dto.VehicleId,
+                InspectionDate = dto.InspectionDate,
+                Station = dto.Station,
+                Result = string.IsNullOrWhiteSpace(dto.Result) ? "合格" : dto.Result,
+                NextDueDate = dto.NextDueDate,
+                OdometerKm = dto.OdometerKm,
+                Notes = dto.Notes
+            };
+
+            _db.VehicleInspections.Add(m);
+            await _db.SaveChangesAsync();
+            return Ok(new { id = m.InspectionId });
+        }
+
+        [HttpPut("inspections/{id:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateInspection(int id, [FromBody] SaveInspectionDto dto)
+        {
+            var m = await _db.VehicleInspections.FindAsync(id);
+            if (m == null) return NotFound();
+
+            m.VehicleId = dto.VehicleId;
+            m.InspectionDate = dto.InspectionDate;
+            m.Station = dto.Station;
+            m.Result = string.IsNullOrWhiteSpace(dto.Result) ? m.Result : dto.Result;
+            m.NextDueDate = dto.NextDueDate;
+            m.OdometerKm = dto.OdometerKm;
+            m.Notes = dto.Notes;
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "updated" });
+        }
+
+        [HttpDelete("inspections/{id:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteInspection(int id)
+        {
+            var m = await _db.VehicleInspections.FindAsync(id);
+            if (m == null) return NotFound();
+            _db.VehicleInspections.Remove(m);
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "deleted" });
+        }
+
+        // --------------------- 違規紀錄 CRUD ---------------------
+        [HttpGet("violations")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetViolations([FromQuery] int vehicleId)
+        {
+            if (vehicleId <= 0) return BadRequest(new { message = "vehicleId 必填" });
+
+            var list = await _db.VehicleViolations
+                .AsNoTracking()
+                .Where(x => x.VehicleId == vehicleId)
+                .OrderByDescending(x => x.ViolationDate)
+                .Select(x => new {
+                    x.ViolationId,
+                    x.VehicleId,
+                    date = x.ViolationDate,
+                    location = x.Location,
+                    category = x.Category,
+                    points = x.Points,
+                    fineAmount = x.FineAmount,
+                    status = x.Status,
+                    dueDate = x.DueDate,
+                    paidDate = x.PaidDate,
+                    notes = x.Notes
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        public class SaveViolationDto
+        {
+            public int VehicleId { get; set; }
+            public DateTime ViolationDate { get; set; }
+            public string? Location { get; set; }
+            public string? Category { get; set; }
+            public int? Points { get; set; }
+            public int? FineAmount { get; set; }
+            public string? Status { get; set; }  // 未繳/已繳/申訴中
+            public DateTime? DueDate { get; set; }
+            public DateTime? PaidDate { get; set; }
+            public string? Notes { get; set; }
+        }
+
+        [HttpPost("violations")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateViolation([FromBody] SaveViolationDto dto)
+        {
+            if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
+
+            var m = new VehicleViolation
+            {
+                VehicleId = dto.VehicleId,
+                ViolationDate = dto.ViolationDate,
+                Location = dto.Location,
+                Category = dto.Category,
+                Points = dto.Points,
+                FineAmount = dto.FineAmount,
+                Status = string.IsNullOrWhiteSpace(dto.Status) ? "未繳" : dto.Status,
+                DueDate = dto.DueDate,
+                PaidDate = dto.PaidDate,
+                Notes = dto.Notes
+            };
+
+            _db.VehicleViolations.Add(m);
+            await _db.SaveChangesAsync();
+            return Ok(new { id = m.ViolationId });
+        }
+
+        [HttpPut("violations/{id:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateViolation(int id, [FromBody] SaveViolationDto dto)
+        {
+            var m = await _db.VehicleViolations.FindAsync(id);
+            if (m == null) return NotFound();
+
+            m.VehicleId = dto.VehicleId;
+            m.ViolationDate = dto.ViolationDate;
+            m.Location = dto.Location;
+            m.Category = dto.Category;
+            m.Points = dto.Points;
+            m.FineAmount = dto.FineAmount;
+            m.Status = string.IsNullOrWhiteSpace(dto.Status) ? m.Status : dto.Status;
+            m.DueDate = dto.DueDate;
+            m.PaidDate = dto.PaidDate;
+            m.Notes = dto.Notes;
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "updated" });
+        }
+
+        [HttpDelete("violations/{id:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteViolation(int id)
+        {
+            var m = await _db.VehicleViolations.FindAsync(id);
+            if (m == null) return NotFound();
+            _db.VehicleViolations.Remove(m);
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "deleted" });
+        }
 
 
     }

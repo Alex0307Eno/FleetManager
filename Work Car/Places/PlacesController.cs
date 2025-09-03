@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Cars.Places
 {
@@ -9,6 +10,8 @@ namespace Cars.Places
         {
             _config = config;
         }
+        [Authorize]
+
         public IActionResult Place()
         {
             ViewBag.GoogleMapsKey = _config["GoogleMaps:ApiKey"];

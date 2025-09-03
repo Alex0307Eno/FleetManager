@@ -18,6 +18,8 @@ namespace Cars.Areas.Admin.Controllers
         public UsersController(ApplicationDbContext db) { _db = db; }
 
         // GET: /Admin/Users
+        [Authorize]
+
         public async Task<IActionResult> Index(string? q, string? role, bool? active)
         {
             var users = _db.Users.AsNoTracking().AsQueryable();

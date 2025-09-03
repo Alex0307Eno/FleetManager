@@ -368,7 +368,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:110px">日期</th>
+                                <th style="width:110px">保養日期</th>
                                 <th style="width:80px">里程</th>
                                 <th style="width:220px">保養項目</th>
                                 <th style="width:60px">單位</th>
@@ -392,6 +392,7 @@
                                 <td>{{ r.vendor || '' }}</td>
                                 <td>{{ r.note || '' }}</td>
                                 <td class="row-actions">
+                                    <button class="icon-btn" title="編輯" @@click ="startEditMaint(r)">✏️</button>
                                     <button class="icon-btn" title="刪除" @@click ="removeMaintainance(r)">🗑️</button>
                                 </td>
                             </tr>
@@ -429,21 +430,7 @@
                     </div>
                 </div>
 
-                <!-- 送出結果卡片（表單隱藏後顯示） -->
-                <div class="card-bd" v-if="!showRepairAdd && createdRepair">
-                    <div class="card" style="padding:12px 16px; border:1px solid var(--border);">
-                        <div style="font-weight:700; margin-bottom:6px;">報修已送出</div>
-                        <div><b>單號：</b>{{ createdRepair.id || '—' }}</div>
-                        <div><b>日期：</b>{{ createdRepair.date }}</div>
-                        <div><b>故障：</b>{{ createdRepair.issue }}</div>
-                        <div><b>備註：</b>{{ createdRepair.note || '—' }}</div>
-                        <div><b>狀態：</b>{{ createdRepair.status || '待處理' }}</div>
-                        <div style="margin-top:10px; display:flex; gap:8px;">
-                            <button class="btn" @@click ="newRepair">再新增一筆</button>
-                            @* <button class="btn btn-ghost" @@click ="loadRepairs">刷新清單</button> *@
-                        </div>
-                    </div>
-                </div>
+               
 
                 <!-- 維修紀錄表格 -->
                 <div class="card-bd table-wrap" style="margin-top:16px">
@@ -466,6 +453,7 @@
                                 <td class="mono">{{ fmtMoney(r.costEstimate) }}</td>
                                 <td>{{ r.note || '' }}</td>
                                 <td class="row-actions">
+                                    <button class="icon-btn" title="編輯" @@click ="startEditRepair(r)">✏️</button>
                                     <button class="icon-btn" title="刪除" @@click ="removeRepair(r.id)">🗑️</button>
                                 </td>
                             </tr>
@@ -512,7 +500,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:120px">驗車日</th>
+                                <th style="width:120px">驗車日期</th>
                                 <th style="width:160px">驗車站</th>
                                 <th style="width:80px">結果</th>
                                 <th style="width:120px">下次到期</th>
@@ -523,7 +511,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="r in inspectionRows" :key="r.id">
-                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td class="mono">{{ (r.date ?? '').slice(0,10) }}</td>
                                 <td>{{ r.station || '' }}</td>
                                 <td>{{ r.result || '' }}</td>
                                 <td class="mono">{{ r.nextDueDate || '' }}</td>
@@ -584,7 +572,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:120px">日期</th>
+                                <th style="width:120px">違規日期</th>
                                 <th style="width:160px">地點</th>
                                 <th style="width:120px">類別</th>
                                 <th style="width:80px">記點</th>
@@ -598,7 +586,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="r in violationRows" :key="r.id">
-                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td class="mono">{{ (r.date ?? '').slice(0,10) }}</td>
                                 <td>{{ r.location || '' }}</td>
                                 <td>{{ r.category || '' }}</td>
                                 <td class="mono">{{ r.points ?? '' }}</td>
@@ -649,6 +637,7 @@
 
         // 保養
         const rows = ref([]);
+        const editingMaintId = ref(null);
         const showAdd = ref(false);
         const today = new Date();
         const form = ref({
@@ -664,6 +653,7 @@
 
         // 維修
         const showRepairAdd = ref(false);
+        const editingRepairId = ref(null);
         const repairs = ref([]);
         const createdRepair = ref(null);
         const repair = ref({
@@ -737,6 +727,74 @@
           form.value.item=''; form.value.unit=''; form.value.qty=null; form.value.amount=null; form.value.vendor=''; form.value.note='';
           await loadMaintenance();
         }
+
+            function startEditMaint(r){
+      editingMaintId.value = r.id;
+      showAdd.value = true;
+      form.value = {
+        date: r.date.slice(0,10),
+        odometer: r.odometer ?? null,
+        item: r.item,
+        unit: r.unit || '',
+        qty: r.qty ?? null,
+        amount: r.amount ?? null,
+        vendor: r.vendor || '',
+        note: r.note || ''
+      };
+    }
+
+        async function saveMaint() {
+      if (!selectedVehicleId.value) {
+        alert('請先選擇車輛');
+        return;
+      }
+      if (!form.value.item?.trim()) {
+        alert('請輸入保養項目');
+        return;
+      }
+      if (!editingMaintId.value) {
+        alert('⚠️ 沒有指定要編輯的紀錄，請先選一筆再修改');
+        return;
+      }
+
+      const plate = (vehicles.value.find(v => v.vehicleId === selectedVehicleId.value) || {}).plate || null;
+      const payload = {
+        vehicleId: selectedVehicleId.value,
+        vehiclePlate: plate,
+        date: form.value.date,
+        odometer: form.value.odometer,
+        item: form.value.item.trim(),
+        unit: form.value.unit || null,
+        qty: form.value.qty,
+        amount: form.value.amount,
+        vendor: form.value.vendor || null,
+        note: (form.value.note || '').trim() || null
+      };
+
+    if (editingMaintId.value) {
+        // 更新
+        await axios.put(`/api/maintenance/${editingMaintId.value}`, payload, { withCredentials: true });
+      } else {
+        // 新增
+        await axios.post(`/api/maintenance`, payload, { withCredentials: true });
+      }
+
+      editingMaintId.value = null;
+      showAdd.value = false;
+      form.value = {
+        date: new Date().toISOString().slice(0,10),
+        odometer: null,
+        item: '',
+        unit: '',
+        qty: null,
+        amount: null,
+        vendor: '',
+        note: ''
+      };
+      await loadMaintenance();
+    }
+
+
         async function removeMaintainance(r){
           if(!confirm('確定刪除這筆保養紀錄？')) return;
           await axios.delete('/api/maintenance/' + r.id, { withCredentials:true });
@@ -763,6 +821,52 @@
           });
           repairs.value = Array.isArray(res.data) ? res.data : [];
         }
+            function startEditRepair(r){
+      showRepairAdd.value = true;
+      editingRepairId.value = r.id;
+      repair.value = {
+        date: r.date || new Date().toISOString().slice(0,10),
+        place: '',            // 你前端是否有 place 欄位，若沒有可忽略
+        desc: r.issue || '',
+        cost: r.costEstimate ?? null,
+        vendor: '',
+        note: r.note || '',
+        odometer: null
+      };
+    }
+
+    async function saveRepair(){
+      if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+      if(!repair.value.desc?.trim()){ alert('請輸入故障描述'); return; }
+
+      const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+      const payload = {
+        vehicleId: selectedVehicleId.value,
+        plateNo: plate,
+        date: repair.value.date,
+        odometer: repair.value.odometer ?? null,
+        issue: repair.value.desc.trim(),
+        vendor: repair.value.vendor || null,
+        costEstimate: repair.value.cost ?? null,
+        note: (repair.value.note || '').trim() || null,
+        status: undefined // 不改狀態就不傳，或傳現值
+      };
+
+      if (editingRepairId.value){
+        await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, payload, { withCredentials:true });
+      } else {
+        const res = await axios.post('/api/maintenance/repair', payload, { withCredentials:true });
+        // 你的既有流程：新報修→把車改「維修中」
+        await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify("維修中"),
+          { withCredentials:true, headers:{'Content-Type':'application/json'} });
+      }
+
+      showRepairAdd.value = false;
+      editingRepairId.value = null;
+      await loadVehicleDetail();
+      await loadRepairs();
+    }
+
         async function removeRepair(id) {
           if (!confirm("確定要刪除這筆報修紀錄？")) return;
           await axios.delete(`/api/maintenance/repair/${id}`, { withCredentials: true });
@@ -1041,12 +1145,12 @@
           // 顯示
           vehicles, selectedVehicleId, vehicleDetail, tab,
           // 保養
-          rows, showAdd, form, fmtNum, fmtMoney, loadMaintenance, create, removeMaintainance,
+          rows, showAdd, form, fmtNum, fmtMoney, loadMaintenance, create, startEditMaint,removeMaintainance,
           // 車況
           setAvailable, loadVehicleDetail,
           // 維修
           showRepairAdd, toggleRepairForm, repair, submitRepair,
-          repairs, repairRows, loadRepairs, removeRepair,
+          repairs, repairRows, loadRepairs,startEditRepair, removeRepair,
           // 結果卡
           createdRepair, newRepair,
           //驗車

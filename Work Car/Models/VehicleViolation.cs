@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Cars.Models
 {
-    public class TrafficViolation
+    public class VehicleViolation
     {
         [Key]
         public int ViolationId { get; set; }

@@ -2,7 +2,7 @@
 
 namespace Cars.Models
 {
-    public class RepairRequest
+    public class VehicleRepair
     {
         [Key] public int RepairRequestId { get; set; }
         public int VehicleId { get; set; }
