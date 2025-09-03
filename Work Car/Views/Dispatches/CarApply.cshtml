@@ -491,8 +491,7 @@
                                 
                                 <div>
                                     <label>結束時間 *</label>
-                                    <input type="text" id="ArrivalDisplay" class="form-control" readonly>
-                                    <input type="hidden" id="useEnd" name="useEnd">
+                                    <input type="datetime-local" class="form-control" v-model="useEnd" readonly />
                                 </div>
                             </div>
 
@@ -692,12 +691,11 @@
               let singleDurationSec = 0;       // 單程秒數  e.g. data.rows[0].elements[0].duration.value
         let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
 
-        function formatDateTime(dt) {
-          // 輸出 yyyy/M/d HH:mm（或要含秒可自行調整）
-          const pad = n => (n < 10 ? "0" + n : "" + n);
-          return dt.getFullYear() + "/" + (dt.getMonth() + 1) + "/" + dt.getDate() +
-                 " " + pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + ":" + pad(dt.getSeconds());
+                function toLocalDateTimeString(date) {
+          const pad = n => String(n).padStart(2, "0");
+          return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
         }
+
         //日期正規化
                 function fmtDateTimeLocal(dtStr) {
           if (!dtStr) return "—";
@@ -718,13 +716,11 @@
           const secs = (tripType === "來回") ? roundTripDurationSec : singleDurationSec;
           if (!secs || secs <= 0) return;
 
-          const arrival = new Date(start.getTime() + secs * 1000);
+          
 
-          // 顯示用
-          document.getElementById("ArrivalDisplay").value = formatDateTime(arrival);
+         
 
-          // 送後端用（用 ISO 格式避免時區問題；後端用 DateTime 解析）
-          document.getElementById("useEnd").value = arrival.toISOString();
+         
         }
 
        
@@ -825,9 +821,9 @@
               const secs = (tripType.value === "round") ? roundTripDurationSec : singleDurationSec;
               if (!secs) return "";
               const arrival = new Date(start.getTime() + secs * 1000);
-              useEnd.value = arrival.toISOString(); // 同步後端用結束時間
-              return `${arrival.getFullYear()}/${arrival.getMonth()+1}/${arrival.getDate()} ${pad(arrival.getHours())}:${pad(arrival.getMinutes())}:${pad(arrival.getSeconds())}`;
-            });
+              useEnd.value = toLocalDateTimeString(arrival); // 同步後端用結束時間
+              return `${arrival.getFullYear()}/${pad(arrival.getMonth()+1)}/${pad(arrival.getDate())} ${pad(arrival.getHours())}:${pad(arrival.getMinutes())}`;
+                    });
 
             // 車輛
             const vehicles = ref([]);
@@ -973,7 +969,7 @@
                   const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
                   if (secs > 0) {
                     const arrival = new Date(start.getTime() + secs * 1000);
-                    useEnd.value = arrival.toISOString();
+                    useEnd.value = toLocalDateTimeString(arrival); // yyyy-MM-ddTHH:mm
                     showForm.value = true;
                     await loadVehicles();
                   }
@@ -1033,13 +1029,11 @@
                 vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
                 status: '待審核'
               };
-
+                if (applyFor.value === 'other' && selectedApplicantId.value) {
+                payload.applicantId = selectedApplicantId.value;
+                }
               const dto = {
                 application: payload,
-                applicantId: (applyFor.value === 'other' ? selectedApplicantId.value : null),
-                applyFor: (applyFor.value === 'other')
-                  ? (chosenName.value || '代他人')
-                  : 'self',
                 passengers: pax.map(p => ({
                   name: p.name.trim(),
                   deptTitle: p.deptTitle || null

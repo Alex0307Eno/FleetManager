@@ -303,7 +303,7 @@
                 <div class="title">汽車車歷登記卡</div>
                 <div class="toolbar">
                     <select v-model="selectedVehicleId" class="select"
-                            @@change ="() => { loadMaintenance(); loadVehicleDetail(); loadRepairs(); }">
+                            @@change="() => { loadMaintenance(); loadVehicleDetail(); loadRepairs(); loadInspections(); loadViolations(); }">
                         <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">
                             {{ v.plate }} ({{ v.status }})
                         </option>
@@ -440,7 +440,7 @@
                         <div><b>狀態：</b>{{ createdRepair.status || '待處理' }}</div>
                         <div style="margin-top:10px; display:flex; gap:8px;">
                             <button class="btn" @@click ="newRepair">再新增一筆</button>
-                            <button class="btn btn-ghost" @@click ="loadRepairs">刷新清單</button>
+                            @* <button class="btn btn-ghost" @@click ="loadRepairs">刷新清單</button> *@
                         </div>
                     </div>
                 </div>
@@ -856,6 +856,176 @@
             odometer: null
           };
         }
+            // ---- 新增：驗車 (inspection) 狀態 ----
+        const inspections = ref([]);
+        const inspectionRows = computed(() => {
+          return (inspections.value || []).map(x => ({
+            id: x.inspectionId ?? x.id,
+            date: (x.inspectionDate ?? x.date) || "",
+            station: x.station || "",
+            result: x.result || "",
+            nextDueDate: (x.nextDueDate || "") && (x.nextDueDate || "").slice(0,10),
+            odometerKm: x.odometerKm ?? x.odometer ?? null,
+            notes: x.notes || ""
+          }));
+        });
+        const showInspectionAdd = ref(false);
+        const inspectionEditId = ref(null);
+        const inspectionForm = ref({
+          date: new Date().toISOString().slice(0,10),
+          station: "",
+          result: "合格",
+          nextDueDate: "",
+          odometerKm: null,
+          notes: ""
+        });
+        function toggleInspectionForm(){
+          if (!showInspectionAdd.value) {
+            // 打開表單時重置
+            inspectionEditId.value = null;
+            inspectionForm.value = { date: new Date().toISOString().slice(0,10), station:"", result:"合格", nextDueDate:"", odometerKm:null, notes:"" };
+          }
+          showInspectionAdd.value = !showInspectionAdd.value;
+        }
+        function cancelInspection(){
+          showInspectionAdd.value = false;
+          inspectionEditId.value = null;
+        }
+        async function loadInspections(){
+          if (!selectedVehicleId.value) { inspections.value = []; return; }
+          const res = await axios.get('/api/maintenance/inspections', {
+            params: { vehicleId: selectedVehicleId.value }, withCredentials: true
+          });
+          inspections.value = Array.isArray(res.data) ? res.data : [];
+        }
+        function startEditInspection(r){
+          inspectionEditId.value = r.id;
+          showInspectionAdd.value = true;
+          inspectionForm.value = {
+            date: r.date || new Date().toISOString().slice(0,10),
+            station: r.station || "",
+            result: r.result || "合格",
+            nextDueDate: r.nextDueDate || "",
+            odometerKm: r.odometerKm ?? null,
+            notes: r.notes || ""
+          };
+        }
+        async function saveInspection(){
+          if (!selectedVehicleId.value) { alert("請先選擇車輛"); return; }
+          const payload = {
+            vehicleId: selectedVehicleId.value,
+            inspectionDate: inspectionForm.value.date,
+            station: inspectionForm.value.station || null,
+            result: inspectionForm.value.result || "合格",
+            nextDueDate: inspectionForm.value.nextDueDate || null,
+            odometerKm: inspectionForm.value.odometerKm ?? null,
+            notes: inspectionForm.value.notes || null
+          };
+          if (!inspectionEditId.value) {
+            await axios.post('/api/maintenance/inspections', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
+          } else {
+            await axios.put(`/api/maintenance/inspections/${inspectionEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
+          }
+          showInspectionAdd.value = false;
+          inspectionEditId.value = null;
+          await loadInspections();
+        }
+        async function removeInspection(id){
+          if (!confirm("確定刪除此筆驗車紀錄？")) return;
+          await axios.delete(`/api/maintenance/inspections/${id}`, { withCredentials:true });
+          await loadInspections();
+        }
+
+        // ---- 新增：違規 (violation) 狀態 ----
+        const violations = ref([]);
+        const violationRows = computed(() => {
+          return (violations.value || []).map(x => ({
+            id: x.violationId ?? x.id,
+            date: (x.violationDate ?? x.date) || "",
+            location: x.location || "",
+            category: x.category || "",
+            points: x.points ?? null,
+            fineAmount: x.fineAmount ?? null,
+            status: x.status || "",
+            dueDate: (x.dueDate || "") && (x.dueDate || "").slice(0,10),
+            paidDate: (x.paidDate || "") && (x.paidDate || "").slice(0,10),
+            notes: x.notes || ""
+          }));
+        });
+        const showViolationAdd = ref(false);
+        const violationEditId = ref(null);
+        const violationForm = ref({
+          date: new Date().toISOString().slice(0,10),
+          location: "",
+          category: "",
+          points: null,
+          fineAmount: null,
+          status: "未繳",
+          dueDate: "",
+          paidDate: "",
+          notes: ""
+        });
+        function toggleViolationForm(){
+          if (!showViolationAdd.value) {
+            violationEditId.value = null;
+            violationForm.value = { date:new Date().toISOString().slice(0,10), location:"", category:"", points:null, fineAmount:null, status:"未繳", dueDate:"", paidDate:"", notes:"" };
+          }
+          showViolationAdd.value = !showViolationAdd.value;
+        }
+        function cancelViolation(){
+          showViolationAdd.value = false;
+          violationEditId.value = null;
+        }
+        async function loadViolations(){
+          if (!selectedVehicleId.value) { violations.value = []; return; }
+          const res = await axios.get('/api/maintenance/violations', {
+            params: { vehicleId: selectedVehicleId.value }, withCredentials: true
+          });
+          violations.value = Array.isArray(res.data) ? res.data : [];
+        }
+        function startEditViolation(r){
+          violationEditId.value = r.id;
+          showViolationAdd.value = true;
+          violationForm.value = {
+            date: r.date || new Date().toISOString().slice(0,10),
+            location: r.location || "",
+            category: r.category || "",
+            points: r.points ?? null,
+            fineAmount: r.fineAmount ?? null,
+            status: r.status || "未繳",
+            dueDate: r.dueDate || "",
+            paidDate: r.paidDate || "",
+            notes: r.notes || ""
+          };
+        }
+        async function saveViolation(){
+          if (!selectedVehicleId.value) { alert("請先選擇車輛"); return; }
+          const payload = {
+            vehicleId: selectedVehicleId.value,
+            violationDate: violationForm.value.date,
+            location: violationForm.value.location || null,
+            category: violationForm.value.category || null,
+            points: violationForm.value.points ?? null,
+            fineAmount: violationForm.value.fineAmount ?? null,
+            status: violationForm.value.status || "未繳",
+            dueDate: violationForm.value.dueDate || null,
+            paidDate: violationForm.value.paidDate || null,
+            notes: violationForm.value.notes || null
+          };
+          if (!violationEditId.value) {
+            await axios.post('/api/maintenance/violations', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
+          } else {
+            await axios.put(`/api/maintenance/violations/${violationEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
+          }
+          showViolationAdd.value = false;
+          violationEditId.value = null;
+          await loadViolations();
+        }
+        async function removeViolation(id){
+          if (!confirm("確定刪除此筆違規紀錄？")) return;
+          await axios.delete(`/api/maintenance/violations/${id}`, { withCredentials:true });
+          await loadViolations();
+        }
 
         // init
         onMounted(async ()=>{
@@ -863,6 +1033,8 @@
           await loadMaintenance();
           await loadVehicleDetail();
           await loadRepairs();
+          await loadInspections();
+          await loadViolations();
         });
 
         return {
@@ -876,7 +1048,16 @@
           showRepairAdd, toggleRepairForm, repair, submitRepair,
           repairs, repairRows, loadRepairs, removeRepair,
           // 結果卡
-          createdRepair, newRepair
+          createdRepair, newRepair,
+          //驗車
+          inspections, inspectionRows, showInspectionAdd, inspectionForm,
+          inspectionEditId, toggleInspectionForm, cancelInspection,
+          loadInspections, startEditInspection, saveInspection, removeInspection,
+
+          //違規
+          violations, violationRows, showViolationAdd, violationForm,
+          violationEditId, toggleViolationForm, cancelViolation,
+          loadViolations, startEditViolation, saveViolation, removeViolation
         };
       }
     }).mount('#app');

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Controllers
 {
+    [Authorize]
     [Authorize(Roles = "Admin")]
     public class ViolationsController : Controller
     {
