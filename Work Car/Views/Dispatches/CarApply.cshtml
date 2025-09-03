@@ -578,7 +578,20 @@
         </form>
     </div>
 
-
+    <script>
+        // 產生 Places Per-Session token
+        function createPlacesSessionToken(){
+          if (window.crypto?.randomUUID) return crypto.randomUUID();
+          return Date.now().toString(36) + Math.random().toString(36).slice(2);
+        }
+                const placeSessionTokens = { orig: null, dest: null };
+        function getOrCreateToken(which){
+          // 需要現代瀏覽器；若要兼容可換簡單 GUID 產生器
+          if (!placeSessionTokens[which]) placeSessionTokens[which] = crypto.randomUUID();
+          return placeSessionTokens[which];
+        }
+        function endToken(which){ placeSessionTokens[which] = null; }
+    </script>
     <script>
         // 解析 "(lat,lng)" 或 "lat,lng"
         function parseLatLngText(text){
@@ -591,29 +604,37 @@
           if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
           return { lat, lng };
         }
-
+           //sessionToken 每次新的輸入流程時更新
+        let sessionToken = null;
+        function newSessionToken() {
+          sessionToken = crypto.randomUUID(); // 產生唯一 token
+        }
         // 下拉選單（1 秒防抖、含鍵盤操作）
         function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 1000) {
           const input = document.getElementById(inputId);
           const drop  = document.getElementById(dropdownId);
           if (!input || !drop) return;
 
-          // 🔥 把 dropdown 移到 <body>
           document.body.appendChild(drop);
 
-          // 🔥 動態定位 dropdown
+          // === 新增：Session Token 管理 ===
+          let sessionToken = null;
+          const ensureToken = () => (sessionToken ??= (crypto?.randomUUID?.() || String(Date.now())+Math.random()));
+          const endSession = () => { sessionToken = null; }; // 選取完成或長時間不操作後重置
+
           function positionDropdown() {
             const rect = input.getBoundingClientRect();
             drop.style.position = "absolute";
             drop.style.top  = rect.bottom + window.scrollY + "px";
             drop.style.left = rect.left + window.scrollX + "px";
-            drop.style.width = rect.width + "px"; // 和輸入框等寬
+            drop.style.width = rect.width + "px";
           }
 
           let timer = null;
-          function showLoading(){ drop.innerHTML = '<div class="ac-empty">搜尋中…</div>'; drop.style.display = 'block'; positionDropdown(); }
-          function showEmpty(msg = '找不到建議'){ drop.innerHTML = `<div class="ac-empty">${msg}</div>`; drop.style.display='block'; positionDropdown(); }
+          function showLoading(){ drop.innerHTML = '<div class="ac-empty">搜尋中…</div>'; drop.style.display='block'; positionDropdown(); }
+          function showEmpty(msg='找不到建議'){ drop.innerHTML = `<div class="ac-empty">${msg}</div>`; drop.style.display='block'; positionDropdown(); }
           function hide(){ drop.style.display='none'; drop.innerHTML=''; }
+
           function render(items, onPick){
             drop.innerHTML = '';
             if (!items || !items.length){ showEmpty(); return; }
@@ -628,6 +649,7 @@
             drop.style.display = 'block';
             positionDropdown();
           }
+
           function moveActive(dir){
             const items = Array.from(drop.querySelectorAll('.ac-item'));
             if (!items.length) return;
@@ -636,46 +658,96 @@
             items.forEach(x=>x.classList.remove('active'));
             items[idx].classList.add('active');
           }
-          function pickActive(onPick){
-            const el = drop.querySelector('.ac-item.active');
-            if (!el) return;
-            onPick({ id: el.dataset.id || '', text: el.textContent });
+
+          async function pick(item){
+            // === 新增：選取後打 Place Details（同一個 sessionToken）===
+            try{
+              if (item.id) {
+                const url = `/api/places/details/${encodeURIComponent(item.id)}?sessionToken=${encodeURIComponent(sessionToken||'')}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                const name = data?.displayName?.text || item.text || '';
+                input.value = name; // 寫回輸入框
+                hide();
+                console.log('token', sessionToken)
+                // 把座標與顯示文字回傳給外面（Vue v-model）
+                const lat = data?.location?.latitude ?? data?.location?.lat ?? null;
+                const lng = data?.location?.longitude ?? data?.location?.lng ?? null;
+                if (typeof callback === 'function') {
+                  callback({ id: data?.id || item.id, text: name, lat, lng, raw: data });
+                }
+              } else {
+                // 沒 placeId（例如是「(lat,lng)」輸入），直接回傳
+                input.value = item.text;
+                hide();
+                if (typeof callback === 'function') callback(item);
+              }
+            } finally {
+              // 重要：這次 session 結束，重置 token
+              endSession();
+              // 讓 v-model 也收到 change
+              input.dispatchEvent(new Event('change', { bubbles:true }));
+            }
           }
-          function pick(item){
-            input.value = item.text;
-            hide();
-            if (typeof callback === 'function') callback({ id:item.id||'', text:item.text });
-            input.dispatchEvent(new Event('change', { bubbles:true }));
-          }
+
+          function pickActive(){ const el = drop.querySelector('.ac-item.active'); if (!el) return; pick({ id: el.dataset.id || '', text: el.textContent }); }
+
+          input.addEventListener('focus', ()=>{ ensureToken(); positionDropdown(); });
 
           input.addEventListener('input', ()=>{
             const q = input.value.trim();
             clearTimeout(timer);
             hide();
-            if (!q || q.length < 2) return; // 至少 2 字才查
+            if (!q || q.length < 3) return; // 至少 3 字
             timer = setTimeout(async ()=>{
+              // 允許輸入 "(lat,lng)" 直填
               const parsed = parseLatLngText(q);
               if (parsed){ hide(); if (typeof callback==='function'){ callback({ id:'', text:q, lat:parsed.lat, lng:parsed.lng }); } return; }
+
               showLoading();
-              let data = null;
               try {
-                const res = await fetch('/api/places/autocomplete', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ input:q }) });
+                ensureToken();
+             if (!window.sessionToken) {
+             window.sessionToken = crypto.randomUUID(); // 或其他方式產生唯一字串
+             }
+
+             console.log('token', window.sessionToken);
+                const res = await fetch('/api/places/autocomplete', {
+                  method:'POST',
+                  headers:{ 'Content-Type':'application/json' },
+                            body: JSON.stringify({ input: q, sessionToken, regionCode: "TW","locationRestriction": {
+                   "rectangle": {
+                     "low": { "latitude": 21.8, "longitude": 119.3 },   // 台灣西南角
+                     "high": { "latitude": 25.3, "longitude": 122.1 }   // 台灣東北角
+                   }
+                 } })
+                });
                 const raw = await res.text();
-                try { data = JSON.parse(raw); } catch { data = null; }
-                if (!res.ok){ drop.innerHTML = `<div class='ac-empty'>⚠ 服務錯誤：HTTP ${res.status}</div>`; drop.style.display='block'; positionDropdown(); return; }
+                let data; try { data = JSON.parse(raw); } catch{ data = null; }
+
+                if (!res.ok){
+                  drop.innerHTML = `<div class='ac-empty'>⚠ 服務錯誤：HTTP ${res.status}</div>`;
+                  drop.style.display = 'block'; positionDropdown(); return;
+                }
+
                 const items = (data?.suggestions||[]).map(s=>{
                   const pp = s.placePrediction;
                   const text = pp?.text?.text || '';
                   const id   = pp?.placeId || '';
                   return text ? { id, text } : null;
                 }).filter(Boolean);
+
                 render(items, pick);
-              } catch(err){ console.error('[places autocomplete] 例外：', err); showEmpty('⚠ 連線異常，請稍後再試'); }
+              } catch(err){
+                console.error('[places autocomplete] 例外：', err);
+                showEmpty('⚠ 連線異常，請稍後再試');
+              }
             }, idleMs);
           });
 
           input.addEventListener('keydown', (e)=>{
-            if (e.key==='Enter'){ e.preventDefault(); if (drop.style.display==='block'){ pickActive(pick); } return false; }
+            if (e.key==='Enter'){ e.preventDefault(); if (drop.style.display==='block'){ pickActive(); } return false; }
             if (e.key==='ArrowDown'){ e.preventDefault(); moveActive(+1); }
             else if (e.key==='ArrowUp'){ e.preventDefault(); moveActive(-1); }
             else if (e.key==='Escape'){ hide(); }
@@ -683,13 +755,13 @@
 
           document.addEventListener('click', (e)=>{ if (!drop.contains(e.target) && e.target!==input) hide(); });
 
-          // 🔥 當 input 聚焦 / 視窗移動時重算位置
-          input.addEventListener("focus", positionDropdown);
-          window.addEventListener("resize", positionDropdown);
-          window.addEventListener("scroll", positionDropdown);
+          input.addEventListener('blur', ()=>{ /* 也可加個延遲再 endSession()，看 UX 需求 */ });
+          window.addEventListener('resize', positionDropdown);
+          window.addEventListener('scroll', positionDropdown);
         }
-              let singleDurationSec = 0;       // 單程秒數  e.g. data.rows[0].elements[0].duration.value
-        let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
+    
+    let singleDurationSec = 0;       // 單程秒數
+                let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
 
                 function toLocalDateTimeString(date) {
           const pad = n => String(n).padStart(2, "0");
@@ -1066,17 +1138,15 @@
             const roundTripDuration = ref("");
 
             // ----- 初始化 -----
-            onMounted(() => {
-              // 你的地點自動完成功能
-              initPlacesAutocompleteDebounced(
-                { onOrigin: (p) => { origin.value = p.text; }, onDestination: (p) => { destination.value = p.text; } },
-                { idleMs: 1000 }
-              );
+        onMounted(() => {
+          attachPlacesAutocomplete("orig", "ac-orig", (p)=>{ origin.value = p.text; }, 800, 'orig');
+          attachPlacesAutocomplete("dest", "ac-dest", (p)=>{ destination.value = p.text; }, 800, 'dest');
 
-              loadApplicant();
-              loadVehicles();
-              if (applyFor.value === "other") loadApplicants();
-            });
+          loadApplicant();
+          loadVehicles();
+          if (applyFor.value === "other") loadApplicants();
+        });
+
 
             // ----- 對外暴露 -----
             return {

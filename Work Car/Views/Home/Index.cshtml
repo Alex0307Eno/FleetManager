@@ -847,52 +847,63 @@
                 <circle cx="326" cy="310" r="22" fill="#1f2937"/>
               </svg>`;
           }
+          // 全域快取
+          const miniMapCache = new Map();
+                  function renderMyMaps() {
+          driverCards.value.forEach((card, i) => {
+            const el = document.getElementById('gmap_' + i);
+            if (!el) return;
 
-          async function renderMyMaps(){
-            try{
-              await loadGoogleMaps();
-              const myCenter = (typeof myLoc!=='undefined' && myLoc.value && Number.isFinite(+myLoc.value.lat) && Number.isFinite(+myLoc.value.lng))
-                ? { lat: +myLoc.value.lat, lng: +myLoc.value.lng }
-                : { lat: 25.033964, lng: 121.564468 }; // 台北101
+            // 狀態樣式
+            if (card.statusType === 'idle') el.classList.add('idle');
+            else el.classList.remove('idle');
 
-              driverCards.value.forEach((card, i) => {
-                const el = document.getElementById('gmap_'+i);
-                if (!el) return;
+            if (card.statusType === 'break') el.classList.add('break');
+            else el.classList.remove('break');
 
-                // 清掉舊內容
-                el.replaceChildren();
+            // 座標
+            const hasLat = Number.isFinite(+card.lat), hasLng = Number.isFinite(+card.lng);
+            const pos = (hasLat && hasLng)
+              ? { lat:+card.lat, lng:+card.lng }
+              : { lat:25.033964, lng:121.564468 }; // fallback 台北101
 
-                // 待機就加暗（.gmap.idle），執勤就移除
-                if (card.statusType === 'idle') el.classList.add('idle');
-                else el.classList.remove('idle');
-                //休息(灰色)
-                if (card.statusType === 'break') el.classList.add('break');
-                else el.classList.remove('break');
-                // 座標（沒有就用 myCenter）
-                const hasLat = Number.isFinite(+card.lat), hasLng = Number.isFinite(+card.lng);
-                const pos = (hasLat && hasLng) ? { lat:+card.lat, lng:+card.lng } : myCenter;
-
-                // ✅ 不用 mapId，改用 styles
-                const map = new google.maps.Map(el, {
-                  center: pos,
-                  zoom: 16,
-                  disableDefaultUI: true,
-                  mapId:"add29920b46056c38796ff49"
-                });
-
-                // 執勤中才顯示橘色小汽車；待機不放 marker
-                if (card.statusType === 'on') {
-                  const markerEl = document.createElement('div');
-                  markerEl.innerHTML = carSVG('#f97316'); // 橘色
-                  new google.maps.marker.AdvancedMarkerElement({
-                    map, position: pos, content: markerEl
-                  });
-                }
+            // 地圖快取
+            let mapObj = miniMapCache.get(i);
+            if (!mapObj) {
+              const map = new google.maps.Map(el, {
+                center: pos,
+                zoom: 16,
+                disableDefaultUI: true,
+                mapId: "add29920b46056c38796ff49"
               });
-            }catch(e){
-              console.error('renderMyMaps 失敗：', e);
+              mapObj = { map, marker: null };
+              miniMapCache.set(i, mapObj);
             }
-          }
+
+            // 更新中心
+            mapObj.map.setCenter(pos);
+
+            // Marker 邏輯
+            if (card.statusType === 'on') {
+              if (!mapObj.marker) {
+                const markerEl = document.createElement('div');
+                markerEl.innerHTML = carSVG('#f97316'); // 橘色車子
+                mapObj.marker = new google.maps.marker.AdvancedMarkerElement({
+                  map: mapObj.map,
+                  position: pos,
+                  content: markerEl
+                });
+              } else {
+                mapObj.marker.position = pos;
+              }
+            } else {
+              if (mapObj.marker) {
+                mapObj.marker.map = null;
+                mapObj.marker = null;
+              }
+            }
+          });
+        }
 
 
 
@@ -1089,8 +1100,8 @@
           // 班別轉換
           const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();
           let label='一般', cls='general';
-          if(rawShift==='AM'){ label='早班'; cls='am'; }
-          else if(rawShift==='PM'){ label='午班'; cls='pm'; }
+          if(rawShift==='AM'){ label='早午'; cls='am'; }
+          else if(rawShift==='PM'){ label='午晚'; cls='pm'; }
           else if(rawShift==='G1'||rawShift==='G2'||rawShift==='G3'){ label='一般'; cls='general'; }
 
           const pad = (n) => n.toString().padStart(2,'0');
