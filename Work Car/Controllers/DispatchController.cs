@@ -22,7 +22,7 @@ namespace Cars.Controllers
         }
 
         // 取得派車單列表
-        [Authorize(Roles = "Admin,Applicant")]
+        [Authorize(Roles = "Admin,Applicant,Manager")]
         [HttpGet("list")]
         public async Task<IActionResult> GetList()
         {

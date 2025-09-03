@@ -89,7 +89,9 @@ namespace Cars.Controllers
                 var role = user.Role ?? "User";
                 string redirectUrl = role == "Admin" ? Url.Action("Index", "Home") :
                                      role == "Driver" ? Url.Action("Record", "Dispatches") :
-                                     role == "Applicant" ? Url.Action("Dispatch", "Dispatches") : null;
+                                     role == "Applicant" ? Url.Action("Dispatch", "Dispatches") :
+                                     role == "Manager" ? Url.Action("Dispatch", "Dispatches")
+                                     : null;
 
                 if (redirectUrl == null) return Forbid();
                 return Ok(new

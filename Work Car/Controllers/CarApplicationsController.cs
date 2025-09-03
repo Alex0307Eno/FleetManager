@@ -15,7 +15,7 @@ namespace Cars.Controllers
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin,Applicant")]
+    [Authorize(Roles = "Admin,Applicant,Manager")]
     public class CarApplicationsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -287,7 +287,7 @@ namespace Cars.Controllers
             return Ok(list);
         }
         // 取得全部申請單
-        [Authorize(Roles = "Admin,Applicant")]
+        [Authorize(Roles = "Admin,Applicant,Manager")]
         [HttpGet]
         public async Task<IActionResult> GetAll(
      [FromQuery] DateTime? dateFrom,
@@ -302,7 +302,7 @@ namespace Cars.Controllers
                 .AsQueryable();
 
             // 如果不是 Admin，就只能看自己
-            if (!User.IsInRole("Admin"))
+            if (!(User.IsInRole("Manager") || User.IsInRole("Admin")))
             {
                 var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (!int.TryParse(uidStr, out var userId))
