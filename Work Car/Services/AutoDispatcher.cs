@@ -99,13 +99,26 @@ namespace Cars.Services
     bool inEarlyWindow     = OverlapWin(localStart, localEnd, T0730, T1130);  // 07:30–11:30
     bool inAfternoonWindow = OverlapWin(localStart, localEnd, T1330, T1700);  // 13:30–17:00
 
-    // === 長差判斷（距離優先，其次 vehicleType 標記） ===
-    bool isLongTrip = (options.DistanceKm.HasValue && options.DistanceKm.Value > 30)
-        || string.Equals(vehicleType, "長差", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(vehicleType, "long",   StringComparison.OrdinalIgnoreCase);
+            var apply = await _db.CarApplications
+             .AsNoTracking()
+             .FirstOrDefaultAsync(x => x.ApplyId == carApplyId);
+
+            bool isLongTrip = false;
+
+            if (apply != null)
+            {
+                // 優先用 RoundTripDistance，沒有就用 SingleDistance
+                double km = 0;
+                if (!string.IsNullOrEmpty(apply.RoundTripDistance))
+                    double.TryParse(apply.RoundTripDistance.Replace(" 公里", ""), out km);
+                else if (!string.IsNullOrEmpty(apply.SingleDistance))
+                    double.TryParse(apply.SingleDistance.Replace(" 公里", ""), out km);
+
+                isLongTrip = km > 30;   // ★ 超過 30 公里就是長差
+            }
 
             // === 產生派車優先順序：G3 視為「長差班」第一順位 ===
-    var chain = BuildShiftChain(useStart, isLongTrip);
+            var chain = BuildShiftChain(useStart, isLongTrip);
     var early = new[] { "AM", "G1" }; // 早午
     var aft   = new[] { "PM", "G2" }; // 午晚
 
@@ -123,8 +136,7 @@ namespace Cars.Services
         else                        chain.AddRange(early.Concat(aft));
     }
 
-    // 全域備援（不含 G3，避免非長差跑到長差班）
-    chain.AddRange(new[] { "AM", "PM", "G1", "G2" });
+    chain.AddRange(new[] { "AM", "PM", "G1", "G2","G3" });
     chain = chain.Distinct().ToList();
 
     using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
@@ -220,9 +232,57 @@ namespace Cars.Services
                 }
             }
         }
+                // ★ 先找這張申請單是否已經有派工（未取消/未完成的最新一筆）
+                var existing = await _db.Dispatches
+                    .Where(d => d.ApplyId == carApplyId && d.DispatchStatus != "已取消")
+                    .OrderByDescending(d => d.DispatchId)
+                    .FirstOrDefaultAsync();
 
-        // 4) 寫入派工：Driver 一定會有；Vehicle 視 DriverOnly 而定
-        var dispatch = new Cars.Models.Dispatch
+                if (existing != null)
+                {
+                    // 補司機
+                    if (existing.DriverId == null)
+                        existing.DriverId = schedule.DriverId;
+
+                    // 如本次為「要派車」且原派工未指派車，補車輛
+                    if (!options.DriverOnly && existing.VehicleId == null)
+                    {
+                        // 這兩個變數就是你後面本來就算出的結果
+                        existing.VehicleId = chosenVehicleId;
+                        existing.DispatchStatus = "已派車";
+                    }
+                    else if (existing.DispatchStatus != "已派車")
+                    {
+                        existing.DispatchStatus = "已派駕駛";
+                    }
+
+                    // 同步長差標記
+                    existing.IsLongTrip = isLongTrip;
+
+                    _db.Dispatches.Update(existing);
+                    await _db.SaveChangesAsync();
+                    await tx.CommitAsync();
+
+                    // 回傳既有派工的結果（讓前端能顯示車牌）
+                    var driverName2 = await _db.Drivers
+                        .Where(d => d.DriverId == existing.DriverId)
+                        .Select(d => d.DriverName)
+                        .FirstOrDefaultAsync();
+
+                    return new DispatchResult
+                    {
+                        Success = true,
+                        Message = (!options.DriverOnly && existing.VehicleId != null) ? "已派車（沿用既有派工）" : "已派駕駛（沿用既有派工）",
+                        DriverId = existing.DriverId,
+                        VehicleId = existing.VehicleId,
+                        DriverName = driverName2,
+                        PlateNo = chosenPlate
+                    };
+                }
+
+
+                // 4) 寫入派工：Driver 一定會有；Vehicle 視 DriverOnly 而定
+                var dispatch = new Cars.Models.Dispatch
         {
             ApplyId        = carApplyId,
             DriverId       = schedule.DriverId,

@@ -529,7 +529,9 @@
               status: "完成審核"
             });
             alert("✅ 已成功審核通過");
+            
             p.status = "完成審核";
+            await loadTodaySchedule();
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
           } catch (err) {
             console.error("❌ approve error:", err);

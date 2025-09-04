@@ -105,7 +105,7 @@
                                 {
                                 <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
                                 }
-                                <button v-if="r.status !== '完成審核'" class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
+                                <button  class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>
                         <tr v-if="!loading && filtered.length===0">

@@ -42,23 +42,44 @@ namespace Cars.Controllers
         public async Task<IActionResult> TodaySchedule()
         {
             var today = DateTime.Today;
+            // 預先用參數建立班別對應時間，避免在查詢內呼叫 AddHours 造成轉譯問題
+            var tEarly = today.AddHours(8);                 // 早班 08:00
+            var tMid = today.AddHours(12);                // 中班 12:00
+            var tLate = today.AddHours(18);                // 晚班 18:00
+            var tEnd = today.AddHours(23).AddMinutes(59); // 其他/未知 -> 最後
 
             var list = await (
                 from s in _db.Schedules
                 where s.WorkDate == today
                 join d in _db.Drivers on s.DriverId equals d.DriverId
+
+                // 取該司機今天的派工（可為空）
                 join dis0 in _db.Dispatches on s.DriverId equals dis0.DriverId into disGroup
                 from dis in disGroup
                     .Where(x => x.StartTime.HasValue && x.StartTime.Value.Date == today)
                     .OrderBy(x => x.StartTime)
                     .DefaultIfEmpty()
+
+                    // 派工 -> 申請單 -> 申請人 / 車輛（都可能為空）
                 join a0 in _db.CarApplications on dis.ApplyId equals a0.ApplyId into aa
                 from a in aa.DefaultIfEmpty()
                 join v0 in _db.Vehicles on dis.VehicleId equals v0.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
                 join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
-                orderby s.Shift, dis.StartTime
+
+                    // ★ 核心排序鍵：有 StartTime 用 StartTime；否則用班別預設時間
+                let sortTime =
+                    (dis != null && dis.StartTime.HasValue)
+                        ? dis.StartTime.Value
+                        : (s.Shift == "早" ? tEarly
+                         : s.Shift == "中" ? tMid
+                         : s.Shift == "晚" ? tLate
+                         : tEnd)
+
+                // 由早到晚；再以 DispatchId 穩定排序（無派工排在最後）
+                orderby sortTime, (dis != null ? dis.DispatchId : int.MaxValue)
+
                 select new
                 {
                     scheduleId = s.ScheduleId,
@@ -70,13 +91,11 @@ namespace Cars.Controllers
                     startTime = (DateTime?)(dis != null ? dis.StartTime : null),
                     endTime = (DateTime?)(dis != null ? dis.EndTime : null),
 
-                    // ★ a 可能為 null，所以用 a != null 判斷
                     route = (a != null) ? ((a.Origin ?? "") + "-" + (a.Destination ?? "")) : "",
 
                     applicantName = ap != null ? ap.Name : null,
                     applicantDept = ap != null ? ap.Dept : null,
 
-                    // ★ 避免把 null 投到非可空型別
                     passengerCount = (a != null ? a.PassengerCount : 0),
 
                     plateNo = v != null ? v.PlateNo : null,
@@ -306,7 +325,9 @@ namespace Cars.Controllers
                 where (d.DispatchStatus != "已完成"
                        || d.DriverId == null || d.VehicleId == null || d.DispatchStatus == "待派車")
                       && a.UseEnd.Date == today && a.UseEnd > DateTime.Now
-                orderby a.UseStart
+                orderby a.UseStart,
+                a.UseEnd,             
+                d.DispatchId
                 select new
                 {
                     d.DispatchId,
@@ -378,6 +399,7 @@ namespace Cars.Controllers
                     ApplicantName = ap != null ? ap.Name : null,   
                     a.PassengerCount,
                     a.TripType,
+                    a.VehicleId,
                     a.SingleDistance,
                     a.RoundTripDistance,
                     a.SingleDuration,

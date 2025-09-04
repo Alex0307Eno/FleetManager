@@ -129,29 +129,38 @@ namespace Cars.Controllers.Api
             var rawRows = await q.ToListAsync();
 
             // EF 抓完再轉 DTO
-            var rows = rawRows.Select(x => new RecordDto
+            var rows = rawRows.Select(x =>
             {
-                Id = x.DispatchId,
-                ApplyId = x.ApplyId,
-                UseStart = x.UseStart,
-                UseEnd = x.UseEnd,
-                Route = string.Join(" - ", new[] { x.Origin, x.Destination }
-                                        .Where(s => !string.IsNullOrWhiteSpace(s))),
-                ReasonType = x.ReasonType,
-                Reason = x.ApplyReason,
-                Applicant = x.ApplicantName,
-                Seats = x.PassengerCount,
-                Km = x.TripType == "single"
-                ? ParseDistance(x.SingleDistance):x.TripType == "round"
-                ? ParseDistance(x.RoundTripDistance):0,
-                Status = x.Status,
-                Driver = x.DriverName,
-                DriverId = x.DriverId,
-                Plate = x.PlateNo,
-                VehicleId = x.VehicleId,
-                LongShort = x.TripType == "single" ? "短差"
-                           : x.TripType == "round" ? "長差"
-                           : null
+                // 先算出公里數
+                decimal km = 0;
+                if (x.TripType == "single")
+                    km = ParseDistance(x.SingleDistance);
+                else if (x.TripType == "round")
+                    km = ParseDistance(x.RoundTripDistance);
+
+                // 判斷長/短差
+                string longShort = km > 30 ? "長差" : "短差";
+
+                return new RecordDto
+                {
+                    Id = x.DispatchId,
+                    ApplyId = x.ApplyId,
+                    UseStart = x.UseStart,
+                    UseEnd = x.UseEnd,
+                    Route = string.Join(" - ", new[] { x.Origin, x.Destination }
+                                                .Where(s => !string.IsNullOrWhiteSpace(s))),
+                    ReasonType = x.ReasonType,
+                    Reason = x.ApplyReason,
+                    Applicant = x.ApplicantName,
+                    Seats = x.PassengerCount,
+                    Km = km,
+                    Status = x.Status,
+                    Driver = x.DriverName,
+                    DriverId = x.DriverId,
+                    Plate = x.PlateNo,
+                    VehicleId = x.VehicleId,
+                    LongShort = longShort
+                };
             }).ToList();
 
             return Ok(rows);

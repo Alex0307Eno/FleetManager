@@ -24,6 +24,7 @@ namespace Cars.Controllers
         // 取得派車單列表
         [Authorize(Roles = "Admin,Applicant,Manager")]
         [HttpGet("list")]
+        [HttpGet("list")]
         public async Task<IActionResult> GetList()
         {
             // 取得目前登入者
@@ -44,17 +45,11 @@ namespace Cars.Controllers
                         .FirstOrDefaultAsync();
 
                     if (myApplicantId.HasValue)
-                    {
                         query = query.Where(o => o.ApplicantId == myApplicantId.Value);
-                    }
                     else if (!string.IsNullOrEmpty(userName))
-                    {
                         query = query.Where(o => o.ApplicantName == userName);
-                    }
                     else
-                    {
                         return Ok(Array.Empty<object>());
-                    }
                 }
                 else if (!string.IsNullOrEmpty(userName))
                 {
@@ -66,17 +61,18 @@ namespace Cars.Controllers
                 }
             }
 
-            // ✅ 補齊車牌與駕駛姓名：o.PlateNo / o.DriverName 若為 null，就用關聯表補
-            var data = await (
+            // 先把原始資料取回（含申請單的 Trip/距離）
+            var raw = await (
                 from o in query
                 join v0 in _db.Vehicles on o.VehicleId equals v0.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
                 join d0 in _db.Drivers on o.DriverId equals d0.DriverId into dd
                 from dr in dd.DefaultIfEmpty()
+                join a0 in _db.CarApplications on o.ApplyId equals a0.ApplyId into aa
+                from a in aa.DefaultIfEmpty()
                 select new
                 {
                     o.VehicleId,
-                    // 前端可用任一；兩個欄位都給，避免大小寫或命名不一致
                     PlateNo = (o.PlateNo ?? v.PlateNo) ?? "未指派",
                     Plate = (o.PlateNo ?? v.PlateNo) ?? "未指派",
 
@@ -93,11 +89,57 @@ namespace Cars.Controllers
                     o.UseTime,
                     o.Route,
                     o.Reason,
-                    o.TripDistance,
-                    o.TripType,
+
+                    // 兩邊的 Trip/距離都帶回來，稍後在記憶體端判斷
+                    O_TripType = o.TripType,
+                    O_TripDistance = o.TripDistance,
+                    A_TripType = a != null ? a.TripType : null,
+                    A_SingleDistance = a != null ? a.SingleDistance : null,
+                    A_RoundTripDistance = a != null ? a.RoundTripDistance : null,
+
                     o.Status
                 }
-            ).ToListAsync();
+            ).ToListAsync();  // ← 先落地到記憶體
+
+            // 在記憶體端依 TripType 組合「最終要顯示的距離」
+            var data = raw.Select(x =>
+            {
+                // 1) 先決定有效的 TripType（優先用申請單）
+                var t = string.IsNullOrWhiteSpace(x.A_TripType) ? x.O_TripType : x.A_TripType;
+                var tNorm = (t ?? "").Trim().ToLowerInvariant();
+                bool isSingle =
+                    tNorm == "單程" || tNorm == "single" || tNorm == "oneway" || tNorm == "one-way";
+
+                // 2) 依 TripType 選距離；若申請單沒填，退回舊欄位 o.TripDistance
+                var kmRaw = isSingle
+                    ? (string.IsNullOrWhiteSpace(x.A_SingleDistance) ? x.O_TripDistance : x.A_SingleDistance)
+                    : (string.IsNullOrWhiteSpace(x.A_RoundTripDistance) ? x.O_TripDistance : x.A_RoundTripDistance);
+
+                var kmText = string.IsNullOrWhiteSpace(kmRaw) ? "" :
+                             (kmRaw.Contains("公里") ? kmRaw : kmRaw + " 公里");
+
+                return new
+                {
+                    x.VehicleId,
+                    x.PlateNo,
+                    x.Plate,
+                    x.DriverId,
+                    x.DriverName,
+                    x.ApplyId,
+                    x.ApplicantId,
+                    x.ApplicantName,
+                    x.ApplicantDept,
+                    x.PassengerCount,
+                    x.UseDate,
+                    x.UseTime,
+                    x.Route,
+                    x.Reason,
+
+                    tripDistance = kmText,   // ← 前端用這個顯示
+                    tripType = t,            // ← 若要顯示原始 TripType 也給你
+                    x.Status
+                };
+            }).ToList();
 
             return Ok(data);
         }

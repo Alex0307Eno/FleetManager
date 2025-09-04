@@ -494,6 +494,14 @@ namespace Cars.Controllers
             var app = await _context.CarApplications.FirstOrDefaultAsync(x => x.ApplyId == id);
             if (app == null) return NotFound();
 
+            // 小工具：把「12.3 公里」→ 12.3；其它非數字/小數點去掉
+            decimal ParseKm(string s)
+            {
+                if (string.IsNullOrWhiteSpace(s)) return 0m;
+                var raw = new string(s.Where(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray());
+                return decimal.TryParse(raw, out var km) ? km : 0m;
+            }
+
             var newStatus = dto.Status.Trim();
 
             if (newStatus == "完成審核")
@@ -518,30 +526,85 @@ namespace Cars.Controllers
                 if (!hasDriver || !hasVehicle)
                     return Conflict(new { message = "目前沒有可派司機或車輛，無法核准為「完成審核」。" });
 
-                // 2) 判斷是否長差（>30km 或你的規則）
-                bool isLongTrip = false;
-                if (app.TripType == "單程" && double.TryParse(app.SingleDistance, out var sKm)) isLongTrip = sKm > 30;
-                if (app.TripType != "單程" && double.TryParse(app.RoundTripDistance, out var rKm)) isLongTrip = rKm > 30;
+                // 2) 判斷是否長差（>30km）
+                var isSingle = app.TripType == "單程" || app.TripType?.Equals("single", StringComparison.OrdinalIgnoreCase) == true;
+                var km = isSingle ? ParseKm(app.SingleDistance ?? "")
+                                  : ParseKm(app.RoundTripDistance ?? "");
+                var isLongTrip = km > 30;
 
-                // 3) 自動派車（這裡不用 RequireBoth）
-                var result = await _dispatcher.AssignAsync(
-                    app.ApplyId,
-                    app.UseStart,
-                    app.UseEnd,
-                    app.PassengerCount,
-                    vehicleType: isLongTrip ? "長差" : null,
-                    options: new AutoDispatcher.AssignOptions
-                    {
-                        DriverOnly = false,   // 完成審核要同時派車
-                        DistanceKm = isLongTrip ? 31 : (double?)null // 可有可無，視你的實作
-                    });
+                // 3) 若已存在同申請單/同時段派工，先嘗試沿用並補齊（避免新增第二筆）
+                var existing = await _context.Dispatches
+                    .Where(d => d.ApplyId == app.ApplyId
+                                && d.StartTime == app.UseStart
+                                && d.EndTime == app.UseEnd
+                                && d.DispatchStatus != "已取消")
+                    .OrderByDescending(d => d.DispatchId)
+                    .FirstOrDefaultAsync();
+
+                DispatchResult result;
+
+                if (existing != null && (existing.DriverId == null || existing.VehicleId == null))
+                {
+                    // 直接交給 AutoDispatcher 幫忙補齊（DriverOnly=false 會找車）
+                    result = await _dispatcher.AssignAsync(
+                        app.ApplyId, app.UseStart, app.UseEnd, app.PassengerCount,
+                        vehicleType: isLongTrip ? "長差" : null,
+                        options: new AutoDispatcher.AssignOptions { DriverOnly = false }
+                    );
+                }
+                else
+                {
+                    // 沒有既有派工，或既有已完整，就正常執行派工
+                    result = await _dispatcher.AssignAsync(
+                        app.ApplyId, app.UseStart, app.UseEnd, app.PassengerCount,
+                        vehicleType: isLongTrip ? "長差" : null,
+                        options: new AutoDispatcher.AssignOptions { DriverOnly = false }
+                    );
+                }
 
                 if (!result.Success)
                     return Conflict(new { message = $"派工失敗：{result.Message}" });
 
+                // 4) 清理重複派工：只保留「最新且有車」那筆，移除同申請單同時段的舊未指派紀錄
+                //    先找出本次派出的那筆（以 DriverId/VehicleId/時間窗推定）
+                var theOne = await _context.Dispatches
+                    .Where(d => d.ApplyId == app.ApplyId
+                                && d.StartTime == app.UseStart
+                                && d.EndTime == app.UseEnd
+                                && d.DriverId == result.DriverId
+                                && d.VehicleId == result.VehicleId)
+                    .OrderByDescending(d => d.DispatchId)
+                    .FirstOrDefaultAsync();
+
+                if (theOne != null)
+                {
+                    var duplicates = await _context.Dispatches
+                        .Where(d => d.ApplyId == app.ApplyId
+                                    && d.StartTime == app.UseStart
+                                    && d.EndTime == app.UseEnd
+                                    && d.DispatchId != theOne.DispatchId
+                                    && (d.VehicleId == null || d.DriverId == null)
+                                    && d.DispatchStatus != "已完成")
+                        .ToListAsync();
+
+                    if (duplicates.Count > 0)
+                    {
+                        _context.Dispatches.RemoveRange(duplicates);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+                // 5) 更新申請單狀態與 VehicleId（便於列表備援顯示）
                 app.Status = "完成審核";
+                app.VehicleId = result.VehicleId;
                 await _context.SaveChangesAsync();
-                return Ok(new { message = "已完成審核並自動派車", status = app.Status, result });
+
+                return Ok(new
+                {
+                    message = "已完成審核並自動派車",
+                    status = app.Status,
+                    result
+                });
             }
 
             // 其他狀態直接更新
