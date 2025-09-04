@@ -1,0 +1,248 @@
+﻿:root {
+    --bg: #f6f7fb;
+    --card: #fff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --primary: #1e6fb8;
+    --primary-600: #2b83d4;
+    --shadow: 0 1px 3px rgba(16,24,40,.08);
+}
+
+body {
+    background: var(--bg);
+    font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
+}
+
+.wrap {
+    max-width: 1280px;
+    margin: 24px auto;
+    padding: 0 16px
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px
+}
+
+.card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow)
+}
+
+.card-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border)
+}
+
+.card-bd {
+    padding: 12px 16px
+}
+
+.title {
+    font-weight: 700
+}
+
+.btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary)
+}
+
+.btn-success {
+    background: #16a34a;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer
+}
+
+.btn-ghost {
+    background: #fff
+}
+
+.left .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0
+}
+
+    .left .field label {
+        width: 110px;
+        color: #334155
+    }
+
+.left .fake {
+    flex: 1;
+    background: #f3f4f6;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: #64748b
+}
+
+.tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px
+}
+
+.tab {
+    padding: 10px 12px;
+    cursor: pointer
+}
+
+    .tab.active {
+        border-bottom: 2px solid var(--primary);
+        color: var(--primary);
+        font-weight: 700
+    }
+
+.toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center
+}
+
+    .toolbar .select {
+        min-width: 140px
+    }
+
+.table-wrap {
+    overflow: auto
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0
+}
+
+thead th {
+    position: sticky;
+    top: 0;
+    background: #f9fafb;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    padding: 10px
+}
+
+tbody td {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 10px;
+    vertical-align: top
+}
+
+    thead th:first-child, tbody td:first-child {
+        border-left: 1px solid var(--border)
+    }
+
+    thead th:last-child, tbody td:last-child {
+        border-right: 1px solid var(--border)
+    }
+
+tbody tr:first-child td {
+    border-top: 1px solid var(--border)
+}
+
+.mono {
+    font-variant-numeric: tabular-nums
+}
+
+.row-actions {
+    display: flex;
+    gap: 6px
+}
+
+.icon-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(8,1fr);
+    gap: 8px;
+    margin: 8px 0
+}
+
+    .form-row input, .form-row select, .form-row textarea {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff
+    }
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg,#1e6fb8,#2b83d4)
+}
+
+.vehicle-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff
+}
+
+    .vehicle-info .plate {
+        background: rgba(255,255,255,0.15);
+        padding: 6px 12px;
+        border-radius: 8px
+    }
+
+    .vehicle-info .status {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        background: rgba(255,255,255,0.2)
+    }
+
+.status.可用 {
+    background: #16a34a;
+    color: #fff
+}
+
+.status.維修中 {
+    background: #f59e0b;
+    color: #111
+}
+
+.status.報廢 {
+    background: #dc2626;
+    color: #fff
+}

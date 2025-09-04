@@ -3,296 +3,16 @@
 }
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap">
-<style>
-    :root {
-        --bg: #f6f7fb;
-        --card: #fff;
-        --border: #e5e7eb;
-        --text: #1f2937;
-        --muted: #6b7280;
-        --primary: #1e6fb8;
-        --primary-600: #2b83d4;
-        --shadow: 0 1px 3px rgba(16,24,40,.08);
-    }
+<link href="/css/Vehicle/Maintenance.css" rel="stylesheet" />
 
-    body {
-        background: var(--bg);
-        font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,Arial,sans-serif;
-    }
-
-    .wrap {
-        max-width: 1280px;
-        margin: 24px auto;
-        padding: 0 16px
-    }
-
-    .grid {
-        display: grid;
-        grid-template-columns: 320px 1fr;
-        gap: 16px
-    }
-
-    .card {
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        box-shadow: var(--shadow)
-    }
-
-    .card-hd {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border)
-    }
-
-    .card-bd {
-        padding: 12px 16px
-    }
-
-    .title {
-        font-weight: 700
-    }
-
-    .btn {
-        border: 1px solid var(--border);
-        background: #fff;
-        border-radius: 8px;
-        padding: 6px 10px;
-        cursor: pointer
-    }
-
-    .btn-primary {
-        background: var(--primary);
-        color: #fff;
-        border-color: var(--primary)
-    }
-
-    .btn-ghost {
-        background: #fff
-    }
-
-    .left .field {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 8px 0
-    }
-
-        .left .field label {
-            width: 110px;
-            color: #334155
-        }
-
-    .left .fake {
-        flex: 1;
-        background: #f3f4f6;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 6px 10px;
-        color: #64748b
-    }
-
-    .tabs {
-        display: flex;
-        gap: 6px;
-        border-bottom: 1px solid var(--border);
-        padding: 0 16px
-    }
-
-    .tab {
-        padding: 10px 12px;
-        cursor: pointer
-    }
-
-        .tab.active {
-            border-bottom: 2px solid var(--primary);
-            color: var(--primary);
-            font-weight: 700
-        }
-
-    .toolbar {
-        display: flex;
-        gap: 8px;
-        align-items: center
-    }
-
-        .toolbar .select {
-            min-width: 140px
-        }
-
-    .table-wrap {
-        overflow: auto
-    }
-
-    table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0
-    }
-
-    thead th {
-        position: sticky;
-        top: 0;
-        background: #f9fafb;
-        border-top: 1px solid var(--border);
-        border-bottom: 1px solid var(--border);
-        text-align: left;
-        padding: 10px
-    }
-
-    tbody td {
-        background: #fff;
-        border-bottom: 1px solid var(--border);
-        padding: 10px;
-        vertical-align: top
-    }
-
-        thead th:first-child, tbody td:first-child {
-            border-left: 1px solid var(--border)
-        }
-
-        thead th:last-child, tbody td:last-child {
-            border-right: 1px solid var(--border)
-        }
-
-    tbody tr:first-child td {
-        border-top: 1px solid var(--border)
-    }
-
-    .mono {
-        font-variant-numeric: tabular-nums
-    }
-
-    .row-actions {
-        display: flex;
-        gap: 6px
-    }
-
-    .icon-btn {
-        border: 1px solid var(--border);
-        background: #fff;
-        border-radius: 8px;
-        width: 32px;
-        height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: repeat(8,1fr);
-        gap: 8px;
-        margin: 8px 0
-    }
-
-        .form-row input, .form-row select {
-            width: 100%;
-            padding: 6px 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            background: #fff
-        }
-
-    .topbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 12px 16px
-    }
-
-    table th, table td {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .vehicle-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        color: #fff;
-    }
-
-        .vehicle-info .plate {
-            background: rgba(255,255,255,0.15);
-            padding: 6px 12px;
-            border-radius: 8px;
-        }
-
-        .vehicle-info .status {
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-weight: 700;
-        }
-
-            .vehicle-info .status.可用 {
-                background: #22c55e;
-                color: #fff;
-            }
-
-            .vehicle-info .status.維修中 {
-                background: #eab308;
-                color: #111;
-            }
-
-            .vehicle-info .status.報廢 {
-                background: #ef4444;
-                color: #fff;
-            }
-
-    .plate {
-        background: rgba(255,255,255,0.15);
-        padding: 6px 12px;
-        border-radius: 8px;
-    }
-
-    .status {
-        padding: 6px 12px;
-        border-radius: 8px;
-        font-weight: 700;
-        background: rgba(255,255,255,0.2);
-    }
-
-        .status.可用 {
-            background: #16a34a;
-            color: #fff;
-        }
-
-        .status.維修中 {
-            background: #f59e0b;
-            color: #fff;
-        }
-
-        .status.報廢 {
-            background: #dc2626;
-            color: #fff;
-        }
-
-    .btn-success {
-        background: #16a34a;
-        border: none;
-        padding: 6px 12px;
-        border-radius: 8px;
-        color: #fff;
-        cursor: pointer;
-    }
-</style>
 
 <div id="app" class="wrap" v-cloak>
     <div class="topbar">
-        <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 車輛維護</h2>
+        <h2 style="margin:0; color:#fff">車輛管理 ＞ 車輛維護</h2>
         <div class="vehicle-info">
             <span class="plate">{{ vehicleDetail.plate || '未選擇車輛' }}</span>
             <span class="status" :class="vehicleDetail.status">{{ vehicleDetail.status || '—' }}</span>
-            <button v-if="vehicleDetail.status==='維修中'" class="btn btn-success" @@click ="setAvailable">維修完成</button>
+            <button v-if="vehicleDetail.status==='維修中'" class="btn-success" @@click="setAvailable">維修完成</button>
         </div>
     </div>
 
@@ -302,11 +22,8 @@
             <div class="card-hd">
                 <div class="title">汽車車歷登記卡</div>
                 <div class="toolbar">
-                    <select v-model="selectedVehicleId" class="select"
-                            @@change="() => { loadMaintenance(); loadVehicleDetail(); loadRepairs(); loadInspections(); loadViolations(); }">
-                        <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">
-                            {{ v.plate }} ({{ v.status }})
-                        </option>
+                    <select v-model="selectedVehicleId" class="select" @@change="onVehicleChanged">
+                        <option v-for="v in vehicles" :key="v.vehicleId" :value="v.vehicleId">{{ v.plate }} ({{ v.status }})</option>
                     </select>
                 </div>
             </div>
@@ -330,11 +47,11 @@
         <!-- 右：保養/維修/驗車/違規/總覽 -->
         <section class="card">
             <div class="tabs">
-                <div class="tab" :class="{active: tab==='maint'}" @@click ="tab='maint'">保養修配</div>
-                <div class="tab" :class="{active: tab==='repair'}" @@click ="tab='repair'">維修紀錄</div>
-                <div class="tab" :class="{active: tab==='inspection'}" @@click ="tab='inspection'">驗車紀錄</div>
-                <div class="tab" :class="{active: tab==='violation'}" @@click ="tab='violation'">違規紀錄</div>
-                <div class="tab" :class="{active: tab==='record'}" @@click ="tab='record'">紀錄總覽</div>
+                <div class="tab" :class="{active:tab==='maint'}" @@click="tab='maint'">保養修配</div>
+                <div class="tab" :class="{active:tab==='repair'}" @@click="tab='repair'">維修紀錄</div>
+                <div class="tab" :class="{active:tab==='inspection'}" @@click="tab='inspection'">驗車紀錄</div>
+                <div class="tab" :class="{active:tab==='violation'}" @@click="tab='violation'">違規紀錄</div>
+                <div class="tab" :class="{active:tab==='record'}" @@click="tab='record'">紀錄總覽</div>
             </div>
 
             <!-- 保養紀錄 -->
@@ -342,25 +59,25 @@
                 <div class="card-hd">
                     <div class="title">保養修配零件紀錄</div>
                     <div class="toolbar">
-                        <button class="btn btn-primary" @@click ="showAdd = !showAdd">{{ showAdd ? '取消' : '新增' }}</button>
+                        <button class="btn btn-primary" @@click="toggleMaintForm">{{ showMaintAdd ? '取消' : (editingMaintId ? '取消編輯' : '新增') }}</button>
                     </div>
                 </div>
 
-                <!-- 新增表單 -->
-                <div class="card-bd" v-if="showAdd">
+                <!-- 表單 -->
+                <div class="card-bd" v-if="showMaintAdd">
                     <div class="form-row">
-                        <input type="date" v-model="form.date" />
-                        <input type="number" v-model.number="form.odometer" placeholder="里程" />
-                        <input type="text" v-model="form.item" placeholder="保養項目" />
-                        <input type="text" v-model="form.unit" placeholder="單位" />
-                        <input type="number" v-model.number="form.qty" step="0.1" placeholder="數量" />
-                        <input type="number" v-model.number="form.amount" step="0.1" placeholder="單價" />
-                        <input type="text" v-model="form.vendor" placeholder="承修廠商" />
-                        <input type="text" v-model="form.note" placeholder="備註" />
+                        <input type="date" v-model="maintForm.date" />
+                        <input type="number" v-model.number="maintForm.odometer" placeholder="里程" />
+                        <input type="text" v-model="maintForm.item" placeholder="保養項目" />
+                        <input type="text" v-model="maintForm.unit" placeholder="單位" />
+                        <input type="number" v-model.number="maintForm.qty" step="0.1" placeholder="數量" />
+                        <input type="number" v-model.number="maintForm.amount" step="0.1" placeholder="單價" />
+                        <input type="text" v-model="maintForm.vendor" placeholder="承修廠商" />
+                        <input type="text" v-model="maintForm.note" placeholder="備註" />
                     </div>
                     <div style="text-align:right">
-                        <button class="btn" @@click ="showAdd=false">取消</button>
-                        <button class="btn btn-primary" style="margin-left:8px" @@click ="create()">儲存</button>
+                        <button class="btn" @@click="cancelMaint">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveMaint">{{ editingMaintId ? '更新' : '儲存' }}</button>
                     </div>
                 </div>
 
@@ -381,7 +98,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="r in rows" :key="r.id">
+                            <tr v-for="r in maintenance" :key="r.id">
                                 <td class="mono">{{ r?.date || '—' }}</td>
                                 <td class="mono">{{ r.odometer ?? '' }}</td>
                                 <td>{{ r.item }}</td>
@@ -392,13 +109,11 @@
                                 <td>{{ r.vendor || '' }}</td>
                                 <td>{{ r.note || '' }}</td>
                                 <td class="row-actions">
-                                    <button class="icon-btn" title="編輯" @@click ="startEditMaint(r)">✏️</button>
-                                    <button class="icon-btn" title="刪除" @@click ="removeMaintainance(r)">🗑️</button>
+                                    <button class="icon-btn" title="編輯" @@click="startEditMaint(r)">✏️</button>
+                                    <button class="icon-btn" title="刪除" @@click="removeMaint(r)">🗑️</button>
                                 </td>
                             </tr>
-                            <tr v-if="!rows.length">
-                                <td colspan="10" style="text-align:center; color:#64748b">尚無資料</td>
-                            </tr>
+                            <tr v-if="!maintenance.length"><td colspan="10" style="text-align:center; color:#64748b">尚無資料</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -407,40 +122,39 @@
             <!-- 維修紀錄 -->
             <div v-if="tab==='repair'">
                 <div class="card-hd">
-                    <div class="title">報修申請</div>
+                    <div class="title">維修紀錄</div>
                     <div class="toolbar">
-                        <button class="btn btn-primary" @@click ="toggleRepairForm">
-                            {{ showRepairAdd ? '取消' : '新增' }}
-                        </button>
+                        <button class="btn btn-primary" @@click="toggleRepairForm">{{ showRepairAdd ? '取消' : (editingRepairId ? '取消編輯' : '新增') }}</button>
                     </div>
                 </div>
 
-                <!-- 報修表單 -->
+                <!-- 表單 -->
                 <div class="card-bd" v-if="showRepairAdd">
-                    <div class="form-row" style="grid-template-columns:1fr 1fr 2fr 1fr 2fr;">
-                        <input type="date" v-model="repair.date" />
-                        <input type="text" v-model="repair.place" placeholder="送修地點" />
-                        <input type="text" v-model="repair.desc" placeholder="故障描述" />
-                        <input type="number" v-model.number="repair.cost" step="0.01" placeholder="估計費用" />
-                        <input type="text" v-model="repair.note" placeholder="聯絡人/電話（備註）" />
+                    <div class="form-row" style="grid-template-columns:repeat(6,1fr);">
+                        <input type="date" v-model="repairForm.date" />
+                        <input type="text" v-model="repairForm.place" placeholder="送修地點" />
+                        <input type="text" v-model="repairForm.issue" placeholder="故障描述" />
+                        <input type="number" v-model.number="repairForm.costEstimate" step="0.01" placeholder="估計費用" />
+                        <input type="text" v-model="repairForm.vendor" placeholder="廠商" />
+                        <input type="text" v-model="repairForm.note" placeholder="聯絡人/電話（備註）" />
                     </div>
                     <div style="text-align:right">
-                        <button class="btn" @@click ="showRepairAdd=false">取消</button>
-                        <button class="btn btn-primary" style="margin-left:8px" @@click ="submitRepair">送出申請</button>
+                        <button class="btn" @@click="cancelRepair">取消</button>
+                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveRepair">{{ editingRepairId ? '更新' : '儲存' }}</button>
                     </div>
                 </div>
 
-               
-
-                <!-- 維修紀錄表格 -->
+                <!-- 清單 -->
                 <div class="card-bd table-wrap" style="margin-top:16px">
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:120px">日期</th>
-                                <th style="width:200px">故障描述</th>
+                                <th style="width:80px">日期</th>
+                                <th style="width:100px">地點</th>
+                                <th style="width:160px">故障描述</th>
                                 <th style="width:100px">狀態</th>
                                 <th style="width:100px">估計費用</th>
+                                <th style="width:100px">廠商</th>
                                 <th style="width:160px">備註</th>
                                 <th style="width:80px">功能</th>
                             </tr>
@@ -448,54 +162,42 @@
                         <tbody>
                             <tr v-for="r in repairRows" :key="r.id">
                                 <td class="mono">{{ r.date || '—' }}</td>
+                                <td>{{ r.place }}</td>
                                 <td>{{ r.issue }}</td>
                                 <td>{{ r.status }}</td>
                                 <td class="mono">{{ fmtMoney(r.costEstimate) }}</td>
+                                <td>{{ r.vendor || '' }}</td>
                                 <td>{{ r.note || '' }}</td>
                                 <td class="row-actions">
-                                    <button class="icon-btn" title="編輯" @@click ="startEditRepair(r)">✏️</button>
-                                    <button class="icon-btn" title="刪除" @@click ="removeRepair(r.id)">🗑️</button>
+                                    <button class="icon-btn" title="編輯" @@click="startEditRepair(r)">✏️</button>
+                                    <button class="icon-btn" title="刪除" @@click="removeRepair(r.id)">🗑️</button>
                                 </td>
                             </tr>
-                            <tr v-if="!repairRows.length">
-                                <td colspan="6" style="text-align:center;color:#64748b">尚無維修資料</td>
-                            </tr>
+                            <tr v-if="!repairRows.length"><td colspan="8" style="text-align:center;color:#64748b">尚無維修資料</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+
             <!-- 驗車紀錄 -->
             <div v-if="tab==='inspection'">
                 <div class="card-hd">
                     <div class="title">驗車紀錄</div>
                     <div class="toolbar">
-                        <button class="btn btn-primary" @@click="toggleInspectionForm">
-                            {{ showInspectionAdd ? '取消' : (inspectionEditId ? '取消編輯' : '新增') }}
-                        </button>
+                        <button class="btn btn-primary" @@click="toggleInspectionForm">{{ showInspectionAdd ? '取消' : (inspectionEditId ? '取消編輯' : '新增') }}</button>
                     </div>
                 </div>
-
-                <!-- 新增/編輯表單 -->
                 <div class="card-bd" v-if="showInspectionAdd">
                     <div class="form-row" style="grid-template-columns: repeat(6,1fr);">
                         <input type="date" v-model="inspectionForm.date" />
                         <input type="text" v-model="inspectionForm.station" placeholder="驗車站 / 監理站" />
-                        <select v-model="inspectionForm.result">
-                            <option value="合格">合格</option>
-                            <option value="不合格">不合格</option>
-                        </select>
+                        <select v-model="inspectionForm.result"><option value="合格">合格</option><option value="不合格">不合格</option></select>
                         <input type="date" v-model="inspectionForm.nextDueDate" />
                         <input type="number" v-model.number="inspectionForm.odometerKm" placeholder="里程(KM)" />
                         <input type="text" v-model="inspectionForm.notes" placeholder="備註" />
                     </div>
-                    <div style="text-align:right">
-                        <button class="btn" @@click="cancelInspection">取消</button>
-                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveInspection">
-                            {{ inspectionEditId ? '更新' : '儲存' }}
-                        </button>
-                    </div>
+                    <div style="text-align:right"><button class="btn" @@click="cancelInspection">取消</button><button class="btn btn-primary" style="margin-left:8px" @@click="saveInspection">{{ inspectionEditId ? '更新' : '儲存' }}</button></div>
                 </div>
-
                 <div class="card-bd table-wrap">
                     <table>
                         <thead>
@@ -517,14 +219,9 @@
                                 <td class="mono">{{ r.nextDueDate || '' }}</td>
                                 <td class="mono">{{ r.odometerKm ?? '' }}</td>
                                 <td>{{ r.notes || '' }}</td>
-                                <td class="row-actions">
-                                    <button class="icon-btn" title="編輯" @@click="startEditInspection(r)">✏️</button>
-                                    <button class="icon-btn" title="刪除" @@click="removeInspection(r.id)">🗑️</button>
-                                </td>
+                                <td class="row-actions"><button class="icon-btn" title="編輯" @@click="startEditInspection(r)">✏️</button><button class="icon-btn" title="刪除" @@click="removeInspection(r.id)">🗑️</button></td>
                             </tr>
-                            <tr v-if="!inspectionRows.length">
-                                <td colspan="7" style="text-align:center; color:#64748b">尚無驗車紀錄</td>
-                            </tr>
+                            <tr v-if="!inspectionRows.length"><td colspan="7" style="text-align:center; color:#64748b">尚無驗車紀錄</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -535,39 +232,25 @@
                 <div class="card-hd">
                     <div class="title">違規紀錄</div>
                     <div class="toolbar">
-                        <button class="btn btn-primary" @@click="toggleViolationForm">
-                            {{ showViolationAdd ? '取消' : (violationEditId ? '取消編輯' : '新增') }}
-                        </button>
+                        <button class="btn btn-primary" @@click="toggleViolationForm">{{ showViolationAdd ? '取消' : (violationEditId ? '取消編輯' : '新增') }}</button>
                     </div>
                 </div>
-
-                <!-- 新增/編輯表單 -->
                 <div class="card-bd" v-if="showViolationAdd">
-                    <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;">
+                    <div class="form-row" style="grid-template-columns:repeat(7,1fr);">
                         <input type="date" v-model="violationForm.date" />
                         <input type="text" v-model="violationForm.location" placeholder="地點" />
                         <input type="text" v-model="violationForm.category" placeholder="類別(如：超速)" />
                         <input type="number" v-model.number="violationForm.points" placeholder="記點" />
                         <input type="number" v-model.number="violationForm.fineAmount" placeholder="罰鍰(元)" />
-                        <select v-model="violationForm.status">
-                            <option value="未繳">未繳</option>
-                            <option value="已繳">已繳</option>
-                            <option value="申訴中">申訴中</option>
-                        </select>
+                        <select v-model="violationForm.status"><option value="未繳">未繳</option><option value="已繳">已繳</option><option value="申訴中">申訴中</option></select>
                         <input type="text" v-model="violationForm.notes" placeholder="備註" />
                     </div>
-                    <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                    <div class="form-row" style="grid-template-columns:repeat(2,1fr);">
                         <input type="date" v-model="violationForm.dueDate" placeholder="繳費期限" />
                         <input type="date" v-model="violationForm.paidDate" placeholder="繳費日期" />
                     </div>
-                    <div style="text-align:right">
-                        <button class="btn" @@click="cancelViolation">取消</button>
-                        <button class="btn btn-primary" style="margin-left:8px" @@click="saveViolation">
-                            {{ violationEditId ? '更新' : '儲存' }}
-                        </button>
-                    </div>
+                    <div style="text-align:right"><button class="btn" @@click="cancelViolation">取消</button><button class="btn btn-primary" style="margin-left:8px" @@click="saveViolation">{{ violationEditId ? '更新' : '儲存' }}</button></div>
                 </div>
-
                 <div class="card-bd table-wrap">
                     <table>
                         <thead>
@@ -595,13 +278,36 @@
                                 <td class="mono">{{ r.dueDate || '' }}</td>
                                 <td class="mono">{{ r.paidDate || '' }}</td>
                                 <td>{{ r.notes || '' }}</td>
-                                <td class="row-actions">
-                                    <button class="icon-btn" title="編輯" @@click="startEditViolation(r)">✏️</button>
-                                    <button class="icon-btn" title="刪除" @@click="removeViolation(r.id)">🗑️</button>
-                                </td>
+                                <td class="row-actions"><button class="icon-btn" title="編輯" @@click="startEditViolation(r)">✏️</button><button class="icon-btn" title="刪除" @@click="removeViolation(r.id)">🗑️</button></td>
                             </tr>
-                            <tr v-if="!violationRows.length">
-                                <td colspan="10" style="text-align:center; color:#64748b">尚無違規紀錄</td>
+                            <tr v-if="!violationRows.length"><td colspan="10" style="text-align:center; color:#64748b">尚無違規紀錄</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div v-if="tab==='record'">
+                <div class="card-hd">
+                    <div class="title">紀錄總覽</div>
+                </div>
+                <div class="card-bd table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">日期</th>
+                                <th style="width:80px">類別</th>
+                                <th style="width:200px">項目/描述</th>
+                                <th style="width:300px">細節</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in recordRows" :key="r.type+'-'+r.id">
+                                <td class="mono">{{ (r.date??'').slice(0,10) }}</td>
+                                <td>{{ r.type }}</td>
+                                <td>{{ r.title }}</td>
+                                <td>{{ r.detail }}</td>
+                            </tr>
+                            <tr v-if="!recordRows.length">
+                                <td colspan="4" style="text-align:center;color:#64748b">尚無紀錄</td>
                             </tr>
                         </tbody>
                     </table>
@@ -615,16 +321,11 @@
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-    const { createApp, ref, onMounted, computed } = Vue;
-
+    const { createApp, ref, computed, onMounted } = Vue;
     createApp({
       setup(){
         // 工具
-        const toISODate = d => d.toISOString().slice(0,10);
-        const toLocalISOString = d => {
-          const tz = d.getTimezoneOffset() * 60000;
-          return new Date(d.getTime() - tz).toISOString();
-        };
+        const toISODate = d => new Date(d).toISOString().slice(0,10);
         const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
         const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
 
@@ -632,536 +333,339 @@
         const vehicles = ref([]);
         const selectedVehicleId = ref(0);
         const vehicleDetail = ref({});
-
         const tab = ref('maint');
 
         // 保養
-        const rows = ref([]);
+        const maintenance = ref([]);
+        const showMaintAdd = ref(false);
         const editingMaintId = ref(null);
-        const showAdd = ref(false);
-        const today = new Date();
-        const form = ref({
-          date: toISODate(today),
-          odometer: null,
-          item: '',
-          unit: '',
-          qty: null,
-          amount: null,
-          vendor: '',
-          note: ''
-        });
+        const maintForm = ref({ date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'' });
+
+        function toggleMaintForm(){
+          if(!showMaintAdd.value){ // 打開時重置
+            editingMaintId.value = null;
+            maintForm.value = { date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'' };
+          }
+          showMaintAdd.value = !showMaintAdd.value;
+        }
+        function startEditMaint(r){
+          editingMaintId.value = r.id;
+          showMaintAdd.value = true;
+          maintForm.value = {
+            date: (r.date||'').slice(0,10), odometer:r.odometer??null, item:r.item, unit:r.unit||'', qty:r.qty??null,
+            amount:r.amount??null, vendor:r.vendor||'', note:r.note||''
+          };
+        }
+        function cancelMaint(){ showMaintAdd.value=false; editingMaintId.value=null; }
+        async function saveMaint(){
+          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+          if(!maintForm.value.item?.trim()){ alert('請輸入保養項目'); return; }
+          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+          const payload = { vehicleId:selectedVehicleId.value, vehiclePlate:plate, date:maintForm.value.date,
+            odometer:maintForm.value.odometer, item:maintForm.value.item.trim(), unit:maintForm.value.unit||null,
+            qty:maintForm.value.qty, amount:maintForm.value.amount, vendor:maintForm.value.vendor||null,
+            note:(maintForm.value.note||'').trim()||null };
+          if(editingMaintId.value){ await axios.put(`/api/maintenance/${editingMaintId.value}`, payload, { withCredentials:true }); }
+          else{ await axios.post('/api/maintenance', payload, { withCredentials:true }); }
+          editingMaintId.value=null; showMaintAdd.value=false; await loadMaintenance();
+        }
+        async function removeMaint(r){ if(!confirm('確定刪除這筆保養紀錄？')) return; await axios.delete(`/api/maintenance/${r.id}`, { withCredentials:true }); await loadMaintenance(); }
 
         // 維修
+        const repairs = ref([]);
         const showRepairAdd = ref(false);
         const editingRepairId = ref(null);
-        const repairs = ref([]);
-        const createdRepair = ref(null);
-        const repair = ref({
-          date: toISODate(today),
-          place: '',
-          desc: '',
-          cost: null,
-          contact: '',
-          vendor: '',
-          note: '',
-          odometer: null
-        });
+        const repairForm = ref({ date: toISODate(new Date()), place:'', issue:'', costEstimate:null, vendor:'', note:'', odometer:null });
 
-        // 下拉 & 車籍
-        async function loadVehicles(){
-          const res = await axios.get('/api/maintenance/vehicles', { withCredentials:true });
-          vehicles.value = res.data || [];
-          if (vehicles.value.length && !selectedVehicleId.value){
-            selectedVehicleId.value = vehicles.value[0].vehicleId;
-          }
-        }
-        async function loadVehicleDetail() {
-          if (!selectedVehicleId.value) { vehicleDetail.value = {}; return; }
-          const res = await axios.get(`/api/maintenance/vehicle/${selectedVehicleId.value}`, { withCredentials:true });
-          vehicleDetail.value = res.data || {};
-        }
-        async function setAvailable() {
-          if (!selectedVehicleId.value) return;
-          try {
-            await axios.put(
-              `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
-              JSON.stringify("可用"),
-              { withCredentials:true, headers: { 'Content-Type': 'application/json' } }
-            );
-            vehicleDetail.value.status = "可用";
-            const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
-            if (idx >= 0) vehicles.value[idx].status = "可用";
-            await loadRepairs();
-            alert("✅ 維修完成，車輛已可用");
-            
-          } catch (err) {
-            console.error("狀態更新失敗", err);
-            alert("更新失敗");
-          }
-        }
-
-        // 保養 CRUD
-        async function loadMaintenance(){
-          if(!selectedVehicleId.value) return;
-          const res = await axios.get('/api/maintenance', { params:{ vehicleId: selectedVehicleId.value }, withCredentials:true });
-          rows.value = res.data || [];
-        }
-        async function create(){
-          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
-          if(!form.value.item?.trim()){ alert('請輸入保養項目'); return; }
-          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-          const payload = {
-            vehicleId: selectedVehicleId.value,
-            vehiclePlate: plate,
-            date: form.value.date,
-            odometer: form.value.odometer,
-            item: form.value.item.trim(),
-            unit: form.value.unit || null,
-            qty: form.value.qty,
-            amount: form.value.amount,
-            vendor: form.value.vendor || null,
-            note: (form.value.note || '').trim() || null
-          };
-          await axios.post('/api/maintenance', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
-          showAdd.value = false;
-          form.value.item=''; form.value.unit=''; form.value.qty=null; form.value.amount=null; form.value.vendor=''; form.value.note='';
-          await loadMaintenance();
-        }
-
-            function startEditMaint(r){
-      editingMaintId.value = r.id;
-      showAdd.value = true;
-      form.value = {
-        date: r.date.slice(0,10),
-        odometer: r.odometer ?? null,
-        item: r.item,
-        unit: r.unit || '',
-        qty: r.qty ?? null,
-        amount: r.amount ?? null,
-        vendor: r.vendor || '',
-        note: r.note || ''
-      };
-    }
-
-        async function saveMaint() {
-      if (!selectedVehicleId.value) {
-        alert('請先選擇車輛');
-        return;
-      }
-      if (!form.value.item?.trim()) {
-        alert('請輸入保養項目');
-        return;
-      }
-      if (!editingMaintId.value) {
-        alert('⚠️ 沒有指定要編輯的紀錄，請先選一筆再修改');
-        return;
-      }
-
-      const plate = (vehicles.value.find(v => v.vehicleId === selectedVehicleId.value) || {}).plate || null;
-      const payload = {
-        vehicleId: selectedVehicleId.value,
-        vehiclePlate: plate,
-        date: form.value.date,
-        odometer: form.value.odometer,
-        item: form.value.item.trim(),
-        unit: form.value.unit || null,
-        qty: form.value.qty,
-        amount: form.value.amount,
-        vendor: form.value.vendor || null,
-        note: (form.value.note || '').trim() || null
-      };
-
-    if (editingMaintId.value) {
-        // 更新
-        await axios.put(`/api/maintenance/${editingMaintId.value}`, payload, { withCredentials: true });
-      } else {
-        // 新增
-        await axios.post(`/api/maintenance`, payload, { withCredentials: true });
-      }
-
-      editingMaintId.value = null;
-      showAdd.value = false;
-      form.value = {
-        date: new Date().toISOString().slice(0,10),
-        odometer: null,
-        item: '',
-        unit: '',
-        qty: null,
-        amount: null,
-        vendor: '',
-        note: ''
-      };
-      await loadMaintenance();
-    }
-
-
-        async function removeMaintainance(r){
-          if(!confirm('確定刪除這筆保養紀錄？')) return;
-          await axios.delete('/api/maintenance/' + r.id, { withCredentials:true });
-          await loadMaintenance();
-        }
-
-        // 維修清單與刪除
-        const repairRows = computed(() => {
-          const list = Array.isArray(repairs.value) ? repairs.value : [];
-          return list.map((x, idx) => ({
-            id: x.repairRequestId ?? x.id ?? idx,
-            date: x.date || "",
-            issue: x.issue || "",
-            status: x.status || "",
-            costEstimate: x.costEstimate ?? null,
-            note: x.note || ""
-          }));
-        });
-        async function loadRepairs() {
-          if (!selectedVehicleId.value) { repairs.value = []; return; }
-          const res = await axios.get('/api/maintenance/repairs', {
-            params: { vehicleId: selectedVehicleId.value },
-            withCredentials: true
-          });
-          repairs.value = Array.isArray(res.data) ? res.data : [];
-        }
-            function startEditRepair(r){
-      showRepairAdd.value = true;
-      editingRepairId.value = r.id;
-      repair.value = {
-        date: r.date || new Date().toISOString().slice(0,10),
-        place: '',            // 你前端是否有 place 欄位，若沒有可忽略
-        desc: r.issue || '',
-        cost: r.costEstimate ?? null,
-        vendor: '',
-        note: r.note || '',
-        odometer: null
-      };
-    }
-
-    async function saveRepair(){
-      if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
-      if(!repair.value.desc?.trim()){ alert('請輸入故障描述'); return; }
-
-      const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-      const payload = {
-        vehicleId: selectedVehicleId.value,
-        plateNo: plate,
-        date: repair.value.date,
-        odometer: repair.value.odometer ?? null,
-        issue: repair.value.desc.trim(),
-        vendor: repair.value.vendor || null,
-        costEstimate: repair.value.cost ?? null,
-        note: (repair.value.note || '').trim() || null,
-        status: undefined // 不改狀態就不傳，或傳現值
-      };
-
-      if (editingRepairId.value){
-        await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, payload, { withCredentials:true });
-      } else {
-        const res = await axios.post('/api/maintenance/repair', payload, { withCredentials:true });
-        // 你的既有流程：新報修→把車改「維修中」
-        await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify("維修中"),
-          { withCredentials:true, headers:{'Content-Type':'application/json'} });
-      }
-
-      showRepairAdd.value = false;
-      editingRepairId.value = null;
-      await loadVehicleDetail();
-      await loadRepairs();
-    }
-
-        async function removeRepair(id) {
-          if (!confirm("確定要刪除這筆報修紀錄？")) return;
-          await axios.delete(`/api/maintenance/repair/${id}`, { withCredentials: true });
-          await loadRepairs();
-        }
-
-        // 報修送出（送出後顯示結果 + 表單收起 + 狀態改維修中）
         function toggleRepairForm(){
-          // 每次打開時重置，避免殘留
-          if (!showRepairAdd.value) {
-            repair.value = {
-              date: toISODate(new Date()),
-              place: '',
-              desc: '',
-              cost: null,
-              contact: '',
-              vendor: '',
-              note: '',
-              odometer: null
-            };
-            createdRepair.value = null;
+          if(!showRepairAdd.value){ // 打開時重置
+            editingRepairId.value = null;
+            repairForm.value = { date: toISODate(new Date()), place:'', issue:'', costEstimate:null, vendor:'', note:'', odometer:null };
           }
           showRepairAdd.value = !showRepairAdd.value;
         }
-
-        async function submitRepair(){
-          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
-          if(!repair.value.desc || !repair.value.desc.trim()){ alert('請輸入故障描述'); return; }
-
-          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-
-          const payload = {
-            vehicleId: selectedVehicleId.value,
-            plateNo: plate,
-            date: repair.value.date, // 已是 yyyy-MM-dd，後端若要 DateTime 也可接受
-            odometer: repair.value.odometer ?? null,
-            issue: repair.value.desc.trim(),
-            vendor: repair.value.vendor || null,
-            costEstimate: repair.value.cost ?? null,
-            note: (repair.value.note || '').trim() || null
-          };
-
-          try{
-            const res = await axios.post('/api/maintenance/repair', payload, {
-              withCredentials: true,
-              headers: { 'Content-Type':'application/json' }
-            });
-            const newId = res.data?.id;
-
-            // 改車輛狀態為「維修中」
-            await axios.put(
-              `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
-              JSON.stringify("維修中"),
-              { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
-            );
-            const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
-            if (idx >= 0) vehicles.value[idx].status = "維修中";
-            // 重新載入狀態與清單
-            await loadVehicleDetail();
-            await loadRepairs();
-
-            // 找剛剛那筆（找不到就用 payload 充當）
-            const found = (repairs.value || []).find(x => (x.repairRequestId ?? x.id) === newId);
-            createdRepair.value = found
-              ? { id: (found.repairRequestId ?? found.id), date: found.date, issue: found.issue, note: found.note, status: found.status }
-              : { id: newId, date: payload.date, issue: payload.issue, note: payload.note, status: '待處理' };
-
-            // 收起表單
-            showRepairAdd.value = false;
-
-            alert("✅ 報修已送出");
-
-          }catch(err){
-            console.error("❌ 送出報修失敗", err?.response?.data || err);
-            const msg = err?.response?.data?.detail || err?.response?.data?.message || '送出失敗';
-            alert(`❌ ${msg}`);
-          }
-        }
-
-        function newRepair(){
-          createdRepair.value = null;
+        function startEditRepair(r){
+          editingRepairId.value = r.id;
           showRepairAdd.value = true;
-          repair.value = {
-            date: toISODate(new Date()),
-            place: '',
-            desc: '',
-            cost: null,
-            contact: '',
-            vendor: '',
-            note: '',
-            odometer: null
-          };
+          repairForm.value = { date:r.date||toISODate(new Date()), place:r.place||'', issue:r.issue||'', costEstimate:r.costEstimate??null,
+            vendor:r.vendor||'', note:r.note||'', odometer:null };
         }
-            // ---- 新增：驗車 (inspection) 狀態 ----
+        function cancelRepair(){ showRepairAdd.value=false; editingRepairId.value=null; }
+        async function saveRepair(){
+          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+          if(!repairForm.value.issue?.trim()){ alert('請輸入故障描述'); return; }
+          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+          const payload = { vehicleId:selectedVehicleId.value, plateNo:plate, date:repairForm.value.date, place:repairForm.value.place||null,
+            odometer:repairForm.value.odometer??null, issue:repairForm.value.issue.trim(), vendor:repairForm.value.vendor||null,
+            costEstimate:repairForm.value.costEstimate??null, note:(repairForm.value.note||'').trim()||null };
+          if(editingRepairId.value){ await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, payload, { withCredentials:true }); }
+          else{
+            await axios.post('/api/maintenance/repair', payload, { withCredentials:true });
+            // 新報修 → 狀態調為維修中
+            await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify('維修中'), { withCredentials:true, headers:{'Content-Type':'application/json'} });
+            const idx = vehicles.value.findIndex(v=>v.vehicleId===selectedVehicleId.value); if(idx>=0) vehicles.value[idx].status='維修中';
+          }
+          editingRepairId.value=null; showRepairAdd.value=false; await loadVehicleDetail(); await loadRepairs();
+        }
+        async function removeRepair(id){ if(!confirm('確定刪除此筆報修紀錄？')) return; await axios.delete(`/api/maintenance/repair/${id}`, { withCredentials:true }); await loadRepairs(); }
+
+        // 驗車
         const inspections = ref([]);
-        const inspectionRows = computed(() => {
-          return (inspections.value || []).map(x => ({
-            id: x.inspectionId ?? x.id,
-            date: (x.inspectionDate ?? x.date) || "",
-            station: x.station || "",
-            result: x.result || "",
-            nextDueDate: (x.nextDueDate || "") && (x.nextDueDate || "").slice(0,10),
-            odometerKm: x.odometerKm ?? x.odometer ?? null,
-            notes: x.notes || ""
-          }));
-        });
         const showInspectionAdd = ref(false);
         const inspectionEditId = ref(null);
-        const inspectionForm = ref({
-          date: new Date().toISOString().slice(0,10),
-          station: "",
-          result: "合格",
-          nextDueDate: "",
-          odometerKm: null,
-          notes: ""
-        });
-        function toggleInspectionForm(){
-          if (!showInspectionAdd.value) {
-            // 打開表單時重置
-            inspectionEditId.value = null;
-            inspectionForm.value = { date: new Date().toISOString().slice(0,10), station:"", result:"合格", nextDueDate:"", odometerKm:null, notes:"" };
-          }
-          showInspectionAdd.value = !showInspectionAdd.value;
-        }
-        function cancelInspection(){
-          showInspectionAdd.value = false;
-          inspectionEditId.value = null;
-        }
-        async function loadInspections(){
-          if (!selectedVehicleId.value) { inspections.value = []; return; }
-          const res = await axios.get('/api/maintenance/inspections', {
-            params: { vehicleId: selectedVehicleId.value }, withCredentials: true
-          });
-          inspections.value = Array.isArray(res.data) ? res.data : [];
-        }
-        function startEditInspection(r){
-          inspectionEditId.value = r.id;
-          showInspectionAdd.value = true;
-          inspectionForm.value = {
-            date: r.date || new Date().toISOString().slice(0,10),
-            station: r.station || "",
-            result: r.result || "合格",
-            nextDueDate: r.nextDueDate || "",
-            odometerKm: r.odometerKm ?? null,
-            notes: r.notes || ""
-          };
-        }
-        async function saveInspection(){
-          if (!selectedVehicleId.value) { alert("請先選擇車輛"); return; }
-          const payload = {
-            vehicleId: selectedVehicleId.value,
-            inspectionDate: inspectionForm.value.date,
-            station: inspectionForm.value.station || null,
-            result: inspectionForm.value.result || "合格",
-            nextDueDate: inspectionForm.value.nextDueDate || null,
-            odometerKm: inspectionForm.value.odometerKm ?? null,
-            notes: inspectionForm.value.notes || null
-          };
-          if (!inspectionEditId.value) {
-            await axios.post('/api/maintenance/inspections', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
-          } else {
-            await axios.put(`/api/maintenance/inspections/${inspectionEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
-          }
-          showInspectionAdd.value = false;
-          inspectionEditId.value = null;
-          await loadInspections();
-        }
-        async function removeInspection(id){
-          if (!confirm("確定刪除此筆驗車紀錄？")) return;
-          await axios.delete(`/api/maintenance/inspections/${id}`, { withCredentials:true });
-          await loadInspections();
-        }
-
-        // ---- 新增：違規 (violation) 狀態 ----
+        const inspectionForm = ref({ date: toISODate(new Date()), station:"", result:"合格", nextDueDate:"", odometerKm:null, notes:"" });
+        //違規
         const violations = ref([]);
-        const violationRows = computed(() => {
-          return (violations.value || []).map(x => ({
-            id: x.violationId ?? x.id,
-            date: (x.violationDate ?? x.date) || "",
-            location: x.location || "",
-            category: x.category || "",
-            points: x.points ?? null,
-            fineAmount: x.fineAmount ?? null,
-            status: x.status || "",
-            dueDate: (x.dueDate || "") && (x.dueDate || "").slice(0,10),
-            paidDate: (x.paidDate || "") && (x.paidDate || "").slice(0,10),
-            notes: x.notes || ""
-          }));
-        });
         const showViolationAdd = ref(false);
         const violationEditId = ref(null);
-        const violationForm = ref({
-          date: new Date().toISOString().slice(0,10),
-          location: "",
-          category: "",
-          points: null,
-          fineAmount: null,
-          status: "未繳",
-          dueDate: "",
-          paidDate: "",
-          notes: ""
-        });
-        function toggleViolationForm(){
-          if (!showViolationAdd.value) {
-            violationEditId.value = null;
-            violationForm.value = { date:new Date().toISOString().slice(0,10), location:"", category:"", points:null, fineAmount:null, status:"未繳", dueDate:"", paidDate:"", notes:"" };
-          }
-          showViolationAdd.value = !showViolationAdd.value;
+        const violationForm = ref({ date: toISODate(new Date()), location:"", category:"", points:null, fineAmount:null, status:"未繳", dueDate:"", paidDate:"", notes:"" });
+
+        // 計算欄位
+        const repairRows = computed(()=> (Array.isArray(repairs.value)?repairs.value:[]).map((x, i)=>({
+          id: x.repairRequestId ?? x.id ?? i,
+          date: x.date || '', place: x.place || '', issue: x.issue || '', status: x.status || '',
+          costEstimate: x.costEstimate ?? null, vendor: x.vendor || '', note: x.note || ''
+        })));
+        const inspectionRows = computed(()=> (Array.isArray(inspections.value)?inspections.value:[]).map(x=>({
+          id: x.inspectionId ?? x.id, date: (x.inspectionDate ?? x.date) || '', station: x.station || '', result: x.result || '',
+          nextDueDate: (x.nextDueDate||'') && (x.nextDueDate||'').slice(0,10), odometerKm: x.odometerKm ?? x.odometer ?? null, notes: x.notes || ''
+        })));
+        const violationRows = computed(()=> (Array.isArray(violations.value)?violations.value:[]).map(x=>({
+          id: x.violationId ?? x.id, date: (x.violationDate ?? x.date) || '', location: x.location || '', category: x.category || '',
+          points: x.points ?? null, fineAmount: x.fineAmount ?? null, status: x.status || '',
+          dueDate: (x.dueDate||'') && (x.dueDate||'').slice(0,10), paidDate: (x.paidDate||'') && (x.paidDate||'').slice(0,10), notes: x.notes || ''
+        })));
+        //紀錄總覽
+                const recordRows = computed(() => [
+      ...(maintenance.value || []).map(m => ({
+        id: m.id,
+        date: m.date,
+        type: '保養',
+        title: m.item,
+        detail: m.note || ''   
+      })),
+      ...(repairs.value || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        type: '維修',
+        title: r.issue,
+        detail: r.note || ''   
+      })),
+      ...(inspections.value || []).map(i => ({
+        id: i.id,
+        date: i.date,
+        type: '驗車',
+        title: i.station,
+        detail: i.notes || ''  
+      })),
+      ...(violations.value || []).map(v => ({
+        id: v.id,
+        date: v.date,
+        type: '違規',
+        title: v.category,
+        detail: v.notes || ''  
+      }))
+    ].sort((a,b)=> new Date(b.date) - new Date(a.date)));
+
+
+
+        // 請求
+        async function loadVehicles(){ 
+            const res = await axios.get('/api/maintenance/vehicles', { withCredentials:true }); 
+            vehicles.value = res.data || []; 
+            if(vehicles.value.length && !selectedVehicleId.value){ 
+                selectedVehicleId.value = vehicles.value[0].vehicleId; 
+            } }
+        async function loadVehicleDetail(){ 
+            if(!selectedVehicleId.value){ 
+            vehicleDetail.value={}; return;} 
+        const res = await axios.get(`/api/maintenance/vehicle/${selectedVehicleId.value}`, { withCredentials:true });
+        vehicleDetail.value = res.data || {}; }
+    async function setAvailable() {
+      if (!selectedVehicleId.value) return;
+
+      try {
+        // 1) 取出目前清單中最新一筆「待處理」維修
+        const latest = (repairs.value || [])
+          .filter(r => r.status === "待處理")
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+        // 2) 若有找到待處理，就把那一筆狀態改「完成」
+        if (latest) {
+          const id = latest.repairRequestId ?? latest.id; // 後端回的是 repairRequestId
+          await axios.put(
+            `/api/maintenance/repair/${id}/status`,
+            JSON.stringify("完成"),
+            { withCredentials: true, headers: { "Content-Type": "application/json" } }
+          );
         }
-        function cancelViolation(){
-          showViolationAdd.value = false;
-          violationEditId.value = null;
+
+        // 3) 車輛狀態改「可用」
+        await axios.put(
+          `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
+          JSON.stringify("可用"),
+          { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
+        );
+
+        // 4) 重新載入資料
+        await loadRepairs();
+        await loadVehicleDetail();
+        await loadVehicles();
+
+        alert(latest ? " 已將最新一筆維修改為完成，車輛已可用" : " 車輛已可用（沒有待處理維修）");
+      } catch (err) {
+        console.error("更新失敗", err?.response?.data || err);
+        alert(" 更新失敗");
+      }
+    }
+
+        async function loadMaintenance(){ 
+            if(!selectedVehicleId.value) return; 
+            const res = await axios.get('/api/maintenance', { params:{ vehicleId:selectedVehicleId.value }, withCredentials:true });
+            maintenance.value = res.data || []; }
+        async function loadRepairs(){ 
+            if(!selectedVehicleId.value){ repairs.value=[]; return;} 
+            const res = await axios.get('/api/maintenance/repairs', { params:{ vehicleId:selectedVehicleId.value }, withCredentials:true }); 
+            repairs.value = Array.isArray(res.data)? res.data: []; }
+        async function loadInspections(){ 
+            if(!selectedVehicleId.value){ inspections.value=[]; return;} 
+            const res = await axios.get('/api/maintenance/inspections', { params:{ vehicleId:selectedVehicleId.value }, withCredentials:true }); 
+            inspections.value = Array.isArray(res.data)? res.data: []; }
+        async function loadViolations(){ 
+            if(!selectedVehicleId.value){ violations.value=[]; return;} 
+            const res = await axios.get('/api/maintenance/violations', { params:{ vehicleId:selectedVehicleId.value }, withCredentials:true }); 
+            violations.value = Array.isArray(res.data)? res.data: []; }
+
+        function onVehicleChanged(){ 
+            loadMaintenance(); 
+            loadVehicleDetail(); 
+            loadRepairs(); 
+            loadInspections(); 
+            loadViolations(); 
         }
-        async function loadViolations(){
-          if (!selectedVehicleId.value) { violations.value = []; return; }
-          const res = await axios.get('/api/maintenance/violations', {
-            params: { vehicleId: selectedVehicleId.value }, withCredentials: true
-          });
-          violations.value = Array.isArray(res.data) ? res.data : [];
+
+        // 驗車/違規：
+        function toggleInspectionForm(){ 
+            if(!showInspectionAdd.value){ inspectionEditId.value=null; 
+                inspectionForm.value={ date:toISODate(
+                    new Date()), 
+                    station:"", 
+                    result:"合格", 
+                    nextDueDate:"", 
+                    odometerKm:null, 
+                    notes:"" 
+                }; } showInspectionAdd.value=!showInspectionAdd.value; }
+        function cancelInspection(){ 
+            showInspectionAdd.value=false; inspectionEditId.value=null; 
         }
-        function startEditViolation(r){
-          violationEditId.value = r.id;
-          showViolationAdd.value = true;
-          violationForm.value = {
-            date: r.date || new Date().toISOString().slice(0,10),
-            location: r.location || "",
-            category: r.category || "",
-            points: r.points ?? null,
-            fineAmount: r.fineAmount ?? null,
-            status: r.status || "未繳",
-            dueDate: r.dueDate || "",
-            paidDate: r.paidDate || "",
-            notes: r.notes || ""
-          };
+        function startEditInspection(r){ 
+            inspectionEditId.value=r.id; showInspectionAdd.value=true; 
+            inspectionForm.value={ date:r.date||toISODate(
+                new Date()), 
+                station:r.station||"", 
+                result:r.result||"合格", 
+                nextDueDate:r.nextDueDate||"",
+                odometerKm:r.odometerKm??null, 
+                notes:r.notes||"" }; 
         }
+        async function saveInspection(){ 
+            if(!selectedVehicleId.value){ alert('請先選擇車輛'); return;} 
+            const payload={ 
+                vehicleId:selectedVehicleId.value, 
+                inspectionDate:inspectionForm.value.date, 
+                station:inspectionForm.value.station||null, 
+                result:inspectionForm.value.result||'合格', 
+                nextDueDate:inspectionForm.value.nextDueDate||null, 
+                odometerKm:inspectionForm.value.odometerKm??null, 
+                notes:inspectionForm.value.notes||null }; 
+                if(!inspectionEditId.value){ await axios.post('/api/maintenance/inspections', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); 
+                } else { 
+                    await axios.put(`/api/maintenance/inspections/${inspectionEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } showInspectionAdd.value=false; inspectionEditId.value=null; await loadInspections(); }
+        async function removeInspection(id){ 
+            if(!confirm('確定刪除此筆驗車紀錄？')) return; 
+            await axios.delete(`/api/maintenance/inspections/${id}`, { withCredentials:true }); 
+            await loadInspections(); }
+        //違規：
+        function toggleViolationForm(){ 
+            if(!showViolationAdd.value){ 
+                violationEditId.value=null; 
+                violationForm.value={ date:toISODate
+                    (new Date()), 
+                    location:"",
+                    category:"", 
+                    points:null, 
+                    fineAmount:null, 
+                    status:"未繳", 
+                    dueDate:"", 
+                    paidDate:"", 
+                    notes:"" }; } 
+                    showViolationAdd.value=!showViolationAdd.value; }
+        function cancelViolation(){ 
+            showViolationAdd.value=false; 
+            violationEditId.value=null; 
+        }
+        function startEditViolation(r){ 
+            violationEditId.value=r.id; 
+            showViolationAdd.value=true; 
+            violationForm.value={ 
+                date:r.date||toISODate(
+                    new Date()), 
+                    location:r.location||"", 
+                    category:r.category||"", 
+                    points:r.points??null, 
+                    fineAmount:r.fineAmount??null, 
+                    status:r.status||"未繳", 
+                    dueDate:r.dueDate||"", 
+                    paidDate:r.paidDate||"", 
+                    notes:r.notes||"" }; 
+                }
         async function saveViolation(){
-          if (!selectedVehicleId.value) { alert("請先選擇車輛"); return; }
-          const payload = {
-            vehicleId: selectedVehicleId.value,
-            violationDate: violationForm.value.date,
-            location: violationForm.value.location || null,
-            category: violationForm.value.category || null,
-            points: violationForm.value.points ?? null,
-            fineAmount: violationForm.value.fineAmount ?? null,
-            status: violationForm.value.status || "未繳",
-            dueDate: violationForm.value.dueDate || null,
-            paidDate: violationForm.value.paidDate || null,
-            notes: violationForm.value.notes || null
-          };
-          if (!violationEditId.value) {
-            await axios.post('/api/maintenance/violations', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
-          } else {
-            await axios.put(`/api/maintenance/violations/${violationEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} });
-          }
-          showViolationAdd.value = false;
-          violationEditId.value = null;
-          await loadViolations();
-        }
-        async function removeViolation(id){
-          if (!confirm("確定刪除此筆違規紀錄？")) return;
-          await axios.delete(`/api/maintenance/violations/${id}`, { withCredentials:true });
-          await loadViolations();
-        }
+            if(!selectedVehicleId.value){ 
+                alert('請先選擇車輛'); return;} 
+                const payload={ 
+                    vehicleId:selectedVehicleId.value, 
+                    violationDate:violationForm.value.date, 
+                    location:violationForm.value.location||null, 
+                    category:violationForm.value.category||null, 
+                    points:violationForm.value.points??null, 
+                    fineAmount:violationForm.value.fineAmount??null, 
+                    status:violationForm.value.status||'未繳', 
+                    dueDate:violationForm.value.dueDate||null, 
+                    paidDate:violationForm.value.paidDate||null, 
+                    notes:violationForm.value.notes||null }; 
+                    if(!violationEditId.value){ 
+                        await axios.post('/api/maintenance/violations', payload, { 
+                            withCredentials:true, 
+                            headers:{'Content-Type':'application/json'} }); 
+                    } else { await axios.put(`/api/maintenance/violations/${violationEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } 
+                    showViolationAdd.value=false; violationEditId.value=null; await loadViolations(); 
+                }
+        async function removeViolation(id){ 
+            if(!confirm('確定刪除此筆違規紀錄？')) return; 
+            await axios.delete(`/api/maintenance/violations/${id}`, { withCredentials:true }); 
+            await loadViolations(); }
 
-        // init
-        onMounted(async ()=>{
-          await loadVehicles();
-          await loadMaintenance();
-          await loadVehicleDetail();
-          await loadRepairs();
-          await loadInspections();
-          await loadViolations();
+        onMounted(async()=>{ 
+            await loadVehicles(); 
+            await loadMaintenance(); 
+            await loadVehicleDetail(); 
+            await loadRepairs(); 
+            await loadInspections(); 
+            await loadViolations(); 
         });
 
-        return {
-          // 顯示
-          vehicles, selectedVehicleId, vehicleDetail, tab,
-          // 保養
-          rows, showAdd, form, fmtNum, fmtMoney, loadMaintenance, create, startEditMaint,removeMaintainance,
+        return { 
+          vehicles, selectedVehicleId, vehicleDetail, tab, fmtNum, fmtMoney,recordRows,
           // 車況
-          setAvailable, loadVehicleDetail,
+          setAvailable, onVehicleChanged,
+          // 保養
+          maintenance, showMaintAdd, editingMaintId, maintForm, toggleMaintForm, startEditMaint, cancelMaint, saveMaint, removeMaint,
           // 維修
-          showRepairAdd, toggleRepairForm, repair, submitRepair,
-          repairs, repairRows, loadRepairs,startEditRepair, removeRepair,
-          // 結果卡
-          createdRepair, newRepair,
-          //驗車
-          inspections, inspectionRows, showInspectionAdd, inspectionForm,
-          inspectionEditId, toggleInspectionForm, cancelInspection,
-          loadInspections, startEditInspection, saveInspection, removeInspection,
-
-          //違規
-          violations, violationRows, showViolationAdd, violationForm,
-          violationEditId, toggleViolationForm, cancelViolation,
-          loadViolations, startEditViolation, saveViolation, removeViolation
+          repairs, repairRows, showRepairAdd, editingRepairId, repairForm, toggleRepairForm, startEditRepair, cancelRepair, saveRepair, removeRepair,
+          // 驗車
+          inspections, inspectionRows, showInspectionAdd, inspectionEditId, inspectionForm, toggleInspectionForm, cancelInspection, startEditInspection, saveInspection, removeInspection,
+          // 違規
+          violations, violationRows, showViolationAdd, violationEditId, violationForm, toggleViolationForm, cancelViolation, startEditViolation, saveViolation, removeViolation
         };
       }
     }).mount('#app');

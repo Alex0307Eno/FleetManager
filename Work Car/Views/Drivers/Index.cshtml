@@ -2,199 +2,18 @@
     ViewData["Title"] = "駕駛員基本資料";
 }
 
-<!DOCTYPE html>
-<html lang="zh-Hant">
+
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
     <title>@ViewData["Title"]</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="~/css/Driver/Index.css" rel="stylesheet" />
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
-    <style>
-        :root {
-            --bg1: #e8f0fb;
-            --bg2: #f6f9fe;
-            --panel: #fff;
-            --border: #dbeafe;
-            --muted: #64748b;
-            --text: #0f172a;
-            --shadow: 0 1px 3px rgba(16,24,40,.08);
-            --row-alt: #f9fbff;
-        }
-
-        body {
-            margin: 0;
-            font-family: "Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;
-            background: linear-gradient(180deg,var(--bg1),var(--bg2) 1200px);
-            color: var(--text);
-        }
-
-       
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 16px
-        }
-
-        .wrap {
-            max-width: 1600px;
-            margin: 20px auto;
-            padding: 0 16px
-        }
-
-        .topbar .wrap {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-
-        .page-bar {
-            background: linear-gradient(180deg,#3b82f6,#2563eb);
-            color: #fff;
-            padding: 14px 0;
-            box-shadow: var(--shadow);
-        }
-
-            .page-bar .wrap {
-                display: flex;
-                justify-content: space-between;
-                align-items: center
-            }
-
-        .title {
-            font-size: 20px;
-            font-weight: 800
-        }
-
-        .btn {
-            border: 1px solid var(--border);
-            background: #fff;
-            padding: 8px 12px;
-            border-radius: 10px;
-            cursor: pointer
-        }
-
-        .btn-warning {
-            background: #ffb020;
-            border-color: #ffb020;
-            color: #111827;
-            font-weight: 700
-        }
-
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            box-shadow: var(--shadow);
-            margin-top: 16px
-        }
-
-        .card-hd {
-            padding: 14px 16px;
-            font-weight: 700;
-            border-bottom: 1px solid var(--border)
-        }
-
-        .table-wrap {
-            padding: 10px 12px 14px
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0
-        }
-
-        thead th {
-            background: #e7f1ff;
-            color: #334155;
-            font-size: 14px;
-            text-align: left;
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        tbody td {
-            padding: 12px;
-            border-top: 1px solid var(--border);
-            font-size: 14px
-        }
-
-        tbody tr:nth-child(2n) {
-            background: var(--row-alt)
-        }
-
-        .actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end
-        }
-
-        .icon-btn {
-            width: 28px;
-            height: 28px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--border);
-            background: #fff;
-            cursor: pointer
-        }
-
-            .icon-btn.view {
-                color: #0ea5e9
-            }
-
-            .icon-btn.edit {
-                color: #22c55e
-            }
-
-        .modal-mask {
-            position: fixed;
-            z-index: 9998;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0,0,0,.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-container {
-            background: #fff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,.4);
-        }
-
-        .table-detail th {
-            background: #f3f4f6;
-            padding: 8px 12px;
-            text-align: left;
-            width: 140px;
-        }
-
-        .table-detail td {
-            padding: 8px 12px;
-        }
-    </style>
 </head>
 <body>
-    <!-- 頁首 -->
 
 
     <div class="wrap">
@@ -355,4 +174,3 @@
         }).mount('#app')
     </script>
 </body>
-</html>

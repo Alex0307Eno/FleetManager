@@ -36,7 +36,7 @@ namespace Cars.Controllers
             var client = _httpClientFactory.CreateClient();
             var url = "https://places.googleapis.com/v1/places:autocomplete";
 
-            // ✅ 改用物件序列化，帶入 sessionToken（可為 null）
+            //locationRestriction 限制在台灣
             var reqBody = new
             {
                 input = input.Input,

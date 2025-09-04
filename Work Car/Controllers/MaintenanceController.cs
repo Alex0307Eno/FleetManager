@@ -165,8 +165,10 @@ namespace Cars.Controllers
             public int VehicleId { get; set; }
             public string? PlateNo { get; set; }
             public DateTime Date { get; set; }
+            public string? Place { get; set; }
             public string Issue { get; set; } = "";
             public decimal? CostEstimate { get; set; }
+            public string? Vendor { get; set; }
             public string? Note { get; set; }
         }
 
@@ -182,21 +184,41 @@ namespace Cars.Controllers
                 VehicleId = dto.VehicleId,
                 PlateNo = dto.PlateNo ?? "",
                 Date = dto.Date,
+                Place = dto.Place,
                 Issue = dto.Issue.Trim(),
                 CostEstimate = dto.CostEstimate,
+                Vendor = dto.Vendor,
                 Note =  dto.Note,
                 Status = "待處理"
             };
 
             _db.VehicleRepairs.Add(entity);
 
-            // ★ 同時把車輛狀態改為「維修中」
+            //  同時把車輛狀態改為「維修中」
             var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == dto.VehicleId);
             if (v != null)
                 v.Status = "維修中";
 
             await _db.SaveChangesAsync();
             return Ok(new { message = "報修已送出", id = entity.RepairRequestId });
+        }
+        //更新維修
+        [HttpPut("repair/{id:int}")]
+        public async Task<IActionResult> UpdateRepair(int id, [FromBody] RepairRequestDto dto)
+        {
+            var repair = await _db.VehicleRepairs.FindAsync(id);
+            if (repair == null) return NotFound();
+
+            repair.Date = dto.Date;
+            repair.Place = dto.Place;
+            repair.Issue = dto.Issue ?? repair.Issue;
+            repair.CostEstimate = dto.CostEstimate;
+            repair.Vendor = dto.Vendor;
+            repair.Note = dto.Note;
+            // 保持原有的 Status，不要強制改
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "updated" });
         }
 
 
@@ -210,9 +232,11 @@ namespace Cars.Controllers
                 .Select(r => new {
                     repairRequestId = r.RepairRequestId,
                     date = r.Date != null ? r.Date.ToString("yyyy-MM-dd") : "",
+                    place = r.Place ?? "",
                     issue = r.Issue ?? "",
                     status = r.Status ?? "",
                     costEstimate = r.CostEstimate ?? 0,
+                    vendor = r.Vendor ?? "",
                     note = r.Note ?? ""
                 });
 
@@ -230,10 +254,21 @@ namespace Cars.Controllers
 
             return Ok(new { message = "報修紀錄已刪除", id });
         }
+        //維修完成更改狀態
+        [HttpPut("repair/{id:int}/status")]
+        public async Task<IActionResult> UpdateRepairStatus(int id, [FromBody] string status)
+        {
+            var repair = await _db.VehicleRepairs.FindAsync(id);
+            if (repair == null) return NotFound();
+
+            repair.Status = status;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "status updated" });
+        }
 
 
 
-        
 
         [HttpGet("inspections")]
         [Authorize(Roles = "Admin")]
