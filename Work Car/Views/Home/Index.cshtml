@@ -1,5 +1,4 @@
 ﻿
-<html lang="zh-Hant">
 <head>
 
     <title>公務車派車系統</title>
@@ -255,20 +254,7 @@
         </div>
     </main>
 
-    @* <pre id="debug">🟦 Debug console ready…</pre> *@
 
-    <!-- 把 console 也寫到頁面下方 -->
-    @* <script>
-        (function () {
-          const dbg = document.getElementById('debug');
-          function toText(v){ try{ return typeof v==='string'? v: JSON.stringify(v,null,2);}catch{return String(v)} }
-          function write(prefix, args, pipe){ dbg.textContent += prefix+' '+Array.from(args).map(toText).join(' ')+'\n'; dbg.scrollTop = dbg.scrollHeight; try{pipe.apply(console,args);}catch{} }
-          const _log=console.log,_err=console.error,_warn=console.warn;
-          console.log=function(){write('🟢',arguments,_log)}; console.warn=function(){write('🟡',arguments,_warn)}; console.error=function(){write('🔴',arguments,_err)};
-          window.addEventListener('error', e=>console.error('window.error:', e.message, e.error));
-          window.addEventListener('unhandledrejection', e=>console.error('unhandledrejection:', e.reason));
-        })();
-    </script> *@
 
     <!-- Vue App -->
     <script>
@@ -547,7 +533,7 @@
             alert("✅ 已成功審核通過");
             
             p.status = "完成審核";
-            await loadTodaySchedule();
+            await scheduleTable();
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
           } catch (err) {
             console.error("❌ approve error:", err);
@@ -764,4 +750,3 @@
     <script src="https://maps.googleapis.com/maps/api/js?key=@(ViewBag.GoogleMapsKey)&v=quarterly&libraries=marker" async defer></script>
 
 </body>
-</html>

@@ -241,7 +241,12 @@
           applicantDept: x.applicantDept || "",
           passengerCount: x.passengerCount ?? 0,
           tripType: x.tripType || "",
-          tripDistance: x.singleDistance || x.roundTripDistance || "",
+           tripDistance: (() => {
+          const t = (x.tripType || "").toString().trim().toLowerCase();
+          const single = x.singleDistance || "";
+          const round  = x.roundTripDistance || "";
+          return t === "single" ? single : (t === "round" ? round : (round || single || ""));
+        })(),
           status: x.status || "",
 
           // 新增

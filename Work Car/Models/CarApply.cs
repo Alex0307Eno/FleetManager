@@ -35,7 +35,7 @@ namespace Cars.Models
         public string? SingleDuration { get; set; }
         public string? RoundTripDistance { get; set; }
         public string? RoundTripDuration { get; set; }
-
+        public bool isLongTrip { get; set; }
         public string Status { get; set; } = "待審核";
 
         public Applicant? Applicant { get; set; }  // 導航屬性

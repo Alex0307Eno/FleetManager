@@ -337,91 +337,181 @@ namespace Cars.Controllers
         [Authorize(Roles = "Admin,Applicant,Manager")]
         [HttpGet]
         public async Task<IActionResult> GetAll(
-     [FromQuery] DateTime? dateFrom,
-     [FromQuery] DateTime? dateTo,
-     [FromQuery] string? q)
+    [FromQuery] DateTime? dateFrom,
+    [FromQuery] DateTime? dateTo,
+    [FromQuery] string? q)
         {
-            // 基本查詢
+            // 基礎查詢（含導航屬性）
             var baseQuery = _context.CarApplications
                 .Include(a => a.Vehicle)
                 .Include(a => a.Driver)
                 .AsNoTracking()
                 .AsQueryable();
 
-            // 如果不是 Admin，就只能看自己
-            if (!(User.IsInRole("Manager") || User.IsInRole("Admin")))
+            // 目前登入者
+            var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userName = User.Identity?.Name;
+
+            // ===== 可視範圍：Admin=全部；Manager=本部門；其他=自己 =====
+            if (User.IsInRole("Admin"))
             {
-                var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (!int.TryParse(uidStr, out var userId))
-                    return Forbid();
+                // Admin 看全部（不加限制）
+            }
+            else if (User.IsInRole("Manager"))
+            {
+                if (int.TryParse(uidStr, out var userId))
+                {
+                    // 取自己的部門
+                    var myDept = await _context.Applicants
+                        .Where(a => a.UserId == userId)
+                        .Select(a => a.Dept)
+                        .FirstOrDefaultAsync();
 
-                var myApplicantId = await _context.Applicants
-                    .AsNoTracking()
-                    .Where(a => a.UserId == userId)
-                    .Select(a => (int?)a.ApplicantId)
-                    .FirstOrDefaultAsync();
+                    if (!string.IsNullOrWhiteSpace(myDept))
+                    {
+                        // 只看同部門的申請
+                        baseQuery =
+                            from a in baseQuery
+                            join ap in _context.Applicants.AsNoTracking()
+                                on a.ApplicantId equals ap.ApplicantId
+                            where ap.Dept == myDept
+                            select a;
+                    }
+                    else if (!string.IsNullOrEmpty(userName))
+                    {
+                        // 找不到部門 → 退回只看自己（比申請人姓名）
+                        baseQuery =
+                            from a in baseQuery
+                            join ap in _context.Applicants.AsNoTracking()
+                                on a.ApplicantId equals ap.ApplicantId
+                            where ap.Name == userName
+                            select a;
+                    }
+                    else
+                    {
+                        return Ok(Array.Empty<object>());
+                    }
+                }
+                else if (!string.IsNullOrEmpty(userName))
+                {
+                    // 沒有 userId 但有帳號名稱 → 退回只看自己
+                    baseQuery =
+                        from a in baseQuery
+                        join ap in _context.Applicants.AsNoTracking()
+                            on a.ApplicantId equals ap.ApplicantId
+                        where ap.Name == userName
+                        select a;
+                }
+                else
+                {
+                    return Ok(Array.Empty<object>());
+                }
+            }
+            else
+            {
+                // 一般使用者：只看自己
+                if (int.TryParse(uidStr, out var userId))
+                {
+                    var myApplicantId = await _context.Applicants
+                        .Where(a => a.UserId == userId)
+                        .Select(a => (int?)a.ApplicantId)
+                        .FirstOrDefaultAsync();
 
-                if (myApplicantId == null)
-                    return Forbid();
-
-                baseQuery = baseQuery.Where(a => a.ApplicantId == myApplicantId.Value);
+                    if (myApplicantId.HasValue)
+                    {
+                        baseQuery = baseQuery.Where(a => a.ApplicantId == myApplicantId.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(userName))
+                    {
+                        baseQuery =
+                            from a in baseQuery
+                            join ap in _context.Applicants.AsNoTracking()
+                                on a.ApplicantId equals ap.ApplicantId
+                            where ap.Name == userName
+                            select a;
+                    }
+                    else
+                    {
+                        return Ok(Array.Empty<object>());
+                    }
+                }
+                else if (!string.IsNullOrEmpty(userName))
+                {
+                    baseQuery =
+                        from a in baseQuery
+                        join ap in _context.Applicants.AsNoTracking()
+                            on a.ApplicantId equals ap.ApplicantId
+                        where ap.Name == userName
+                        select a;
+                }
+                else
+                {
+                    return Ok(Array.Empty<object>());
+                }
             }
 
-            // 日期篩選
+            // ===== 日期篩選 =====
             if (dateFrom.HasValue)
                 baseQuery = baseQuery.Where(a => a.UseStart >= dateFrom.Value.Date);
 
             if (dateTo.HasValue)
                 baseQuery = baseQuery.Where(a => a.UseStart < dateTo.Value.Date.AddDays(1));
 
-            // 🔗 左連接 Applicants
-            var query =
+            // ===== 關鍵字（可選）=====
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var k = q.Trim();
+                baseQuery =
+                    from a in baseQuery
+                    join ap in _context.Applicants.AsNoTracking()
+                        on a.ApplicantId equals ap.ApplicantId into apg
+                    from ap in apg.DefaultIfEmpty()
+                    where (a.Origin ?? "").Contains(k)
+                       || (a.Destination ?? "").Contains(k)
+                       || (a.ApplyReason ?? "").Contains(k)
+                       || (ap != null && (ap.Name ?? "").Contains(k))
+                    select a;
+            }
+
+            // ===== 投影成前端需要的欄位 =====
+            var list = await (
                 from a in baseQuery
                 join ap in _context.Applicants.AsNoTracking()
                     on a.ApplicantId equals ap.ApplicantId into apg
                 from ap in apg.DefaultIfEmpty()
                 select new
                 {
-                    a.ApplyId,
-                    ApplicantName = ap != null ? ap.Name : null,
-                    ApplicantDept = ap != null ? ap.Dept : null,
-                    a.UseStart,
-                    a.UseEnd,
-                    a.Origin,
-                    a.Destination,
-                    a.PassengerCount,
-                    a.TripType,
-                    a.SingleDistance,
-                    a.RoundTripDistance,
-                    a.Status,
+                    applyId = a.ApplyId,
+                    vehicleId = a.VehicleId,
+                    plateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
+                    driverId = a.DriverId,
+                    driverName = a.Driver != null ? a.Driver.DriverName : null,
 
-                    // 事由
-                    a.ReasonType,
-                    a.ApplyReason,
+                    applicantId = ap != null ? (int?)ap.ApplicantId : null,
+                    applicantName = ap != null ? ap.Name : null,
+                    applicantDept = ap != null ? ap.Dept : null,
 
-                    // 車輛
-                    PlateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
+                    passengerCount = a.PassengerCount,
+                    useStart = a.UseStart,
+                    useEnd = a.UseEnd,
+                    origin = a.Origin,
+                    destination = a.Destination,
 
-                    // 駕駛人
-                    DriverName = a.Driver != null ? a.Driver.DriverName : null
-                };
+                    tripType = a.TripType,            // "single" / "round"
+                    singleDistance = a.SingleDistance,      // e.g. "153.5 公里"
+                    roundTripDistance = a.RoundTripDistance,   // e.g. "306.9 公里"
 
-            // 🔍 關鍵字搜尋
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var qq = q.Trim();
-                query = query.Where(x =>
-                    (x.ApplicantName ?? "").Contains(qq) ||
-                    (x.Origin ?? "").Contains(qq) ||
-                    (x.Destination ?? "").Contains(qq));
-            }
-
-            var list = await query
-                .OrderByDescending(x => x.UseStart)
-                .ToListAsync();
+                    status = a.Status,
+                    reasonType = a.ReasonType,
+                    applyReason = a.ApplyReason
+                }
+            )
+            .OrderByDescending(x => x.useStart)
+            .ToListAsync();
 
             return Ok(list);
         }
+
 
 
 
