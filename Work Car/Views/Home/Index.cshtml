@@ -255,6 +255,22 @@
         </div>
     </main>
 
+    @* <pre id="debug">🟦 Debug console ready…</pre> *@
+
+    <!-- 把 console 也寫到頁面下方 -->
+    @* <script>
+        (function () {
+          const dbg = document.getElementById('debug');
+          function toText(v){ try{ return typeof v==='string'? v: JSON.stringify(v,null,2);}catch{return String(v)} }
+          function write(prefix, args, pipe){ dbg.textContent += prefix+' '+Array.from(args).map(toText).join(' ')+'\n'; dbg.scrollTop = dbg.scrollHeight; try{pipe.apply(console,args);}catch{} }
+          const _log=console.log,_err=console.error,_warn=console.warn;
+          console.log=function(){write('🟢',arguments,_log)}; console.warn=function(){write('🟡',arguments,_warn)}; console.error=function(){write('🔴',arguments,_err)};
+          window.addEventListener('error', e=>console.error('window.error:', e.message, e.error));
+          window.addEventListener('unhandledrejection', e=>console.error('unhandledrejection:', e.reason));
+        })();
+    </script> *@
+
+    <!-- Vue App -->
     <script>
             function updateDateTime() {
             var now = new Date();

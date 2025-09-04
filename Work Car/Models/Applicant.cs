@@ -12,7 +12,7 @@
         public int? UserId { get; set; }       // 對應 Users
         public User User { get; set; }
 
-        // 🚗 對應多筆申請單
+        //  對應多筆申請單
         public ICollection<CarApply> CarApplications { get; set; }
     }
 }
