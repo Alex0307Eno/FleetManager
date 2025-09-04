@@ -100,7 +100,11 @@
                                 <td class="mono">{{ fmtKm(r.km) }}</td>
                                 <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
                                 <td><span class="pill">{{ r.driver }}</span></td>
-                                <td><span class="pill blue">{{ r.plate }}</span></td>
+                                <td>
+                                    <span class="pill blue" :class="r.plate ? '' : 's-muted'">
+                                        {{ r.plate || '未指派' }}
+                                    </span>
+                                </td>
                                 <td>
                                     <a href="javascript:;" @@click="toggleLongShort(r)"
                                        :style="{color: r.longShort==='長差' ? '#2563eb':'#64748b', textDecoration:'none', fontWeight:'600'}">
@@ -510,4 +514,3 @@
         })
     </script>
 </body>
-</html>

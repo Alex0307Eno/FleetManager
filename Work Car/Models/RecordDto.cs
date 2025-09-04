@@ -13,7 +13,7 @@
         public string? Applicant { get; set; }      // a.ApplicantName
         public int? Seats { get; set; }             // a.Seats
         public decimal? Km { get; set; }            // 單趟/來回里程擇一
-        public string? Status { get; set; }         // a.Status
+        public string? Status { get; set; } = "待派車";        // a.Status
         public string? Driver { get; set; }         // r.DriverName
         public int? DriverId { get; set; }          // r.DriverId
         public string? Plate { get; set; }          // v.PlateNo

@@ -16,10 +16,10 @@
                 <h5 class="mb-0" style="font-weight:700">派車申請</h5>
                 <div style="display:flex;gap:8px">
                     
-                    @if(User.IsInRole("Admin") || User.IsInRole("Manager"))
-                    {
+                   
+                    
                         <a class="btn btn-warning" asp-controller="Dispatches" asp-action="CarApply">新增</a>
-                    }
+                    
                     @if (User.IsInRole("Admin"))
                     { 
                     <button class="btn btn-primary" @@click="exportCSV">匯出</button>
@@ -229,10 +229,13 @@
             };
 
             // 後端 /api/dispatch/records -> 轉成前端欄位
-                             const shapeRow = x => ({
+         const shapeRow = x => ({
           applyId: x.applyId,
+          vehicleId: x.vehicleId,
+          plateNo: x.plateNo || "",
           useDate: fmtDate(x.useStart),
           useTime: fmtTime(x.useStart),
+          useStartRaw: x.useStart,
           route: (x.origin || "") + " - " + (x.destination || ""),
           applicantName: x.applicantName || "",
           applicantDept: x.applicantDept || "",
@@ -401,11 +404,33 @@
                 const confirmEdit = async () => {
           if (!editing.value) return;
           try {
+           // 先更新狀態
             await axios.patch(`/api/carApplications/${editing.value.applyId}/status`, {
               status: newStatus.value
             });
+        
+            // 若改為「完成審核」→ 立刻自動派車
+            if (newStatus.value === '完成審核') {
+              const params = {
+                passengerCount: editing.value.passengerCount ?? 0
+              };
+              try {
+                const res2 = await axios.post(
+                  `/api/carApplications/applications/${editing.value.applyId}/approve-assign`,
+                  null,
+                  { params }
+                );
+                alert(res2.data?.message || '審核完成並已自動派車');
+              } catch (err) {
+                // 自動派車失敗時回報，但狀態仍已更新成完成審核，管理員可再重試或改派
+                const msg = err?.response?.data?.message || '自動派車失敗，請稍後再試或改派車輛';
+                alert(`❌ ${msg}`);
+              }
+            }
+        
             editing.value = null;
-            await loadData(); // 重新載入列表
+            await loadData(); // 重新載入列表（更新駕駛/車牌/狀態）
+           
           } catch (err) {
             console.error(err);
             alert("更新失敗");
@@ -426,9 +451,9 @@
           if (!r.driverId) return true;
 
           // 沒有出發時間 → 不可編輯
-          if (!r.useStart) return false;
+          if (!r.useStartRaw) return false;
 
-          const start = new Date(r.useStart);
+           const start = new Date(r.useStartRaw);
           if (isNaN(start)) return false;
 
           // 有駕駛 → 只能在出發前編輯
@@ -462,4 +487,3 @@
         }).mount('#app');
     </script>
 </body>
-</html>

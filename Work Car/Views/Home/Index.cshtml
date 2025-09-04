@@ -78,13 +78,13 @@
                     <div class="card" style="margin-top:12px;">
                         <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;">
                             <div>駕駛目前狀態</div>
-                            @if (User.IsInRole("Admin"))
-                            {
+                            
+                            
                                 <button class="btn" style="background:#ffb020;border-color:#ffb020;color:#111827;font-weight:700"
                                 @@click="enterMyLocationView">
                                     車輛現況
                                 </button>
-                            }
+                            
                         </div>
                         <div class="card-bd no-pad">
                             <table class="table-flat">
@@ -109,6 +109,9 @@
                                         <td>
                                             <span class="status-dot" :class="d.stateDotClass"></span>
                                             {{ d.stateText }}
+                                            <span v-if="d.stateText==='休息中' && d.restRemainMinutes>0" style="color:#ef4444">
+                                                （剩 {{ d.restRemainMinutes }} 分鐘）
+                                            </span>
                                             <span v-if="d.note" style="color:#9ca3af;">（{{ d.note }}）</span>
                                         </td>
                                         <td class="mono">{{ d.taskWindow || '無' }}</td>
@@ -654,8 +657,14 @@
           // 狀態燈顏色
           let stateDotClass = 'status-green';
           if(stateText==='執勤中') stateDotClass='status-red';
-          else if(stateText==='休息中') stateDotClass='status-orange';
-          else if(stateText==='請假') stateDotClass='status-gray';
+          else if(stateText==='休息中') stateDotClass='status-gray';
+          else if(stateText==='請假') stateDotClass='status-orange';
+          //休息計時器
+          let note = '';
+          if (stateText === '休息中' && x?.restRemainMinutes > 0) {
+          note = `剩 ${x.restRemainMinutes} 分鐘`;
+          }
+
 
           // 班別轉換
           const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();

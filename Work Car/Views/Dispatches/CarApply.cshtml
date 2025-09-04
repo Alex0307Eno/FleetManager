@@ -120,7 +120,7 @@
                                     <label>事由 *</label>
                                     <select v-model="purposeType">
                                         <option value="公務車(不可選車)">公務車(不可選車)</option>
-                                        <option value="公務車(可選車)">公務車(可選車)</option>
+                                        @* <option value="公務車(可選車)">公務車(可選車)</option> *@
                                     </select>
                                 </div>
 
@@ -439,16 +439,7 @@
           const tripType = document.getElementById("TripType").value;
           const secs = (tripType === "來回") ? roundTripDurationSec : singleDurationSec;
           if (!secs || secs <= 0) return;
-
-          
-
-         
-
-         
         }
-
-       
-
         // 初始化：避免重複綁定
         function initPlacesAutocompleteDebounced(bindings = {}, opts = {}){
           if (window.__AC_DEBOUNCED_INITED__) return; window.__AC_DEBOUNCED_INITED__ = true;

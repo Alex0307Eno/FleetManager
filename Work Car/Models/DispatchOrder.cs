@@ -7,7 +7,7 @@ namespace Cars.Models
     {
         public int DispatchId { get; set; }
         public int? VehicleId { get; set; }
-        public string? PlateNo { get; set; }
+        public string? PlateNo { get; set; } = "未指派";
         public int? DriverId { get; set; }
         public string? DriverName { get; set; }
         public int? ApplyId { get; set; }

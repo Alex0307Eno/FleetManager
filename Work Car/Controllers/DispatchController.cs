@@ -36,11 +36,10 @@ namespace Cars.Controllers
             // Admin 可看全部；非 Admin 只能看自己
             if (!User.IsInRole("Admin"))
             {
-                // 優先用 Applicants.UserId 關聯（建議的做法）
                 if (int.TryParse(uidStr, out var userId))
                 {
                     var myApplicantId = await _db.Applicants
-                        .Where(a => a.UserId == userId)          
+                        .Where(a => a.UserId == userId)
                         .Select(a => (int?)a.ApplicantId)
                         .FirstOrDefaultAsync();
 
@@ -50,7 +49,6 @@ namespace Cars.Controllers
                     }
                     else if (!string.IsNullOrEmpty(userName))
                     {
-                        // 後備方案：用名字比對（若你的 View 有 ApplicantName）
                         query = query.Where(o => o.ApplicantName == userName);
                     }
                     else
@@ -60,7 +58,6 @@ namespace Cars.Controllers
                 }
                 else if (!string.IsNullOrEmpty(userName))
                 {
-                    // 身分不是 int 的情形，退回用名稱
                     query = query.Where(o => o.ApplicantName == userName);
                 }
                 else
@@ -68,17 +65,29 @@ namespace Cars.Controllers
                     return Ok(Array.Empty<object>());
                 }
             }
-            var data = await query
-                .Select(o => new
+
+            // ✅ 補齊車牌與駕駛姓名：o.PlateNo / o.DriverName 若為 null，就用關聯表補
+            var data = await (
+                from o in query
+                join v0 in _db.Vehicles on o.VehicleId equals v0.VehicleId into vv
+                from v in vv.DefaultIfEmpty()
+                join d0 in _db.Drivers on o.DriverId equals d0.DriverId into dd
+                from dr in dd.DefaultIfEmpty()
+                select new
                 {
                     o.VehicleId,
-                    o.PlateNo,
+                    // 前端可用任一；兩個欄位都給，避免大小寫或命名不一致
+                    PlateNo = (o.PlateNo ?? v.PlateNo) ?? "未指派",
+                    Plate = (o.PlateNo ?? v.PlateNo) ?? "未指派",
+
                     o.DriverId,
-                    o.DriverName,
+                    DriverName = (o.DriverName ?? dr.DriverName) ?? "未指派",
+
                     o.ApplyId,
                     ApplicantId = o.ApplicantId,
-                    ApplicantName = o.ApplicantName, // 直接用 View.Name
-                    ApplicantDept = o.ApplicantDept, // 直接用 View.Dept
+                    ApplicantName = o.ApplicantName,
+                    ApplicantDept = o.ApplicantDept,
+
                     o.PassengerCount,
                     o.UseDate,
                     o.UseTime,
@@ -87,11 +96,12 @@ namespace Cars.Controllers
                     o.TripDistance,
                     o.TripType,
                     o.Status
-                })
-                .ToListAsync();
+                }
+            ).ToListAsync();
 
             return Ok(data);
         }
+
 
 
         // 指派駕駛與車輛

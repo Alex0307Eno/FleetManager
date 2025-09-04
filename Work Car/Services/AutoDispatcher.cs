@@ -25,215 +25,358 @@ namespace Cars.Services
             public string? PlateNo { get; set; }
         }
 
-        // 時段交集：a 與 b 有重疊 => aStart < bEnd && bStart < aEnd
-        private static bool Overlap(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
-            => aStart < bEnd && bStart < aEnd;
 
-        // 主要對外入口：依日期/時間/人數，自動選班表司機 + 可用車
-        public async Task<DispatchResult> AssignAsync(
+        private static List<string> BuildShiftChain(DateTime start, bool isLongTrip)
+        {
+            var t = start.TimeOfDay;
+            bool early = t < TimeSpan.FromHours(11.5);
+            bool aft = t >= TimeSpan.FromHours(13.5) && t < TimeSpan.FromHours(17);
+
+            var chain = new List<string>();
+            if (isLongTrip) chain.Add("G3");                  // ★ 長差第一順位
+
+            if (early) chain.AddRange(new[] { "AM", "G1" });
+            else if (aft) chain.AddRange(new[] { "PM", "G2" });
+            else chain.AddRange(new[] { "AM", "PM", "G1", "G2" });
+
+            // 備援
+            chain.AddRange(new[] { "AM", "PM", "G1", "G2", "G3" });
+            return chain.Distinct().ToList();
+        }
+
+        /// 派工選項
+        public sealed class AssignOptions
+        {
+            /// 距離（公里），>30 視為長差
+            public double? DistanceKm { get; set; }
+
+            /// 是否只派駕駛（預設 true：用車申請階段不自動派車）
+            public bool DriverOnly { get; set; } = true;
+
+            /// 管理員可指定車輛（審核階段用，可選）
+            public int? PreferredVehicleId { get; set; }
+        }
+
+        // 舊簽名保留，讓既有呼叫不用改碼
+        public Task<DispatchResult> AssignAsync(
             int carApplyId,
             DateTime useStart,
             DateTime useEnd,
             int passengerCount,
             string? vehicleType = null)
         {
-            // 以台北時區計算，可依你專案改成 IConfiguration 調整
-            var localStart = useStart;
-            var localEnd = useEnd;
-            var day = localStart.Date;
-            var isWeekday = localStart.DayOfWeek >= DayOfWeek.Monday && localStart.DayOfWeek <= DayOfWeek.Friday;
+            // 依你的規則：預設只派駕駛，車輛等管理員審核再派
+            return AssignAsync(
+                carApplyId, useStart, useEnd, passengerCount, vehicleType,
+                new AssignOptions { DriverOnly = true }
+            );
+        }
 
-            // 根據開始時間推斷「第一優先」時段
-            var chain = new List<string>();
-            if (isWeekday)
+        // 主要對外入口：依日期/時間/人數，自動選班表司機 + 可用車
+        public async Task<DispatchResult> AssignAsync(
+    int carApplyId,
+    DateTime useStart,
+    DateTime useEnd,
+    int passengerCount,
+    string? vehicleType,
+    AssignOptions? options)
+{
+    options ??= new AssignOptions();
+
+    var localStart = useStart;
+    var localEnd   = useEnd;
+    var day        = localStart.Date;
+
+    // === 時窗（早午／午晚） ===
+    var T0730 = TimeSpan.FromHours(7.5);   // 07:30
+    var T1130 = TimeSpan.FromHours(11.5);  // 11:30
+    var T1330 = TimeSpan.FromHours(13.5);  // 13:30
+    var T1700 = TimeSpan.FromHours(17);    // 17:00
+
+    bool OverlapWin(DateTime s, DateTime e, TimeSpan ws, TimeSpan we)
+        => s.TimeOfDay < we && ws < e.TimeOfDay;
+
+    bool inEarlyWindow     = OverlapWin(localStart, localEnd, T0730, T1130);  // 07:30–11:30
+    bool inAfternoonWindow = OverlapWin(localStart, localEnd, T1330, T1700);  // 13:30–17:00
+
+    // === 長差判斷（距離優先，其次 vehicleType 標記） ===
+    bool isLongTrip = (options.DistanceKm.HasValue && options.DistanceKm.Value > 30)
+        || string.Equals(vehicleType, "長差", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(vehicleType, "long",   StringComparison.OrdinalIgnoreCase);
+
+            // === 產生派車優先順序：G3 視為「長差班」第一順位 ===
+    var chain = BuildShiftChain(useStart, isLongTrip);
+    var early = new[] { "AM", "G1" }; // 早午
+    var aft   = new[] { "PM", "G2" }; // 午晚
+
+    if (isLongTrip)
+    {
+        chain.Add("G3"); // 長差班第一順位
+        if (inEarlyWindow)          chain.AddRange(early);
+        else if (inAfternoonWindow) chain.AddRange(aft);
+        else                        chain.AddRange(early.Concat(aft));
+    }
+    else
+    {
+        if (inEarlyWindow)          chain.AddRange(early);
+        else if (inAfternoonWindow) chain.AddRange(aft);
+        else                        chain.AddRange(early.Concat(aft));
+    }
+
+    // 全域備援（不含 G3，避免非長差跑到長差班）
+    chain.AddRange(new[] { "AM", "PM", "G1", "G2" });
+    chain = chain.Distinct().ToList();
+
+    using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+    try
+    {
+        // 1) 依 chain 找當日班表
+        var daySchedules = (await _db.Schedules
+            .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
+            .AsNoTracking()
+            .ToListAsync())
+            .OrderBy(s => chain.IndexOf(s.Shift))
+            .ToList();
+
+        Cars.Models.Schedule? schedule = null;
+
+        foreach (var s in daySchedules)
+        {
+            // 2) 衝突檢查：時間重疊 → 衝突
+            var overlap = await _db.Dispatches.AnyAsync(d =>
+                d.DriverId == s.DriverId &&
+                localStart < d.EndTime &&
+                d.StartTime < localEnd);
+
+            if (overlap) continue;
+
+            // 3) ★ 長差休息規則：只對「前一趟為長差」的人套用 1h 冷卻
+            // 建議在 Dispatch 模型加一個 IsLongTrip(bool) 欄位，下面查詢就能成立
+            var longRest = await _db.Dispatches.AnyAsync(d =>
+                d.DriverId == s.DriverId &&
+                d.IsLongTrip &&                                  // ← 前一趟是長差
+                d.EndTime > localStart.AddHours(-1) && d.EndTime <= localStart); // ← 距離現在 < 1h
+
+            if (longRest) continue;
+
+            schedule = s;
+            break;
+        }
+
+        if (schedule == null)
+        {
+            return new DispatchResult {
+                Success = false,
+                Message = $"當日({day:yyyy-MM-dd})無可派司機（順序：{string.Join(">", chain)}），或受長差休息限制。"
+            };
+        }
+
+        // === 只派駕駛（預設） ===
+        int? chosenVehicleId = null;
+        string? chosenPlate  = null;
+
+        if (!options.DriverOnly)
+        {
+            // 管理員審核後才會走這段（自動派車）
+            if (options.PreferredVehicleId is int pv)
             {
-                if (localStart.TimeOfDay < TimeSpan.FromHours(12)) chain.Add("AM"); else chain.Add("PM");
+                // 指定車輛
+                var v = await _db.Vehicles.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.VehicleId == pv && x.Status == "可用");
+                if (v == null)
+                    return new DispatchResult { Success = false, Message = "指定車輛不可用或不存在" };
+
+                var used = await _db.Dispatches.AnyAsync(d =>
+                    d.VehicleId == pv &&
+                    localStart < d.EndTime &&
+                    d.StartTime < localEnd);
+
+                if (used)
+                    return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用" };
+
+                chosenVehicleId = pv;
+                chosenPlate     = v.PlateNo;
             }
-            // 平日與假日皆可往一般班遞補
-            chain.AddRange(new[] { "G1", "G2", "G3" });
-
-            using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-            try
+            else
             {
-                // 1) 先找當天符合 chain 的班表，照 chain 順序挑第一個
-                var schedule = (await _db.Schedules
-                .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
-                .AsNoTracking()
-                .ToListAsync())  // ✅ 先拉到記憶體
-                .OrderBy(s => chain.IndexOf(s.Shift))
-                .FirstOrDefault();
+                // 自動挑第一台可用車
+                var candidates = await _db.Vehicles
+                    .Where(v => v.Status == "可用" &&
+                                (passengerCount <= 0 || (v.Capacity == null || v.Capacity >= passengerCount)))
+                    .AsNoTracking().ToListAsync();
 
-
-                if (schedule == null)
+                foreach (var v in candidates)
                 {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = $"當日({day:yyyy-MM-dd})班表找不到可派的人員（Shift: {string.Join("/", chain)}）"
-                    };
-                }
-
-                // 2) 檢查該司機是否有時間衝突
-                var driverBusy = await _db.Dispatches
-                .AnyAsync(o => o.DriverId == schedule.DriverId &&
-                   useStart < o.EndTime &&
-                   o.StartTime < useEnd);
-
-
-
-                if (driverBusy)
-                {
-                    // 如果該司機衝突 → 依 chain 換下一個班的司機（例如 AM 改 G1，再來 G2/G3）
-                    var alt = (await _db.Schedules
-                    .Where(s => s.WorkDate == day && chain.Contains(s.Shift) && s.DriverId != schedule.DriverId)
-                    .AsNoTracking()
-                    .ToListAsync())   
-                    .OrderBy(s => chain.IndexOf(s.Shift))
-                    .ToList();
-
-                    schedule = null;
-                    foreach (var s in alt)
-                    {
-                        var busy = await _db.Dispatches
-                         .AnyAsync(o => o.DriverId == s.DriverId &&
-                        useStart < o.EndTime &&
-                        o.StartTime < useEnd);
-
-
-
-                        if (!busy)
-                        {
-                            schedule = s;
-                            break;
-                        }
-                    }
-
-                    if (schedule == null)
-                    {
-                        return new DispatchResult
-                        {
-                            Success = false,
-                            Message = $"當日({day:yyyy-MM-dd})所有備援班次皆已衝突（{string.Join("/", chain)}）。"
-                        };
-                    }
-                }
-
-                // 3) 找可用車：狀態=可用、容量足夠、時間不衝突；可依 vehicleType 再加條件
-                var vehiclesQuery = _db.Vehicles
-                    .Where(v => v.Status == "可用" && (passengerCount <= 0 || (v.Capacity == null || v.Capacity >= passengerCount)));
-
-                
-
-                var allVehicles = await vehiclesQuery.AsNoTracking().ToListAsync();
-                int? chosenVehicleId = null;
-                string? chosenPlate = null;
-
-                foreach (var v in allVehicles)
-                {
-                    var used = await _db.Dispatches
-                    .AnyAsync(o => o.VehicleId == v.VehicleId &&
-                   useStart < o.EndTime &&
-                   o.StartTime < useEnd);
-
-                    if (!used)
-                    {
-                        chosenVehicleId = v.VehicleId;
-                        chosenPlate = v.PlateNo;
-                        break;
-                    }
+                    var used = await _db.Dispatches.AnyAsync(d =>
+                        d.VehicleId == v.VehicleId &&
+                        localStart < d.EndTime &&
+                        d.StartTime < localEnd);
+                    if (!used) { chosenVehicleId = v.VehicleId; chosenPlate = v.PlateNo; break; }
                 }
 
                 if (chosenVehicleId == null)
                 {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "沒有符合時段/容量的可用車輛。"
-                    };
+                    return new DispatchResult { Success = false, Message = "沒有符合時段/容量的可用車輛。" };
                 }
-
-                // 4) 建立派工單
-                var dispatch = new Cars.Models.Dispatch
-                {
-                    ApplyId = carApplyId,
-                    DriverId = schedule.DriverId,
-                    VehicleId = chosenVehicleId.Value,
-                    StartTime = useStart,
-                    EndTime = useEnd,
-                    CreatedAt = DateTime.UtcNow,
-                    DispatchStatus = "已派車"
-                };
-
-                _db.Dispatches.Add(dispatch);
-                await _db.SaveChangesAsync();
-                await tx.CommitAsync();
-                // 查司機名字
-                var driverName = await _db.Drivers
-                    .Where(d => d.DriverId == schedule.DriverId)
-                    .Select(d => d.DriverName)
-                    .FirstAsync();
-
-
-                return new DispatchResult
-                {
-                    Success = true,
-                    Message = "派工成功",
-                    DriverId = schedule.DriverId,
-                    VehicleId = chosenVehicleId,
-                    DriverName = driverName,
-                    PlateNo = chosenPlate
-                };
-            }
-            catch (Exception ex)
-            {
-                await tx.RollbackAsync();
-                return new DispatchResult
-                {
-                    Success = false,
-                    Message = $"派工例外：{ex.Message} ({ex.InnerException?.Message})"
-                };
             }
         }
+
+        // 4) 寫入派工：Driver 一定會有；Vehicle 視 DriverOnly 而定
+        var dispatch = new Cars.Models.Dispatch
+        {
+            ApplyId        = carApplyId,
+            DriverId       = schedule.DriverId,
+            VehicleId      = chosenVehicleId,           // 只派駕駛時保持 null
+            StartTime      = localStart,
+            EndTime        = localEnd,
+            CreatedAt      = DateTime.UtcNow,
+            DispatchStatus = options.DriverOnly ? "已派駕駛" : "已派車",
+            IsLongTrip     = isLongTrip                 // ★ 建議在 Dispatch 模型加這欄位
+        };
+
+        _db.Dispatches.Add(dispatch);
+        await _db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        var driverName = await _db.Drivers
+            .Where(d => d.DriverId == schedule.DriverId)
+            .Select(d => d.DriverName)
+            .FirstAsync();
+
+        return new DispatchResult {
+            Success    = true,
+            Message    = options.DriverOnly ? "已派駕駛（待派車）" : "派工成功",
+            DriverId   = schedule.DriverId,
+            VehicleId  = chosenVehicleId,
+            DriverName = driverName,
+            PlateNo    = chosenPlate
+        };
+    }
+    catch (Exception ex)
+    {
+        await tx.RollbackAsync();
+        return new DispatchResult {
+            Success = false,
+            Message = $"派工例外：{ex.Message} ({ex.InnerException?.Message})"
+        };
+    }
+}
+
         // 找出在 shift 這段期間「有班表」的一位駕駛（可加上車種/乘客數等條件）
-        public async Task<int?> FindOnDutyDriverIdAsync(DateTime useStart, DateTime useEnd)
+        public async Task<int?> FindOnDutyDriverIdAsync(DateTime useStart, DateTime useEnd, bool isLongTrip)
         {
             var day = useStart.Date;
 
-            
-            List<string> BuildShiftChain(DateTime t)
-            {
-                var hhmm = t.TimeOfDay;
-                if (hhmm < TimeSpan.FromHours(11.5)) return new() { "AM", "G1", "G2", "G3" };
-                if (hhmm < TimeSpan.FromHours(13.5)) return new() { "PM", "G1", "G2", "G3" };
-                if (hhmm < TimeSpan.FromHours(17)) return new() { "PM", "G2", "G3", "G1" };
-                return new() { "PM", "G3", "G2", "G1" };
-            }
+            // 早午 07:30–11:30、午晚 13:30–17:00
+            static bool InWindow(DateTime t, double fromHour, double toHour)
+                => t.TimeOfDay >= TimeSpan.FromHours(fromHour) && t.TimeOfDay < TimeSpan.FromHours(toHour);
 
-            var chain = BuildShiftChain(useStart);
+            bool isEarly = InWindow(useStart, 7.5, 11.5);   // 07:30–11:30
+            bool isAfternoon = InWindow(useStart, 13.5, 17); // 13:30–17:00
+
+            // 產生班別優先序（長差：G3 第一順位）
+            List<string> chain = new();
+            var early = new[] { "AM", "G1" };
+            var aft = new[] { "PM", "G2" };
+
+            if (isLongTrip)
+            {
+                chain.Add("G3");                         // ★ 長差第一順位
+                if (isEarly) chain.AddRange(early);
+                else if (isAfternoon) chain.AddRange(aft);
+                else chain.AddRange(early.Concat(aft));
+            }
+            else
+            {
+                if (isEarly) chain.AddRange(early);
+                else if (isAfternoon) chain.AddRange(aft);
+                else chain.AddRange(early.Concat(aft));
+                chain.Add("G3"); // 非長差放在最後備援（如果你不想讓非長差用到 G3，就把這行拿掉）
+            }
 
             // 抓當日符合優先順序的班表，依 chain 排序
             var daySchedules = (await _db.Schedules
-                .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
-                .AsNoTracking()
-                .ToListAsync())
+                    .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
+                    .AsNoTracking()
+                    .ToListAsync())
                 .OrderBy(s => chain.IndexOf(s.Shift))
                 .ToList();
 
             foreach (var s in daySchedules)
             {
-                // 司機在該時段不可已有派遣（避免衝突）
+                // 司機同時段不可已有派遣（避免衝突）
                 var busy = await _db.Dispatches.AnyAsync(d =>
                     d.DriverId == s.DriverId &&
                     useStart < d.EndTime &&
                     d.StartTime < useEnd);
 
-                if (!busy)
-                    return s.DriverId;
+                if (!busy) return s.DriverId;
             }
 
-            return null; // 找不到可用駕駛就回傳 null
+            return null; // 找不到可用駕駛
+        }        // 管理員審核用：指定派工 ID，直接派車
+        public async Task<DispatchResult> ApproveAndAssignVehicleAsync(
+            int dispatchId,
+            int passengerCount,
+            int? preferredVehicleId = null)
+        {
+            var d = await _db.Dispatches.FirstOrDefaultAsync(x => x.DispatchId == dispatchId);
+            if (d == null) return new DispatchResult { Success = false, Message = "派工不存在" };
+
+            if (d.VehicleId != null)
+                return new DispatchResult { Success = false, Message = "此派工已派車" };
+
+            var start = d.StartTime;
+            var end = d.EndTime;
+
+            int? chosenVehicleId = null;
+            string? plate = null;
+
+            if (preferredVehicleId is int pv)
+            {
+                var v = await _db.Vehicles.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.VehicleId == pv && x.Status == "可用");
+                if (v == null) return new DispatchResult { Success = false, Message = "指定車輛不可用或不存在" };
+
+                var used = await _db.Dispatches.AnyAsync(x =>
+                    x.VehicleId == pv && start < x.EndTime && x.StartTime < end);
+                if (used) return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用" };
+
+                chosenVehicleId = pv; plate = v.PlateNo;
+            }
+            else
+            {
+                var candidates = await _db.Vehicles
+                    .Where(v => v.Status == "可用" &&
+                                (passengerCount <= 0 || (v.Capacity == null || v.Capacity >= passengerCount)))
+                    .AsNoTracking().ToListAsync();
+
+                foreach (var v in candidates)
+                {
+                    var used = await _db.Dispatches.AnyAsync(x =>
+                        x.VehicleId == v.VehicleId && start < x.EndTime && x.StartTime < end);
+                    if (!used) { chosenVehicleId = v.VehicleId; plate = v.PlateNo; break; }
+                }
+
+                if (chosenVehicleId == null)
+                    return new DispatchResult { Success = false, Message = "沒有符合時段/容量的可用車輛。" };
+            }
+
+            d.VehicleId = chosenVehicleId;
+            d.DispatchStatus = "已派車";
+            await _db.SaveChangesAsync();
+
+            return new DispatchResult
+            {
+                Success = true,
+                Message = "審核完成，已派車",
+                DriverId = d.DriverId,
+                VehicleId = d.VehicleId,
+                PlateNo = plate
+            };
         }
+
     }
 
-   
+
 }

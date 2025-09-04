@@ -10,7 +10,7 @@ namespace Cars.Models
         public int ApplyId { get; set; }  // 主鍵
 
        
-
+        public bool isLongTrip { get; set; } //是否為長差
         public string? ApplyFor { get; set; }
         public string? VehicleType { get; set; }
         public string? PurposeType { get; set; }

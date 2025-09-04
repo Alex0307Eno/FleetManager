@@ -82,7 +82,7 @@ namespace Cars.Controllers
             return Content(body, "application/json");
         }
 
-        // ✅ 新增 Place Details：用相同 sessionToken 完成這次 session（計費在這裡發生）
+        //  新增 Place Details：用相同 sessionToken 完成這次 session（計費在這裡發生）
         [HttpGet("details/{placeId}")]
         public async Task<IActionResult> Details(string placeId, [FromQuery] string? sessionToken)
         {
@@ -90,13 +90,16 @@ namespace Cars.Controllers
                 return BadRequest(new { error = "placeId is required" });
 
             var client = _httpClientFactory.CreateClient();
-            var tokenPart = string.IsNullOrWhiteSpace(sessionToken) ? "" : $"?sessionToken={Uri.EscapeDataString(sessionToken)}";
-            var url = $"https://places.googleapis.com/v1/places/{Uri.EscapeDataString(placeId)}{tokenPart}";
+
+            var query = new List<string> { "languageCode=zh-TW", "regionCode=TW" };
+            if (!string.IsNullOrWhiteSpace(sessionToken))
+                query.Add($"sessionToken={Uri.EscapeDataString(sessionToken)}");
+
+            var url = $"https://places.googleapis.com/v1/places/{Uri.EscapeDataString(placeId)}?{string.Join("&", query)}";
 
             var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Add("X-Goog-Api-Key", _settings.ApiKey);
 
-            // 想拿到的欄位（可自行增減）
             req.Headers.Add("X-Goog-FieldMask",
                 "id,displayName.text,formattedAddress,location,types");
 
@@ -115,6 +118,7 @@ namespace Cars.Controllers
 
             return Content(body, "application/json");
         }
+
 
     }
 }

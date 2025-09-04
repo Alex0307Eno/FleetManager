@@ -14,9 +14,9 @@ namespace Cars.Models
         public int? VehicleId { get; set; }
 
         // 派車狀態
-        public string DispatchStatus { get; set; } = "已派車";
-        
+        public string DispatchStatus { get; set; } 
 
+        public bool IsLongTrip { get; set; }
         // 時間
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }

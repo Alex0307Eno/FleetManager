@@ -1,4 +1,5 @@
 ﻿using Cars.Data;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -180,22 +181,107 @@ namespace Cars.Controllers
                               && dis.StartTime.Value <= now
                               && dis.EndTime.Value >= now
                         select dis.EndTime
-                    ).FirstOrDefault()
+                    ).FirstOrDefault(),
+                    // 最近一次的長途派工結束時間
+                    lastLongEnd = _db.Dispatches
+                .Where(x => x.DriverId == d.DriverId && x.IsLongTrip && x.EndTime != null)
+                .OrderByDescending(x => x.EndTime)
+                .Select(x => x.EndTime)
+                .FirstOrDefault()
                 })
                 .ToListAsync();
 
-            // 統一處理狀態文字
-            var result = drivers.Select(d => new {
-                d.driverId,
-                d.driverName,
-                d.shift,
-                d.plateNo,
-                d.applicantDept,
-                d.applicantName,
-                d.passengerCount,
-                d.startTime,
-                d.endTime,
-                stateText = d.isOnDuty ? "執勤中" : "待命中"
+            var result = drivers.Select(d =>
+            {
+                // 判斷是否休息中：最近長差的 EndTime 在 1 小時內
+                bool isResting = false;
+                DateTime? restUntil = null;
+                int? restRemainMinutes = null;
+
+                if (d.lastLongEnd.HasValue)
+                {
+                    var until = d.lastLongEnd.Value.AddHours(1);
+                    if (DateTime.Now < until)
+                    {
+                        isResting = true;
+                        restUntil = until;
+                        restRemainMinutes = (int)Math.Ceiling((until - DateTime.Now).TotalMinutes);
+                    }
+                }
+
+                var stateText = d.isOnDuty ? "執勤中" : (isResting ? "休息中" : "待命中");
+
+                return new
+                {
+                    d.driverId,
+                    d.driverName,
+                    d.shift,
+                    d.plateNo,
+                    d.applicantDept,
+                    d.applicantName,
+                    d.passengerCount,
+                    d.startTime,
+                    d.endTime,
+                    stateText,
+                    restUntil,            // 前端可顯示「休息到 HH:mm」
+                    restRemainMinutes     // 前端可顯示「(剩 X 分鐘)」
+                };
+            });
+
+            return Ok(result);
+        }
+        //駕駛目前狀態(休息中)
+        [HttpGet("vehicles/today-status")]
+        public async Task<IActionResult> VehiclesTodayStatus()
+        {
+            var now = DateTime.Now;
+
+            var list = await _db.Vehicles
+                .Select(v => new
+                {
+                    v.VehicleId,
+                    v.PlateNo,
+                    v.Status, // 原車況（可用/維修中…）
+
+                    // 最近一筆派工（不限今日）：拿來判斷是否剛從長差回來
+                    last = _db.Dispatches
+                        .Where(d => d.VehicleId == v.VehicleId && d.EndTime != null)
+                        .OrderByDescending(d => d.EndTime)
+                        .Select(d => new { d.EndTime, d.IsLongTrip })
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var result = list.Select(x =>
+            {
+                var vehicleState = x.Status; // 仍保留原車況
+                bool isResting = false;
+                DateTime? restUntil = null;
+                int? restRemainMinutes = null;
+
+                if (x.last != null && x.last.IsLongTrip && x.last.EndTime.HasValue)
+                {
+                    var until = x.last.EndTime.Value.AddHours(1);
+                    if (now < until)
+                    {
+                        isResting = true;
+                        restUntil = until;
+                        restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
+                    }
+                }
+
+                // 顯示專用狀態字（不覆蓋原車況）：休息中 / 執勤中 / 待命中
+                var uiState = isResting ? "休息中" : "待命中";
+
+                return new
+                {
+                    x.VehicleId,
+                    x.PlateNo,
+                    vehicleState = x.Status, // 原系統車況
+                    uiState,                 // 儀表板顯示用狀態
+                    restUntil,
+                    restRemainMinutes
+                };
             });
 
             return Ok(result);
@@ -289,7 +375,7 @@ namespace Cars.Controllers
                     a.Origin,
                     a.Destination,
                     a.ApplyReason,
-                    ApplicantName = ap != null ? ap.Name : null,   // ✅ 改用 Applicants.Name
+                    ApplicantName = ap != null ? ap.Name : null,   
                     a.PassengerCount,
                     a.TripType,
                     a.SingleDistance,
