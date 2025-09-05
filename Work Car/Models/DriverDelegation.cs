@@ -36,5 +36,8 @@ namespace Cars.Models
 
         [Display(Name = "公里數")]
         public int DistanceKm { get; set; }
+
+        [Display(Name = "建立時間")]
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
     }
 }

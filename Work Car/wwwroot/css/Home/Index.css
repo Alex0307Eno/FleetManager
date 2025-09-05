@@ -240,7 +240,10 @@ tbody td {
     background: #3b82f6; /* tailwind blue-500 */
 }
 
-/* 其他狀態可以再加 */
+.rest-hint {
+    color: #ef4444; 
+    font-weight: 500;
+}
 
 
 .chip {

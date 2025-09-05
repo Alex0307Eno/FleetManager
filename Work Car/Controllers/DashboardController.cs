@@ -1,8 +1,11 @@
 ﻿using Cars.Data;
+using Cars.Models;
+using Cars.Services;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace Cars.Controllers
 {
@@ -12,7 +15,10 @@ namespace Cars.Controllers
     public class DashboardController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        public DashboardController(ApplicationDbContext db) { _db = db; }
+        public DashboardController(ApplicationDbContext db) 
+        {
+            _db = db; 
+        }
 
         //  卡片數字
         [HttpGet("cards")]
@@ -103,6 +109,7 @@ namespace Cars.Controllers
                     tripDistance = (a != null)
                         ? (a.TripType == "單程" ? a.SingleDistance : a.RoundTripDistance)
                         : ""
+
                 }
             ).ToListAsync();
 
@@ -116,139 +123,179 @@ namespace Cars.Controllers
             var today = DateTime.Today;
             var now = DateTime.Now;
 
+            // 1) 取今天所有司機的即時狀態
             var drivers = await _db.Drivers
                 .Select(d => new
                 {
                     driverId = d.DriverId,
                     driverName = d.DriverName,
-
-                    // 班表
-                   shift = _db.Schedules
-                        .Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
-                        .Select(s => s.Shift)
-                        .FirstOrDefault(),
-
-                    // 是否正在執勤
-                    isOnDuty = _db.Dispatches.Any(dis =>
-                        dis.DriverId == d.DriverId &&
-                        dis.StartTime.HasValue &&
-                        dis.EndTime.HasValue &&
-                        dis.StartTime.Value <= now &&
-                        dis.EndTime.Value >= now
-
-                    ),
-
-                    // 當前派工的車牌
-                    plateNo = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
-                        select v.PlateNo
-                    ).FirstOrDefault(),
-
-                    // 🔑 申請人部門
-                    applicantDept = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
-                        select ap.Dept
-                    ).FirstOrDefault(),
-
-                    // 🔑 申請人姓名
-                    applicantName = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
-                        select ap.Name
-                    ).FirstOrDefault(),
-
-                    passengerCount = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                        select a.PassengerCount
-                    ).FirstOrDefault(),
-
-                    // 當前派工的時間
-                    startTime = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        select dis.StartTime
-                    ).FirstOrDefault(),
-
-                    endTime = (
-                        from dis in _db.Dispatches
-                        where dis.DriverId == d.DriverId
-                              && dis.StartTime.HasValue && dis.EndTime.HasValue
-                              && dis.StartTime.Value <= now
-                              && dis.EndTime.Value >= now
-                        select dis.EndTime
-                    ).FirstOrDefault(),
-                    // 最近一次的長途派工結束時間
+                    shift = _db.Schedules.Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
+                                         .Select(s => s.Shift).FirstOrDefault(),
+                    isPresent = _db.Schedules.Any(s => s.DriverId == d.DriverId &&
+                                                       s.WorkDate == today &&
+                                                       s.IsPresent == true),
+                    isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId &&
+                                                         dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                                         dis.StartTime.Value <= now && dis.EndTime.Value >= now),
+                    plateNo = (from dis in _db.Dispatches
+                               where dis.DriverId == d.DriverId &&
+                                     dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                     dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                               join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
+                               select v.PlateNo).FirstOrDefault(),
+                    applicantDept = (from dis in _db.Dispatches
+                                     where dis.DriverId == d.DriverId &&
+                                           dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                           dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                                     join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                                     join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
+                                     select ap.Dept).FirstOrDefault(),
+                    applicantName = (from dis in _db.Dispatches
+                                     where dis.DriverId == d.DriverId &&
+                                           dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                           dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                                     join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                                     join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
+                                     select ap.Name).FirstOrDefault(),
+                    passengerCount = (from dis in _db.Dispatches
+                                      where dis.DriverId == d.DriverId &&
+                                            dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                            dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                                      join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                                      select a.PassengerCount).FirstOrDefault(),
+                    startTime = (from dis in _db.Dispatches
+                                 where dis.DriverId == d.DriverId &&
+                                       dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                       dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                                 select dis.StartTime).FirstOrDefault(),
+                    endTime = (from dis in _db.Dispatches
+                               where dis.DriverId == d.DriverId &&
+                                     dis.StartTime.HasValue && dis.EndTime.HasValue &&
+                                     dis.StartTime.Value <= now && dis.EndTime.Value >= now
+                               select dis.EndTime).FirstOrDefault(),
                     lastLongEnd = _db.Dispatches
-                .Where(x => x.DriverId == d.DriverId && x.IsLongTrip && x.EndTime != null)
-                .OrderByDescending(x => x.EndTime)
-                .Select(x => x.EndTime)
-                .FirstOrDefault()
+                        .Where(x => x.DriverId == d.DriverId && x.IsLongTrip && x.EndTime != null)
+                        .OrderByDescending(x => x.EndTime)
+                        .Select(x => x.EndTime)
+                        .FirstOrDefault()
                 })
                 .ToListAsync();
 
-            var result = drivers.Select(d =>
-            {
-                // 判斷是否休息中：最近長差的 EndTime 在 1 小時內
-                bool isResting = false;
-                DateTime? restUntil = null;
-                int? restRemainMinutes = null;
+            // 2) 讀取今天已存在的代理紀錄，建快取 (principal -> delegation)
+            var delegs = await _db.DriverDelegations
+                .Where(d => d.StartDate.Date <= today && today <= d.EndDate.Date)
+                .AsNoTracking()
+                .ToListAsync();
 
-                if (d.lastLongEnd.HasValue)
+            var delegMap = delegs
+                .Where(d => d.PrincipalDriverId.HasValue)
+                .ToDictionary(d => d.PrincipalDriverId!.Value, d => d);
+
+            // 代理人名稱字典（避免依賴導航屬性）
+            var agentIds = delegs.Select(x => x.AgentId).Distinct().ToList();
+            var agentNameMap = await _db.DriverAgents
+                .Where(a => agentIds.Contains(a.AgentId))
+                .ToDictionaryAsync(a => a.AgentId, a => a.AgentName);
+
+            // 3) 對於「今天未出勤」且尚無代理紀錄者，自動隨機指派 1 位代理並寫入資料庫
+            foreach (var d in drivers.Where(x => !x.isPresent))
+            {
+                if (!delegMap.ContainsKey(d.driverId))
                 {
-                    var until = d.lastLongEnd.Value.AddHours(1);
-                    if (DateTime.Now < until)
+                    // 從 DriverAgents 隨機挑一位（可依需求加規則）
+                    var agent = await _db.DriverAgents
+                        .OrderBy(x => Guid.NewGuid())
+                        .FirstOrDefaultAsync();
+
+                    if (agent != null)
                     {
-                        isResting = true;
-                        restUntil = until;
-                        restRemainMinutes = (int)Math.Ceiling((until - DateTime.Now).TotalMinutes);
+                        var deleg = new DriverDelegation
+                        {
+                            PrincipalDriverId = d.driverId,           // ★必填：被代理人 (Driver)
+                            AgentId = agent.AgentId,        // ★代理人 (DriverAgent)
+                            StartDate = today,
+                            EndDate = today,
+                            Reason = "自動代理",
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _db.DriverDelegations.Add(deleg);
+                        await _db.SaveChangesAsync();
+
+                        delegMap[d.driverId] = deleg;
+                        agentNameMap[agent.AgentId] = agent.AgentName;
                     }
                 }
+            }
 
-                var stateText = d.isOnDuty ? "執勤中" : (isResting ? "休息中" : "待命中");
-
-                return new
+            // 4) 組裝回傳：請假者用代理人取代；其餘維持原邏輯
+            var list = new List<object>();
+            foreach (var d in drivers)
+            {
+                if (!d.isPresent && delegMap.TryGetValue(d.driverId, out var deleg))
                 {
-                    d.driverId,
-                    d.driverName,
-                    d.shift,
-                    d.plateNo,
-                    d.applicantDept,
-                    d.applicantName,
-                    d.passengerCount,
-                    d.startTime,
-                    d.endTime,
-                    stateText,
-                    restUntil,            // 前端可顯示「休息到 HH:mm」
-                    restRemainMinutes     // 前端可顯示「(剩 X 分鐘)」
-                };
-            });
+                    agentNameMap.TryGetValue(deleg.AgentId, out var agentName);
+                    agentName ??= "代理";
 
-            return Ok(result);
+                    list.Add(new
+                    {
+                        driverId = deleg.AgentId,
+                        driverName = $"{agentName}(代)",
+                        shift = d.shift,
+                        plateNo = (string)null,
+                        applicantDept = (string)null,
+                        applicantName = (string)null,
+                        passengerCount = 0,
+                        startTime = (DateTime?)null,
+                        endTime = (DateTime?)null,
+                        stateText = "待命中",
+                        restUntil = (DateTime?)null,
+                        restRemainMinutes = 0,
+                        attendance = $"請假({d.driverName})"
+                    });
+                }
+                else
+                {
+                    bool isResting = false;
+                    DateTime? restUntil = null;
+                    int? restRemainMinutes = null;
+
+                    if (d.lastLongEnd.HasValue)
+                    {
+                        var until = d.lastLongEnd.Value.AddHours(1);
+                        if (now < until)
+                        {
+                            isResting = true;
+                            restUntil = until;
+                            restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
+                        }
+                    }
+
+                    var stateText = d.isOnDuty ? "執勤中" : (isResting ? "休息中" : "待命中");
+                    var attendance = d.isPresent ? "正常" : "請假";
+
+                    list.Add(new
+                    {
+                        d.driverId,
+                        d.driverName,
+                        d.shift,
+                        d.plateNo,
+                        d.applicantDept,
+                        d.applicantName,
+                        d.passengerCount,
+                        d.startTime,
+                        d.endTime,
+                        stateText,
+                        restUntil,
+                        restRemainMinutes,
+                        attendance
+                    });
+                }
+            }
+
+            return Ok(list);
         }
+
         //駕駛目前狀態(休息中)
         [HttpGet("vehicles/today-status")]
         public async Task<IActionResult> VehiclesTodayStatus()

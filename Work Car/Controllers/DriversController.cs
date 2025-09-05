@@ -18,18 +18,119 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public DriversController(ApplicationDbContext db) => _db = db;
 
-        // === API for Vue list ===
         [HttpGet("Records")]
-        public async Task<ActionResult<IEnumerable<Driver>>> Records()
+        public async Task<ActionResult<IEnumerable<DriverListItem>>> Records()
         {
-            var drivers = await _db.Drivers
+            var today = DateTime.Today;
+
+            var data = await _db.Drivers
                 .AsNoTracking()
                 .OrderBy(d => d.DriverName)
+                .Select(d => new DriverListItem
+                {
+                    DriverId = d.DriverId,
+                    DriverName = d.DriverName,
+
+                    NationalId = d.NationalId,
+                    BirthDate = d.BirthDate,
+                    HouseholdAddress = d.HouseholdAddress,
+                    ContactAddress = d.ContactAddress,
+                    Phone = d.Phone,
+                    Mobile = d.Mobile,
+                    EmergencyContactName = d.EmergencyContactName,
+                    EmergencyContactPhone = d.EmergencyContactPhone,
+
+                    HasTodaySchedule = _db.Schedules.Any(s =>
+                        s.DriverId == d.DriverId &&
+                        s.WorkDate == today),
+
+                    IsPresentToday = _db.Schedules.Any(s =>
+                        s.DriverId == d.DriverId &&
+                        s.WorkDate == today &&
+                        s.IsPresent == true)
+                })
                 .ToListAsync();
-            return Ok(drivers);
+
+            return Ok(data);
+        }
+        public class SetAttendanceDto
+        {
+            public int DriverId { get; set; }
+            public bool IsPresent { get; set; }
+            public int? AgentId { get; set; }      //  請假時指派代理人
+            public string? Reason { get; set; }    // 例如 "請假"
         }
 
-        // === Pages ===
+        // 標記今天的出勤狀況
+        [HttpPost("SetAttendanceToday")]
+
+        public async Task<IActionResult> SetAttendanceToday([FromBody] SetAttendanceDto dto)
+        {
+            var today = DateTime.Today;
+
+            // 1) 更新班表出勤
+            var sched = await _db.Schedules
+                .FirstOrDefaultAsync(s => s.WorkDate == today && s.DriverId == dto.DriverId);
+            if (sched == null)
+                return BadRequest("今日沒有班表記錄");
+
+            sched.IsPresent = dto.IsPresent;
+            await _db.SaveChangesAsync();
+
+            // 2) 同步代理紀錄
+            var existing = await _db.DriverDelegations
+                .FirstOrDefaultAsync(d =>
+                    d.PrincipalDriverId == dto.DriverId &&
+                    d.StartDate.Date <= today && today <= d.EndDate.Date);
+
+            if (!dto.IsPresent)
+            {
+                // 請假 → 建立/更新代理
+                if (dto.AgentId == null)
+                    return BadRequest("請假時必須指定代理人 (agentId)");
+
+                if (existing == null)
+                {
+                    var principal = await _db.Drivers
+                        .Where(x => x.DriverId == dto.DriverId)
+                        .Select(x => x.DriverName)
+                        .FirstOrDefaultAsync();
+
+                    _db.DriverDelegations.Add(new DriverDelegation
+                    {
+                        AgentId = dto.AgentId.Value,
+                        PrincipalDriverId = dto.DriverId,
+                        StartDate = today,
+                        EndDate = today,
+                        Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "請假" : dto.Reason
+                    });
+                }
+                else
+                {
+                    // 已有 → 更新代理人/原因/日期
+                    existing.AgentId = dto.AgentId.Value;
+                    existing.Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "請假" : dto.Reason;
+                    existing.StartDate = today;
+                    existing.EndDate = today;
+                    _db.DriverDelegations.Update(existing);
+                }
+
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                // 取消請假 → 移除今天的代理
+                if (existing != null)
+                {
+                    _db.DriverDelegations.Remove(existing);
+                    await _db.SaveChangesAsync();
+                }
+            }
+
+            return Ok(new { message = "出勤/代理狀態已更新" });
+        }
+
+
         [HttpGet("")]
         public async Task<IActionResult> Index()
         {
@@ -179,6 +280,25 @@ namespace Cars.Controllers
             return Ok(events);
         }
 
+        // 出勤
+        public class DriverListItem
+        {
+            public int DriverId { get; set; }
+            public string DriverName { get; set; }
+
+            public string NationalId { get; set; }
+            public DateTime? BirthDate { get; set; }
+            public string HouseholdAddress { get; set; }
+            public string ContactAddress { get; set; }
+            public string Phone { get; set; }
+            public string Mobile { get; set; }
+            public string EmergencyContactName { get; set; }
+            public string EmergencyContactPhone { get; set; }
+
+            // 出勤顯示/控制
+            public bool IsPresentToday { get; set; }   // 今天是否出勤
+            public bool HasTodaySchedule { get; set; } // 今天是否有排班
+        }
 
     }
 }
