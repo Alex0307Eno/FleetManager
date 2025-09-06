@@ -174,25 +174,19 @@
             alert("讀取失敗")
           }
         }
-          async function toggleAttendance (d) {
-          const tokenEl = document.getElementById('__RequestVerificationToken')
-          const headers = {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-          }
-          if (tokenEl) headers['RequestVerificationToken'] = tokenEl.value
-
-          const present = !!d.isPresentToday
+        async function toggleAttendance(d) {
+          const present = !!d.isPresentToday;
           try {
-            await axios.post(
-              '/Drivers/SetAttendanceToday',
-              new URLSearchParams({ driverId: d.driverId, present }),
-              { headers }
-            )
+            await axios.post('/Drivers/SetAttendanceToday', {
+              driverId: d.driverId,
+              isPresent: present,
+              reason: present ? null : '請假'
+            });
           } catch (e) {
-            console.error('更新出勤狀態失敗', e)
-            // 還原勾選狀態
-            d.isPresentToday = !present
-            alert('更新出勤狀態失敗')
+            d.isPresentToday = !present; // 還原 UI 
+            const msg = e.response?.data || e.message || '更新失敗';
+            console.error('更新出勤狀態失敗', msg);
+            alert(msg);
           }
         }
 

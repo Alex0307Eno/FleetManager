@@ -590,8 +590,8 @@ namespace Cars.Controllers
                 .Include(d => d.Agent)
                 .Where(d => d.StartDate.Date <= today && today <= d.EndDate.Date)
                 .Select(d => new {
-                    DriverId = d.AgentId,                  // 代理人 ID 當作 DriverId
-                    DriverName = d.Agent.AgentName + " (代)" // 名稱後面加 (代)
+                    DriverId = d.AgentDriverId,                  // 代理人 ID 當作 DriverId
+                    DriverName = d.Agent.DriverName + " (代)" // 名稱後面加 (代)
                 })
                 .ToListAsync();
 

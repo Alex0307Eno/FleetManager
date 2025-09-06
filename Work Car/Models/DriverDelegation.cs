@@ -9,15 +9,17 @@ namespace Cars.Models
         [Key]
         public int DelegationId { get; set; }
 
-        // 代理人 (DriverAgent)
-        public int AgentId { get; set; }
-        [ForeignKey("AgentId")]
-        public virtual DriverAgent Agent { get; set; }
-
-        // 被代理人 (Driver)
-        public int? PrincipalDriverId { get; set; }
+        // 被代理人 (正式 Driver)
+        [Required]
+        public int PrincipalDriverId { get; set; }
         [ForeignKey("PrincipalDriverId")]
         public virtual Driver Principal { get; set; }
+
+        // 代理人 (同樣在 Drivers 表)
+        [Required]
+        public int AgentDriverId { get; set; }   
+        [ForeignKey("AgentDriverId")]
+        public virtual Driver Agent { get; set; }
 
         [Required]
         [Display(Name = "開始日期")]

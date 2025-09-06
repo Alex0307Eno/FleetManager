@@ -88,23 +88,19 @@ namespace Cars.Services
             var day = localStart.Date;
             var reasons = new List<string>();
 
-            // === 窗口定義 ===
-            var T0730 = TimeSpan.FromHours(7.5);   // 07:30
-            var T1130 = TimeSpan.FromHours(11.5);  // 11:30
-            var T1330 = TimeSpan.FromHours(13.5);  // 13:30
-            var T1700 = TimeSpan.FromHours(17);    // 17:00
+            var T0730 = TimeSpan.FromHours(7.5);
+            var T1130 = TimeSpan.FromHours(11.5);
+            var T1330 = TimeSpan.FromHours(13.5);
+            var T1700 = TimeSpan.FromHours(17);
 
             bool OverlapWin(DateTime s, DateTime e, TimeSpan ws, TimeSpan we)
                 => s.TimeOfDay < we && ws < e.TimeOfDay;
 
-            bool inEarlyWindow = OverlapWin(localStart, localEnd, T0730, T1130);  // 07:30–11:30
-            bool inAfternoonWindow = OverlapWin(localStart, localEnd, T1330, T1700);  // 13:30–17:00
+            bool inEarlyWindow = OverlapWin(localStart, localEnd, T0730, T1130);
+            bool inAfternoonWindow = OverlapWin(localStart, localEnd, T1330, T1700);
 
             // === 判斷長差 ===
-            var apply = await _db.CarApplications
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ApplyId == carApplyId);
-
+            var apply = await _db.CarApplications.AsNoTracking().FirstOrDefaultAsync(x => x.ApplyId == carApplyId);
             bool isLongTrip = false;
             if (apply != null)
             {
@@ -113,14 +109,13 @@ namespace Cars.Services
                     double.TryParse(apply.RoundTripDistance.Replace(" 公里", ""), out km);
                 else if (!string.IsNullOrEmpty(apply.SingleDistance))
                     double.TryParse(apply.SingleDistance.Replace(" 公里", ""), out km);
-
-                isLongTrip = km > 30;   // ★ 超過 30 公里就是長差
+                isLongTrip = km > 30;
             }
 
             // === 建立班表順序鏈 ===
             var chain = BuildShiftChain(useStart, isLongTrip);
-            var early = new[] { "AM", "G1" }; // 早午
-            var aft = new[] { "PM", "G2" }; // 午晚
+            var early = new[] { "AM", "G1" };
+            var aft = new[] { "PM", "G2" };
 
             if (isLongTrip)
             {
@@ -135,7 +130,6 @@ namespace Cars.Services
                 else if (inAfternoonWindow) chain.AddRange(aft);
                 else chain.AddRange(early.Concat(aft));
             }
-
             chain.AddRange(new[] { "AM", "PM", "G1", "G2", "G3" });
             chain = chain.Distinct().ToList();
 
@@ -144,36 +138,45 @@ namespace Cars.Services
             {
                 // === 1) 撈當日班表 ===
                 var daySchedules = (await _db.Schedules
-                    .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
-                    .AsNoTracking()
-                    .ToListAsync())
+                        .Where(s => s.WorkDate == day && chain.Contains(s.Shift))
+                        .AsNoTracking()
+                        .ToListAsync())
                     .OrderBy(s => chain.IndexOf(s.Shift))
                     .ToList();
 
-                // === 2) 撈代理人紀錄 ===
+                // === 2) 撈代理人紀錄（改用 AgentDriverId → Drivers.DriverId）★
                 var rawDelegs = await _db.DriverDelegations
                     .AsNoTracking()
-                    .Where(d => d.StartDate.Date <= day && day <= d.EndDate.Date && d.PrincipalDriverId != null)
+                    .Where(d => d.StartDate.Date <= day && day <= d.EndDate.Date )
                     .ToListAsync();
 
-                var delegMap = rawDelegs.ToDictionary(d => d.PrincipalDriverId!.Value, d => d.AgentId);
+                // 若同一天同一被代理人有多筆，取最新建立的那筆（避免 ToDictionary 撞鍵）★
+                var delegMap = rawDelegs
+                .GroupBy(d => d.PrincipalDriverId) // 直接用 int
+                .ToDictionary(
+                 g => g.Key,
+                 g => g.OrderByDescending(x => x.CreatedAt).First().AgentDriverId
+                 );
 
-                // === 3) 建立最終可用班表（含代理人替換） ===
+
+
+                // === 3) 建立最終可用班表（缺勤 → 代理頂上）★
                 var finalSchedules = new List<Cars.Models.Schedule>();
                 foreach (var s in daySchedules)
                 {
                     if (!s.IsPresent)
                     {
-                        if (delegMap.TryGetValue(s.DriverId, out var agentId))
+                        if (delegMap.TryGetValue(s.DriverId, out var agentDriverId) && agentDriverId != s.DriverId)
                         {
+                            // 用代理人的 DriverId 取代，視為出勤
                             finalSchedules.Add(new Cars.Models.Schedule
                             {
                                 WorkDate = s.WorkDate,
                                 Shift = s.Shift,
-                                DriverId = agentId,   // 代理人頂上
-                                IsPresent = true       // 視為出勤
+                                DriverId = agentDriverId,   // ★ 改用 AgentDriverId
+                                IsPresent = true
                             });
-                            reasons.Add($"司機 {s.DriverId} 請假 → 改派代理人 {agentId}");
+                            reasons.Add($"司機 {s.DriverId} 請假 → 改派代理人 {agentDriverId}");
                         }
                         else
                         {
@@ -186,7 +189,7 @@ namespace Cars.Services
                     }
                 }
 
-                // === 4) 選擇一位司機 ===
+                // === 4) 選擇一位司機（依 chain 順序，排除衝突/長差休息） ===
                 Cars.Models.Schedule? schedule = null;
                 foreach (var s in finalSchedules)
                 {
@@ -229,7 +232,7 @@ namespace Cars.Services
                     };
                 }
 
-                // === 5) 選車 ===
+                // === 5) 選車（原邏輯） ===
                 int? chosenVehicleId = null;
                 string? chosenPlate = null;
 
@@ -246,7 +249,6 @@ namespace Cars.Services
                             d.VehicleId == pv &&
                             localStart < d.EndTime &&
                             d.StartTime < localEnd);
-
                         if (used)
                             return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用" };
 
@@ -267,7 +269,6 @@ namespace Cars.Services
                                 d.VehicleId == v.VehicleId &&
                                 localStart < d.EndTime &&
                                 d.StartTime < localEnd);
-
                             if (!used)
                             {
                                 chosenVehicleId = v.VehicleId;
@@ -277,9 +278,7 @@ namespace Cars.Services
                         }
 
                         if (chosenVehicleId == null)
-                        {
                             return new DispatchResult { Success = false, Message = "沒有符合時段/容量的可用車輛。" };
-                        }
                     }
                 }
 
@@ -287,7 +286,7 @@ namespace Cars.Services
                 var dispatch = new Cars.Models.Dispatch
                 {
                     ApplyId = carApplyId,
-                    DriverId = schedule.DriverId,
+                    DriverId = schedule.DriverId,         // 可能是代理人的 DriverId ★
                     VehicleId = chosenVehicleId,
                     StartTime = localStart,
                     EndTime = localEnd,

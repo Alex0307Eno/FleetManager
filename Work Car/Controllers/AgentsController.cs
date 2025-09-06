@@ -41,7 +41,9 @@ namespace Cars.Controllers
                 .Select(d => new
                 {
                     id = d.DelegationId,
-                    agentName = d.Agent.AgentName,     // 改用 DriverAgents.AgentName
+                    agentId = d.AgentDriverId,
+                    agentName = d.Agent != null ? d.Agent.DriverName : "",
+                    principalId = d.PrincipalDriverId,
                     principalName = d.Principal != null ? d.Principal.DriverName : "",
                     reason = d.Reason,
                     period = ToRocPeriod(d.StartDate, d.EndDate),
@@ -54,26 +56,27 @@ namespace Cars.Controllers
         }
 
         // === 提供代理人員基本資料 API ===
-        [HttpGet("Profiles")]
+        [HttpGet("profiles")]
         public async Task<IActionResult> Profiles()
         {
-            var list = await _db.DriverAgents
+            var list = await _db.Drivers
                 .AsNoTracking()
-                .OrderBy(a => a.AgentName)
+                .Where(d => d.IsAgent)              // ★ 只取代理人
+                .OrderBy(d => d.DriverName)
                 .ToListAsync();
 
-            var result = list.Select(a => new
+            var result = list.Select(d => new
             {
-                id = a.AgentId,
-                name = a.AgentName,
-                nationalId = a.NationalId,
-                birthRoc = a.BirthDate.HasValue ? ToRocDate(a.BirthDate.Value) : "",
-                household = a.HouseholdAddress,
-                contact = a.ContactAddress,
-                phone = a.Phone,
-                mobile = a.Mobile,
+                id = d.DriverId,                    
+                name = d.DriverName,                
+                nationalId = d.NationalId,
+                birthRoc = d.BirthDate.HasValue ? ToRocDate(d.BirthDate.Value) : "",
+                household = d.HouseholdAddress,
+                contact = d.ContactAddress,
+                phone = d.Phone,
+                mobile = d.Mobile,
                 emergency = string.Join(" ",
-                    new[] { a.EmergencyContactName, a.EmergencyContactPhone }
+                    new[] { d.EmergencyContactName, d.EmergencyContactPhone }
                     .Where(s => !string.IsNullOrWhiteSpace(s)))
             });
 

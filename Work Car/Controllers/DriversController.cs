@@ -63,72 +63,116 @@ namespace Cars.Controllers
 
         // 標記今天的出勤狀況
         [HttpPost("SetAttendanceToday")]
-
         public async Task<IActionResult> SetAttendanceToday([FromBody] SetAttendanceDto dto)
         {
-            var today = DateTime.Today;
+            // 以台灣時區計算今日
+            var today = DateTime.UtcNow.AddHours(8).Date;
 
-            // 1) 更新班表出勤
             var sched = await _db.Schedules
                 .FirstOrDefaultAsync(s => s.WorkDate == today && s.DriverId == dto.DriverId);
             if (sched == null)
                 return BadRequest("今日沒有班表記錄");
 
-            sched.IsPresent = dto.IsPresent;
-            await _db.SaveChangesAsync();
-
-            // 2) 同步代理紀錄
-            var existing = await _db.DriverDelegations
-                .FirstOrDefaultAsync(d =>
-                    d.PrincipalDriverId == dto.DriverId &&
-                    d.StartDate.Date <= today && today <= d.EndDate.Date);
-
-            if (!dto.IsPresent)
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
             {
-                // 請假 → 建立/更新代理
-                if (dto.AgentId == null)
-                    return BadRequest("請假時必須指定代理人 (agentId)");
+                // 1) 更新出勤
+                sched.IsPresent = dto.IsPresent;
 
-                if (existing == null)
+                // 2) 讀取今天的代理紀錄（以 PrincipalDriverId 鎖定）
+                var existing = await _db.DriverDelegations
+                    .FirstOrDefaultAsync(d =>
+                        d.PrincipalDriverId == dto.DriverId &&
+                        d.StartDate.Date <= today && today <= d.EndDate.Date);
+
+                if (!dto.IsPresent)
                 {
-                    var principal = await _db.Drivers
-                        .Where(x => x.DriverId == dto.DriverId)
-                        .Select(x => x.DriverName)
-                        .FirstOrDefaultAsync();
+                    // 3) 自動挑選可用的「代理司機」（回傳的是 Drivers.DriverId）
+                    var agentDriverId = await PickAutoAgent(dto.DriverId, sched.Shift, today);
+                    if (agentDriverId == 0)
+                        return StatusCode(409, "沒有可用的代理人");
+                    if (agentDriverId == dto.DriverId)
+                        return StatusCode(409, "代理人不可與本人相同");
 
-                    _db.DriverDelegations.Add(new DriverDelegation
+                    // 4) Upsert 今天的代理關係（⚠️ 寫入 AgentDriverId）
+                    if (existing == null)
                     {
-                        AgentId = dto.AgentId.Value,
-                        PrincipalDriverId = dto.DriverId,
-                        StartDate = today,
-                        EndDate = today,
-                        Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "請假" : dto.Reason
-                    });
+                        _db.DriverDelegations.Add(new DriverDelegation
+                        {
+                            PrincipalDriverId = dto.DriverId,
+                            AgentDriverId = agentDriverId,                   
+                            StartDate = today,
+                            EndDate = today,
+                            Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason
+                        });
+                    }
+                    else
+                    {
+                        existing.AgentDriverId = agentDriverId;               
+                        existing.Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason;
+                        existing.StartDate = today;
+                        existing.EndDate = today;
+                        _db.DriverDelegations.Update(existing);
+                    }
                 }
                 else
                 {
-                    // 已有 → 更新代理人/原因/日期
-                    existing.AgentId = dto.AgentId.Value;
-                    existing.Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "請假" : dto.Reason;
-                    existing.StartDate = today;
-                    existing.EndDate = today;
-                    _db.DriverDelegations.Update(existing);
+                    // 5) 取消請假 → 移除當天代理（若你允許跨天可改成只縮短日期）
+                    if (existing != null)
+                        _db.DriverDelegations.Remove(existing);
                 }
 
                 await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+                return NoContent();
             }
-            else
+            catch (DbUpdateException ex)
             {
-                // 取消請假 → 移除今天的代理
-                if (existing != null)
-                {
-                    _db.DriverDelegations.Remove(existing);
-                    await _db.SaveChangesAsync();
-                }
+                await tx.RollbackAsync();
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
+
+        /// <summary>
+        /// 依規則挑代理人：
+        /// 1. 優先找「同班別」且今天出勤的人
+        /// 2. 退而求其次，找今天有班表且出勤的人
+        /// 3. 再不行，找任何一個不同於本人的 Driver
+        /// 回傳 0 表示找不到
+        /// </summary>
+        private async Task<int> PickAutoAgent(int absentDriverId, string? shift, DateTime today)
+        {
+            // 1) 同班別且出勤
+            if (!string.IsNullOrWhiteSpace(shift))
+            {
+                var sameShift = await _db.Schedules
+                    .Where(s => s.WorkDate == today
+                                && s.Shift == shift
+                                && s.DriverId != absentDriverId
+                                && s.IsPresent)
+                    .Select(s => s.DriverId)
+                    .FirstOrDefaultAsync();
+                if (sameShift != 0) return sameShift;
             }
 
-            return Ok(new { message = "出勤/代理狀態已更新" });
+            // 2) 任一出勤的司機
+            var anyPresent = await _db.Schedules
+                .Where(s => s.WorkDate == today
+                            && s.DriverId != absentDriverId
+                            && s.IsPresent)
+                .Select(s => s.DriverId)
+                .FirstOrDefaultAsync();
+            if (anyPresent != 0) return anyPresent;
+
+            // 3) 任一司機（最後退路）
+            var fallback = await _db.Drivers
+                .Where(d => d.DriverId != absentDriverId)
+                .Select(d => d.DriverId)
+                .FirstOrDefaultAsync();
+            return fallback; // 若完全沒有其他司機，這裡會回 0
         }
+
 
 
         [HttpGet("")]

@@ -73,8 +73,17 @@ namespace Cars.Controllers
                 from v in vv.DefaultIfEmpty()
                 join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
+                join dg0 in _db.DriverDelegations
+                .Where(g => g.StartDate.Date <= today && today <= g.EndDate.Date)
+                on s.DriverId equals dg0.PrincipalDriverId into dgs
+                from dg in dgs.DefaultIfEmpty()
+                join agent0 in _db.Drivers on dg.AgentDriverId equals agent0.DriverId into ags
+                from agent in ags.DefaultIfEmpty()
 
-                    // ★ 核心排序鍵：有 StartTime 用 StartTime；否則用班別預設時間
+                let showDriverId = (dg != null && agent != null) ? agent.DriverId : d.DriverId
+                let showDriverName = (dg != null && agent != null) ? (agent.DriverName + " (代)") : d.DriverName
+
+                // ★ 核心排序鍵：有 StartTime 用 StartTime；否則用班別預設時間
                 let sortTime =
                     (dis != null && dis.StartTime.HasValue)
                         ? dis.StartTime.Value
@@ -123,26 +132,31 @@ namespace Cars.Controllers
             var today = DateTime.Today;
             var now = DateTime.Now;
 
-            // 1) 取今天所有司機的即時狀態
+            // 1) 司機即時狀態（保留你的原本資訊：班別、是否出勤、是否執勤中、當前車牌/單位/申請人/乘客數/開始結束時間、最後長差結束）
             var drivers = await _db.Drivers
                 .Select(d => new
                 {
                     driverId = d.DriverId,
                     driverName = d.DriverName,
+                    // 今日班別（可能為 null）
                     shift = _db.Schedules.Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
                                          .Select(s => s.Shift).FirstOrDefault(),
+                    // 今日出勤
                     isPresent = _db.Schedules.Any(s => s.DriverId == d.DriverId &&
                                                        s.WorkDate == today &&
                                                        s.IsPresent == true),
+                    // 是否正在執勤
                     isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId &&
                                                          dis.StartTime.HasValue && dis.EndTime.HasValue &&
                                                          dis.StartTime.Value <= now && dis.EndTime.Value >= now),
+                    // 當前派工的車牌
                     plateNo = (from dis in _db.Dispatches
                                where dis.DriverId == d.DriverId &&
                                      dis.StartTime.HasValue && dis.EndTime.HasValue &&
                                      dis.StartTime.Value <= now && dis.EndTime.Value >= now
                                join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
                                select v.PlateNo).FirstOrDefault(),
+                    // 當前派工的申請人單位/姓名/乘客數
                     applicantDept = (from dis in _db.Dispatches
                                      where dis.DriverId == d.DriverId &&
                                            dis.StartTime.HasValue && dis.EndTime.HasValue &&
@@ -173,6 +187,7 @@ namespace Cars.Controllers
                                      dis.StartTime.HasValue && dis.EndTime.HasValue &&
                                      dis.StartTime.Value <= now && dis.EndTime.Value >= now
                                select dis.EndTime).FirstOrDefault(),
+                    // 最後一筆長差的結束時間（用來算休息中）
                     lastLongEnd = _db.Dispatches
                         .Where(x => x.DriverId == d.DriverId && x.IsLongTrip && x.EndTime != null)
                         .OrderByDescending(x => x.EndTime)
@@ -181,66 +196,35 @@ namespace Cars.Controllers
                 })
                 .ToListAsync();
 
-            // 2) 讀取今天已存在的代理紀錄，建快取 (principal -> delegation)
-            var delegs = await _db.DriverDelegations
-                .Where(d => d.StartDate.Date <= today && today <= d.EndDate.Date)
-                .AsNoTracking()
-                .ToListAsync();
-
-            var delegMap = delegs
-                .Where(d => d.PrincipalDriverId.HasValue)
-                .ToDictionary(d => d.PrincipalDriverId!.Value, d => d);
-
-            // 代理人名稱字典（避免依賴導航屬性）
-            var agentIds = delegs.Select(x => x.AgentId).Distinct().ToList();
-            var agentNameMap = await _db.DriverAgents
-                .Where(a => agentIds.Contains(a.AgentId))
-                .ToDictionaryAsync(a => a.AgentId, a => a.AgentName);
-
-            // 3) 對於「今天未出勤」且尚無代理紀錄者，自動隨機指派 1 位代理並寫入資料庫
-            foreach (var d in drivers.Where(x => !x.isPresent))
-            {
-                if (!delegMap.ContainsKey(d.driverId))
+            // 2) 取得「今天有效」的代理關係（※ 重點：AgentDriverId/PrincipalDriverId 都是 int，不用 HasValue）
+            var delegs = await (
+                from dg in _db.DriverDelegations.AsNoTracking()
+                where dg.StartDate.Date <= today && today <= dg.EndDate.Date
+                join agent in _db.Drivers on dg.AgentDriverId equals agent.DriverId
+                select new
                 {
-                    // 從 DriverAgents 隨機挑一位（可依需求加規則）
-                    var agent = await _db.DriverAgents
-                        .OrderBy(x => Guid.NewGuid())
-                        .FirstOrDefaultAsync();
-
-                    if (agent != null)
-                    {
-                        var deleg = new DriverDelegation
-                        {
-                            PrincipalDriverId = d.driverId,           // ★必填：被代理人 (Driver)
-                            AgentId = agent.AgentId,        // ★代理人 (DriverAgent)
-                            StartDate = today,
-                            EndDate = today,
-                            Reason = "自動代理",
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _db.DriverDelegations.Add(deleg);
-                        await _db.SaveChangesAsync();
-
-                        delegMap[d.driverId] = deleg;
-                        agentNameMap[agent.AgentId] = agent.AgentName;
-                    }
+                    dg.PrincipalDriverId,
+                    AgentDriverId = agent.DriverId,
+                    AgentName = agent.DriverName
                 }
-            }
+            ).ToListAsync();
 
-            // 4) 組裝回傳：請假者用代理人取代；其餘維持原邏輯
-            var list = new List<object>();
+            // 若同一個被代理人有多筆，取最新（依 CreatedAt 需要再 join 一次；簡化起見，先 GroupBy 取第一筆）
+            var delegMap = delegs
+                .GroupBy(x => x.PrincipalDriverId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // 3) 組裝回傳：缺勤者 → 用代理人（AgentDriverId / AgentName(代)）取代；其餘照舊
+            var result = new List<object>();
             foreach (var d in drivers)
             {
-                if (!d.isPresent && delegMap.TryGetValue(d.driverId, out var deleg))
+                if (!d.isPresent && delegMap.TryGetValue(d.driverId, out var proxy))
                 {
-                    agentNameMap.TryGetValue(deleg.AgentId, out var agentName);
-                    agentName ??= "代理";
-
-                    list.Add(new
+                    // 代理頂上
+                    result.Add(new
                     {
-                        driverId = deleg.AgentId,
-                        driverName = $"{agentName}(代)",
+                        driverId = proxy.AgentDriverId,
+                        driverName = $"{proxy.AgentName}(代)",
                         shift = d.shift,
                         plateNo = (string)null,
                         applicantDept = (string)null,
@@ -256,6 +240,7 @@ namespace Cars.Controllers
                 }
                 else
                 {
+                    // 原司機
                     bool isResting = false;
                     DateTime? restUntil = null;
                     int? restRemainMinutes = null;
@@ -274,7 +259,7 @@ namespace Cars.Controllers
                     var stateText = d.isOnDuty ? "執勤中" : (isResting ? "休息中" : "待命中");
                     var attendance = d.isPresent ? "正常" : "請假";
 
-                    list.Add(new
+                    result.Add(new
                     {
                         d.driverId,
                         d.driverName,
@@ -293,8 +278,9 @@ namespace Cars.Controllers
                 }
             }
 
-            return Ok(list);
+            return Ok(result);
         }
+
 
         //駕駛目前狀態(休息中)
         [HttpGet("vehicles/today-status")]
@@ -446,6 +432,7 @@ namespace Cars.Controllers
                     ApplicantName = ap != null ? ap.Name : null,   
                     a.PassengerCount,
                     a.TripType,
+
                     a.VehicleId,
                     a.SingleDistance,
                     a.RoundTripDistance,

@@ -22,7 +22,6 @@ namespace Cars.Data
         public DbSet<DispatchOrder> DispatchOrders { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<DriverDelegation> DriverDelegations { get; set; }
-        public DbSet<DriverAgent> DriverAgents { get; set; }
 
         public DbSet<FuelFillUp> FuelFillUps { get; set; }
         public DbSet<VehicleMaintenance> VehicleMaintenances { get; set; }
