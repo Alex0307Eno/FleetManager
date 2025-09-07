@@ -520,25 +520,52 @@
 
           return base;
         });
-                // --- 審核操作（✅/✕） ---
-                        const approve = async (p) => {
-          if (!confirm(`確定要將申請單 #${p.applyId} 審核通過嗎？`)) return;
+                      
+                const refreshTodaySchedule = async () => {
+          const { data } = await axios.get('/api/dashboard/schedule/today', {
+            params: { _: Date.now() }, // 避免快取
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          scheduleToday.value = data;  // ★ 用新的 array 覆蓋
+        };
+
+        // --- 審核操作（✅/✕） ---
+        const approve = async (p) => {
+          if (!confirm(`確定要將申請單 #${p.applyId} 審核通過並派車嗎？`)) return;
 
           try {
-            console.log("🚀 approve", p);
-            await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
-              status: "完成審核"
-            });
+            console.log(" approve", p);
 
-            alert("✅ 已成功審核通過");
+          
+            const { data } = await axios.post(
+              `/api/carapplications/applications/${p.applyId}/approve-assign`,
+              null,
+              { params: { passengerCount: p.passengerCount ?? 0 } }
+            );
+          
+
+            
+            alert(`已成功審核並派車\n車牌：${data.plateNo ?? '—'}`);
+
             
             p.status = "完成審核";
+            p.vehicleId = data.vehicleId ?? null;
+            p.plateNo = data.plateNo ?? null;
+
+           
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
+
+           
+            await refreshTodaySchedule();
 
           } catch (err) {
             console.error("❌ approve error:", err);
+           
+            const msg = err?.response?.data?.message || err?.message || '審核派車失敗';
+            alert(msg);
           }
         };
+
 
         const reject = async (p) => {
           if (!confirm(`確定要將申請單 #${p.applyId} 駁回嗎？`)) return;

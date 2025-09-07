@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +26,8 @@ namespace Cars.Controllers
 
             var data = await _db.Drivers
                 .AsNoTracking()
-                .OrderBy(d => d.DriverName)
+                 .Where(d => !d.IsAgent)
+                .OrderBy(d => d.DriverName )
                 .Select(d => new DriverListItem
                 {
                     DriverId = d.DriverId,
@@ -47,7 +49,8 @@ namespace Cars.Controllers
                     IsPresentToday = _db.Schedules.Any(s =>
                         s.DriverId == d.DriverId &&
                         s.WorkDate == today &&
-                        s.IsPresent == true)
+                        s.IsPresent == true),
+
                 })
                 .ToListAsync();
 
@@ -94,6 +97,15 @@ namespace Cars.Controllers
                     if (agentDriverId == dto.DriverId)
                         return StatusCode(409, "代理人不可與本人相同");
 
+                    var isAgent = await _db.Drivers
+                     .Where(x => x.DriverId == agentDriverId)
+                     .Select(x => x.IsAgent)
+                     .FirstOrDefaultAsync();
+
+                    if (!isAgent)
+                        return StatusCode(409, "所選代理人不是代理人員（IsAgent=false）");
+
+
                     // 4) Upsert 今天的代理關係（⚠️ 寫入 AgentDriverId）
                     if (existing == null)
                     {
@@ -134,43 +146,60 @@ namespace Cars.Controllers
         }
 
 
-        /// <summary>
-        /// 依規則挑代理人：
-        /// 1. 優先找「同班別」且今天出勤的人
-        /// 2. 退而求其次，找今天有班表且出勤的人
-        /// 3. 再不行，找任何一個不同於本人的 Driver
-        /// 回傳 0 表示找不到
-        /// </summary>
-        private async Task<int> PickAutoAgent(int absentDriverId, string? shift, DateTime today)
+        //自動指派代理人
+        private async Task<int> PickAutoAgent(int principalDriverId, string? shift, DateTime today)
         {
-            // 1) 同班別且出勤
-            if (!string.IsNullOrWhiteSpace(shift))
-            {
-                var sameShift = await _db.Schedules
-                    .Where(s => s.WorkDate == today
-                                && s.Shift == shift
-                                && s.DriverId != absentDriverId
-                                && s.IsPresent)
-                    .Select(s => s.DriverId)
-                    .FirstOrDefaultAsync();
-                if (sameShift != 0) return sameShift;
-            }
+            var now = DateTime.Now;
 
-            // 2) 任一出勤的司機
-            var anyPresent = await _db.Schedules
-                .Where(s => s.WorkDate == today
-                            && s.DriverId != absentDriverId
-                            && s.IsPresent)
-                .Select(s => s.DriverId)
-                .FirstOrDefaultAsync();
-            if (anyPresent != 0) return anyPresent;
+            // 候選：今天有出勤、而且是代理人(IsAgent=true)；排除本人
+            var agents = await _db.Drivers
+            .Where(d => d.IsAgent && d.DriverId != principalDriverId)
+            .Select(d => d.DriverId)
+            .ToListAsync();
 
-            // 3) 任一司機（最後退路）
-            var fallback = await _db.Drivers
-                .Where(d => d.DriverId != absentDriverId)
-                .Select(d => d.DriverId)
-                .FirstOrDefaultAsync();
-            return fallback; // 若完全沒有其他司機，這裡會回 0
+            if (agents.Count == 0) return 0;
+
+            // 今天已在代理別人的人（避免一人代理多人）
+            var busyAgentIds = await _db.DriverDelegations
+                .Where(g => g.StartDate.Date <= today && today <= g.EndDate.Date)
+                .Select(g => g.AgentDriverId)
+                .Distinct()
+                .ToListAsync();
+
+            // 正在執勤的人
+            var onDutyIds = await _db.Dispatches
+                .Where(dis => dis.StartTime <= now && now <= dis.EndTime)
+                .Select(dis => dis.DriverId ?? 0)
+                .Distinct()
+                .ToListAsync();
+
+            // 長差剛回來未滿 1 小時的人
+            var restIds = await _db.Dispatches
+                .Where(dis => dis.IsLongTrip && dis.EndTime != null &&
+                              dis.EndTime > now.AddHours(-1) && dis.EndTime <= now)
+                .Select(dis => dis.DriverId ?? 0)
+                .Distinct()
+                .ToListAsync();
+
+            var pool = agents
+         .Where(id => !busyAgentIds.Contains(id)
+                   && !onDutyIds.Contains(id)
+                   && !restIds.Contains(id))
+         .ToList();
+
+            if (!pool.Any()) return 0;
+
+            // 今天派工數少者優先
+            var todayCounts = await _db.Dispatches
+                .Where(dis => dis.StartTime.HasValue && dis.StartTime.Value.Date == today)
+                .GroupBy(dis => dis.DriverId)
+                .Select(g => new { DriverId = g.Key ?? 0, Cnt = g.Count() })
+                .ToDictionaryAsync(x => x.DriverId, x => x.Cnt);
+
+            return pool
+                .OrderBy(id => todayCounts.ContainsKey(id) ? todayCounts[id] : 0)
+                .ThenBy(id => id)
+                .First();
         }
 
 
@@ -189,8 +218,9 @@ namespace Cars.Controllers
         public async Task<IActionResult> DetailsApi(int id)
         {
             var driver = await _db.Drivers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DriverId == id);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.DriverId == id && d.IsAgent == false);
+
 
             if (driver == null) return NotFound();
 

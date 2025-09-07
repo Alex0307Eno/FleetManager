@@ -99,8 +99,8 @@ namespace Cars.Controllers
                 {
                     scheduleId = s.ScheduleId,
                     shift = s.Shift,
-                    driverId = s.DriverId,
-                    driverName = d.DriverName,
+                    driverId = showDriverId,
+                    driverName = showDriverName,
 
                     hasDispatch = dis != null,
                     startTime = (DateTime?)(dis != null ? dis.StartTime : null),
@@ -132,8 +132,9 @@ namespace Cars.Controllers
             var today = DateTime.Today;
             var now = DateTime.Now;
 
-            // 1) 司機即時狀態（保留你的原本資訊：班別、是否出勤、是否執勤中、當前車牌/單位/申請人/乘客數/開始結束時間、最後長差結束）
+            // 1) 司機即時狀態
             var drivers = await _db.Drivers
+                .Where(d => d.IsAgent == false) 
                 .Select(d => new
                 {
                     driverId = d.DriverId,
@@ -196,7 +197,7 @@ namespace Cars.Controllers
                 })
                 .ToListAsync();
 
-            // 2) 取得「今天有效」的代理關係（※ 重點：AgentDriverId/PrincipalDriverId 都是 int，不用 HasValue）
+            // 2) 取得「今天有效」的代理關係
             var delegs = await (
                 from dg in _db.DriverDelegations.AsNoTracking()
                 where dg.StartDate.Date <= today && today <= dg.EndDate.Date
@@ -205,16 +206,19 @@ namespace Cars.Controllers
                 {
                     dg.PrincipalDriverId,
                     AgentDriverId = agent.DriverId,
-                    AgentName = agent.DriverName
+                    AgentName = agent.DriverName,
+                    agent.IsAgent,
+                    dg.CreatedAt
                 }
             ).ToListAsync();
 
-            // 若同一個被代理人有多筆，取最新（依 CreatedAt 需要再 join 一次；簡化起見，先 GroupBy 取第一筆）
+            // 若同一個被代理人有多筆，取最新
             var delegMap = delegs
+                .Where(x => x.IsAgent)
                 .GroupBy(x => x.PrincipalDriverId)
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First());
 
-            // 3) 組裝回傳：缺勤者 → 用代理人（AgentDriverId / AgentName(代)）取代；其餘照舊
+            // 3) 缺勤者 → 用代理人
             var result = new List<object>();
             foreach (var d in drivers)
             {
