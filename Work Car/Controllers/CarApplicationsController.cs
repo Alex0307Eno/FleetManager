@@ -72,18 +72,28 @@ namespace Cars.Controllers
             if (model.UseEnd <= model.UseStart)
                 return BadRequest("結束時間必須晚於起始時間");
 
-            // === 判斷長差 ===
-            decimal ParseKm(string s)
+
+
+            bool isSingle = model.TripType == "單程"
+              || model.TripType?.Equals("single", StringComparison.OrdinalIgnoreCase) == true;
+
+            decimal km = 0;
+
+            if (isSingle)
             {
-                if (string.IsNullOrWhiteSpace(s)) return 0m;
-                var raw = new string(s.Where(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray());
-                return decimal.TryParse(raw, out var km) ? km : 0m;
+                km = model.SingleDistance ?? 0;
+            }
+            else
+            {
+                km = model.RoundTripDistance ?? 0;
+
+                // 如果 RoundTripDistance 沒填或是 0，退回用 SingleDistance
+                if (km <= 0)
+                    km = model.SingleDistance ?? 0;
             }
 
-            bool isSingle = model.TripType == "單程" || model.TripType?.Equals("single", StringComparison.OrdinalIgnoreCase) == true;
-            decimal km = isSingle ? ParseKm(model.SingleDistance ?? "") : ParseKm(model.RoundTripDistance ?? "");
-            if (km <= 0 && !isSingle) km = ParseKm(model.SingleDistance ?? ""); // 沒填來回就退回單程
-            model.isLongTrip = km > 30; // 長差=1, 短差=0
+            model.isLongTrip = km > 30; // 長差 = true, 短差 = false
+
 
             // 存申請單
             _context.CarApplications.Add(model);

@@ -187,7 +187,9 @@ tbody td {
     height: 100%;
 }
 
-    .gmap.idle {
+    .gmap.idle,
+    .gmap.break
+    {
         filter: grayscale(0.35) brightness(0.75) saturate(0.7);
         transition: filter .2s ease;
     }
@@ -237,7 +239,7 @@ tbody td {
 
 /* 休息中 → 藍灰色 */
 .badge-break {
-    background: #3b82f6; /* tailwind blue-500 */
+    background: #6b7280;
 }
 
 .rest-hint {

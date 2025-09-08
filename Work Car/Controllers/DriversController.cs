@@ -82,7 +82,7 @@ namespace Cars.Controllers
                 // 1) 更新出勤
                 sched.IsPresent = dto.IsPresent;
 
-                // 2) 讀取今天的代理紀錄（以 PrincipalDriverId 鎖定）
+                // 2) 讀取今天的代理紀錄
                 var existing = await _db.DriverDelegations
                     .FirstOrDefaultAsync(d =>
                         d.PrincipalDriverId == dto.DriverId &&
@@ -111,6 +111,7 @@ namespace Cars.Controllers
                     {
                         _db.DriverDelegations.Add(new DriverDelegation
                         {
+                            
                             PrincipalDriverId = dto.DriverId,
                             AgentDriverId = agentDriverId,                   
                             StartDate = today,

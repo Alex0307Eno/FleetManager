@@ -133,10 +133,12 @@ namespace Cars.Controllers.Api
             {
                 // 先算出公里數
                 decimal km = 0;
+
                 if (x.TripType == "single")
-                    km = ParseDistance(x.SingleDistance);
+                    km = x.SingleDistance ?? 0;   
                 else if (x.TripType == "round")
-                    km = ParseDistance(x.RoundTripDistance);
+                    km = x.RoundTripDistance ?? 0;
+
 
                 // 判斷長/短差
                 string longShort = km > 30 ? "長差" : "短差";

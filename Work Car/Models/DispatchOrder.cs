@@ -17,9 +17,10 @@ namespace Cars.Models
         public int? PassengerCount { get; set; }
         public string? UseDate { get; set; }
         public string? UseTime { get; set; }
+        public DateTime? UseStart { get; set; }
         public string? Route { get; set; }
         public string? Reason { get; set; }
-        public string? TripDistance { get; set; }
+        public decimal? TripDistance { get; set; }
         public string? TripType { get; set; }
         public string? Status { get; set; }
     }

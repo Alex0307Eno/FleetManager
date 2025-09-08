@@ -51,9 +51,11 @@ namespace Cars.Controllers
         plateNo = x.DispatchOrders
             .Select(d => d.Vehicle.PlateNo)
             .FirstOrDefault(),
-        applicantDept = x.Applicant != null ? x.Applicant.Dept : null,   // ✅ 改這裡
-        applicantName = x.Applicant != null ? x.Applicant.Name : null,   // ✅ 改這裡
-        km = ParseKm(x.SingleDistance, x.RoundTripDistance),
+        applicantDept = x.Applicant != null ? x.Applicant.Dept : null,  
+        applicantName = x.Applicant != null ? x.Applicant.Name : null,   
+        km = x.TripType == "single"
+            ? (x.SingleDistance ?? 0)
+            : (x.RoundTripDistance ?? 0),
         trips = 1,
         longShort = x.TripType == "single" ? "短差" :
                     x.TripType == "round" ? "長差" : "未知"
@@ -133,12 +135,13 @@ namespace Cars.Controllers
                 Round = x.RoundTripDistance
             }).ToListAsync();
 
-            // 3) 解析里程（字串 -> double）。Round > Single
-            double ParseKm(string? single, string? round)
+            
+            // 3) 解析里程
+            decimal ParseKm(decimal? single, decimal? round)
             {
-                if (decimal.TryParse(round, NumberStyles.Any, CultureInfo.InvariantCulture, out var r)) return (double)r;
-                if (decimal.TryParse(single, NumberStyles.Any, CultureInfo.InvariantCulture, out var s)) return (double)s;
-                return 0;
+                if (round.HasValue) return round.Value;
+                if (single.HasValue) return single.Value;
+                return 0m;
             }
 
             // 4) 彙整：駕駛
@@ -147,12 +150,13 @@ namespace Cars.Controllers
                 .Select(g => new
                 {
                     name = g.Key,
-                    km = g.Sum(v => ParseKm(v.Single, v.Round)),
+                    km = g.Sum(v => ParseKm(v.Single, v.Round)), 
                     trips = g.Count()
                 })
                 .OrderByDescending(x => x.km)
-                .Take(8)    // 取前 8 名（可調）
+                .Take(8)
                 .ToList();
+
 
             // 5) 彙整：車牌
             var plateAgg = raw

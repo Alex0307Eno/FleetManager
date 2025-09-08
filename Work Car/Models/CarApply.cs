@@ -31,9 +31,9 @@ namespace Cars.Models
         [Required]
         public string? Destination { get; set; }
         public string? TripType { get; set; }
-        public string? SingleDistance { get; set; }
+        public decimal? SingleDistance { get; set; }
         public string? SingleDuration { get; set; }
-        public string? RoundTripDistance { get; set; }
+        public decimal? RoundTripDistance { get; set; }
         public string? RoundTripDuration { get; set; }
         public bool isLongTrip { get; set; }
         public string Status { get; set; } = "待審核";

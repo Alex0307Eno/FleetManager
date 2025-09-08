@@ -33,13 +33,26 @@ namespace Cars.Services
             bool aft = t >= TimeSpan.FromHours(13.5) && t < TimeSpan.FromHours(17);
 
             var chain = new List<string>();
-            if (isLongTrip) chain.Add("G3");                  // ★ 長差第一順位
 
-            if (early) chain.AddRange(new[] { "AM", "G1" });
-            else if (aft) chain.AddRange(new[] { "PM", "G2" });
-            else chain.AddRange(new[] { "AM", "PM", "G1", "G2" });
+            if (isLongTrip)
+            {
+                // 長差優先順序：G3 → G2 → 其他
+                chain.Add("G3");      // 第一順位
+                chain.Add("G2");      // 第二順位
+                if (early) chain.Add("AM");
+                else if (aft) chain.Add("PM");
+                else chain.AddRange(new[] { "AM", "PM", "G1" });
+            }
+            else
+            {
+                // 非長差：AM/PM/G1 → 最後才輪到 G2,G3 當備援
+                if (early) chain.AddRange(new[] { "AM", "G1" });
+                else if (aft) chain.AddRange(new[] { "PM", "G2" });
+                else chain.AddRange(new[] { "AM", "PM", "G1", "G2" });
+                chain.Add("G3"); // 最後備援
+            }
 
-            // 備援
+            // 保險起見，仍可加上完整備援鏈
             chain.AddRange(new[] { "AM", "PM", "G1", "G2", "G3" });
             return chain.Distinct().ToList();
         }
@@ -104,13 +117,16 @@ namespace Cars.Services
             bool isLongTrip = false;
             if (apply != null)
             {
-                double km = 0;
-                if (!string.IsNullOrEmpty(apply.RoundTripDistance))
-                    double.TryParse(apply.RoundTripDistance.Replace(" 公里", ""), out km);
-                else if (!string.IsNullOrEmpty(apply.SingleDistance))
-                    double.TryParse(apply.SingleDistance.Replace(" 公里", ""), out km);
+                decimal km = 0;
+
+                if (apply.RoundTripDistance.HasValue)
+                    km = apply.RoundTripDistance.Value;
+                else if (apply.SingleDistance.HasValue)
+                    km = apply.SingleDistance.Value;
+
                 isLongTrip = km > 30;
             }
+
 
             // === 建立班表順序鏈 ===
             var chain = BuildShiftChain(useStart, isLongTrip);
@@ -143,14 +159,18 @@ namespace Cars.Services
                         .ToListAsync())
                     .OrderBy(s => chain.IndexOf(s.Shift))
                     .ToList();
-
+                // 取出當日有出勤的司機清單
+                var onDuty = daySchedules
+                .Where(x => x.IsPresent)
+                .Select(x => (x.DriverId, x.Shift))
+                .ToHashSet();
                 // === 2) 撈代理人紀錄（改用 AgentDriverId → Drivers.DriverId）★
                 var rawDelegs = await _db.DriverDelegations
                     .AsNoTracking()
                     .Where(d => d.StartDate.Date <= day && day <= d.EndDate.Date )
                     .ToListAsync();
 
-                // 若同一天同一被代理人有多筆，取最新建立的那筆（避免 ToDictionary 撞鍵）★
+                // 若同一天同一被代理人有多筆，取最新建立的那筆
                 var delegMap = rawDelegs
                 .GroupBy(d => d.PrincipalDriverId) // 直接用 int
                 .ToDictionary(
@@ -160,34 +180,47 @@ namespace Cars.Services
 
 
 
-                // === 3) 建立最終可用班表（缺勤 → 代理頂上）★
-                var finalSchedules = new List<Cars.Models.Schedule>();
+                // === 3) 建立最終可用班表（缺勤 → 代理頂上），代理人無固定班表：動態建立「臨時代理班表」 ===
+                var replaced = new List<Cars.Models.Schedule>(); // 代理頂替（優先）
+                var normal = new List<Cars.Models.Schedule>(); // 一般到班
+
                 foreach (var s in daySchedules)
                 {
                     if (!s.IsPresent)
                     {
+                        // 有代理設定 → 動態建立臨時代理班表（同日同班別）
                         if (delegMap.TryGetValue(s.DriverId, out var agentDriverId) && agentDriverId != s.DriverId)
                         {
-                            // 用代理人的 DriverId 取代，視為出勤
-                            finalSchedules.Add(new Cars.Models.Schedule
+                            replaced.Add(new Cars.Models.Schedule
                             {
                                 WorkDate = s.WorkDate,
-                                Shift = s.Shift,
-                                DriverId = agentDriverId,   // ★ 改用 AgentDriverId
-                                IsPresent = true
+                                Shift = s.Shift,       // 跟被代理者同班別
+                                DriverId = agentDriverId, // 代理人
+                                IsPresent = true           // 視為當班（僅用於本次派遣流程）
                             });
-                            reasons.Add($"司機 {s.DriverId} 請假 → 改派代理人 {agentDriverId}");
+                            reasons.Add($"司機 {s.DriverId} 請假 → 代理人 {agentDriverId}（{s.Shift}）臨時頂替");
                         }
                         else
                         {
                             reasons.Add($"司機 {s.DriverId} 請假且無代理人");
+                            // 不加入，讓後續 normal 補位
                         }
                     }
                     else
                     {
-                        finalSchedules.Add(s);
+                        normal.Add(s);
                     }
                 }
+
+                // 代理頂替優先，再接一般到班；仍依 chain 排序
+                var finalSchedules = replaced.Concat(normal)
+                    .OrderBy(s => chain.IndexOf(s.Shift))
+                    .ToList();
+
+                // 去重：若同一代理人在清單中同時出現（自己原班 + 臨時頂替），保留較前者（通常是臨時頂替）
+                var seen = new HashSet<int>();
+                finalSchedules = finalSchedules.Where(s => seen.Add(s.DriverId)).ToList();
+
 
                 // === 4) 選擇一位司機（依 chain 順序，排除衝突/長差休息） ===
                 Cars.Models.Schedule? schedule = null;
@@ -355,7 +388,7 @@ namespace Cars.Services
                 if (isEarly) chain.AddRange(early);
                 else if (isAfternoon) chain.AddRange(aft);
                 else chain.AddRange(early.Concat(aft));
-                chain.Add("G3"); // 非長差放在最後備援（如果你不想讓非長差用到 G3，就把這行拿掉）
+                chain.Add("G3"); // 非長差放在最後備援
             }
 
             // 抓當日符合優先順序的班表，依 chain 排序
