@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cars.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250826021133_AddDriverDelegation")]
-    partial class AddDriverDelegation
+    [Migration("20250908090753_Baseline")]
+    partial class Baseline
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,6 +25,43 @@ namespace Cars.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Cars.Models.Applicant", b =>
+                {
+                    b.Property<int>("ApplicantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ApplicantId"));
+
+                    b.Property<DateTime?>("Birth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Dept")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Ext")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ApplicantId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Applicants");
+                });
+
             modelBuilder.Entity("Cars.Models.CarApply", b =>
                 {
                     b.Property<int>("ApplyId")
@@ -33,20 +70,8 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ApplyId"));
 
-                    b.Property<string>("ApplicantDept")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApplicantEmail")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApplicantBirth")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApplicantExt")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApplicantName")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("ApplicantId")
+                        .HasColumnType("int");
 
                     b.Property<string>("ApplyFor")
                         .HasColumnType("nvarchar(max)");
@@ -55,12 +80,14 @@ namespace Cars.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Destination")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("DriverId")
                         .HasColumnType("int");
 
                     b.Property<string>("Origin")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("PassengerCount")
@@ -72,17 +99,14 @@ namespace Cars.Migrations
                     b.Property<string>("ReasonType")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RoundTripDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("RoundTripDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("RoundTripDuration")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("Seats")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SingleDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("SingleDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("SingleDuration")
                         .HasColumnType("nvarchar(max)");
@@ -100,12 +124,22 @@ namespace Cars.Migrations
                     b.Property<DateTime>("UseStart")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("VehicleId")
+                        .HasColumnType("int");
+
                     b.Property<string>("VehicleType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("isLongTrip")
+                        .HasColumnType("bit");
+
                     b.HasKey("ApplyId");
 
+                    b.HasIndex("ApplicantId");
+
                     b.HasIndex("DriverId");
+
+                    b.HasIndex("VehicleId");
 
                     b.ToTable("CarApplications");
                 });
@@ -125,7 +159,6 @@ namespace Cars.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("PassengerId");
@@ -133,6 +166,41 @@ namespace Cars.Migrations
                     b.HasIndex("ApplyId");
 
                     b.ToTable("CarPassengers");
+                });
+
+            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
+                {
+                    b.Property<int>("StopId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StopId"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Lat")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Lng")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("OrderNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Place")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("StopId");
+
+                    b.HasIndex("ApplyId");
+
+                    b.ToTable("CarRouteStops");
                 });
 
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
@@ -159,6 +227,9 @@ namespace Cars.Migrations
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsLongTrip")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime2");
 
@@ -180,6 +251,9 @@ namespace Cars.Migrations
                 {
                     b.Property<string>("ApplicantDept")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ApplicantId")
+                        .HasColumnType("int");
 
                     b.Property<string>("ApplicantName")
                         .HasColumnType("nvarchar(max)");
@@ -211,8 +285,8 @@ namespace Cars.Migrations
                     b.Property<string>("Status")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TripDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("TripDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TripType")
                         .HasColumnType("nvarchar(max)");
@@ -220,13 +294,16 @@ namespace Cars.Migrations
                     b.Property<string>("UseDate")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("UseStart")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UseTime")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("VehicleId")
                         .HasColumnType("int");
 
-                    b.ToTable("DispatchOrders");
+                    b.ToTable("v_DispatchOrders");
                 });
 
             modelBuilder.Entity("Cars.Models.Driver", b =>
@@ -259,6 +336,9 @@ namespace Cars.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("IsAgent")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Mobile")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -270,6 +350,9 @@ namespace Cars.Migrations
                     b.Property<string>("Phone")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
 
                     b.HasKey("DriverId");
 
@@ -287,6 +370,9 @@ namespace Cars.Migrations
                     b.Property<int>("AgentDriverId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("DistanceKm")
                         .HasColumnType("int");
 
@@ -297,7 +383,9 @@ namespace Cars.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Reason")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -312,6 +400,49 @@ namespace Cars.Migrations
                     b.HasIndex("PrincipalDriverId");
 
                     b.ToTable("DriverDelegations");
+                });
+
+            modelBuilder.Entity("Cars.Models.FavoriteLocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CustomName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<double?>("Lat")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Lng")
+                        .HasColumnType("float");
+
+                    b.Property<string>("PlaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FavoriteLocations");
                 });
 
             modelBuilder.Entity("Cars.Models.FuelFillUp", b =>
@@ -352,94 +483,6 @@ namespace Cars.Migrations
                     b.ToTable("FuelFillUps");
                 });
 
-            modelBuilder.Entity("Cars.Models.MaintenanceRecord", b =>
-                {
-                    b.Property<int>("MaintenanceRecordId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaintenanceRecordId"));
-
-                    b.Property<decimal?>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Item")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("Odometer")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PlateNo")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("Qty")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Unit")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("VehicleId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Vendor")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("MaintenanceRecordId");
-
-                    b.ToTable("MaintenanceRecords");
-                });
-
-            modelBuilder.Entity("Cars.Models.RepairRequest", b =>
-                {
-                    b.Property<int>("RepairRequestId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RepairRequestId"));
-
-                    b.Property<decimal?>("CostEstimate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Issue")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("Odometer")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PlateNo")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("VehicleId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Vendor")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("RepairRequestId");
-
-                    b.ToTable("RepairRequests");
-                });
-
             modelBuilder.Entity("Cars.Models.Schedule", b =>
                 {
                     b.Property<int>("ScheduleId")
@@ -450,6 +493,9 @@ namespace Cars.Migrations
 
                     b.Property<int>("DriverId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("IsPresent")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Shift")
                         .HasColumnType("nvarchar(max)");
@@ -464,6 +510,43 @@ namespace Cars.Migrations
                     b.ToTable("Schedules");
                 });
 
+            modelBuilder.Entity("Cars.Models.User", b =>
+                {
+                    b.Property<int>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"));
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("Users");
+                });
+
             modelBuilder.Entity("Cars.Models.Vehicle", b =>
                 {
                     b.Property<int>("VehicleId")
@@ -472,11 +555,26 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VehicleId"));
 
+                    b.Property<string>("ApprovalNo")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Brand")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("Capacity")
+                    b.Property<int?>("Capacity")
                         .HasColumnType("int");
+
+                    b.Property<int?>("EngineCC")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EngineNo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InspectionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LicenseDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Model")
                         .HasColumnType("nvarchar(max)");
@@ -484,12 +582,75 @@ namespace Cars.Migrations
                     b.Property<string>("PlateNo")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("PurchaseDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Retired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Source")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("StartUseDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Status")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("Value")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
 
                     b.HasKey("VehicleId");
 
                     b.ToTable("Vehicles");
+                });
+
+            modelBuilder.Entity("Cars.Models.VehicleInspection", b =>
+                {
+                    b.Property<int>("InspectionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InspectionId"));
+
+                    b.Property<DateTime>("InspectionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NextDueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("OdometerKm")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Station")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("InspectionId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("VehicleInspections");
                 });
 
             modelBuilder.Entity("Cars.Models.VehicleMaintenance", b =>
@@ -539,13 +700,130 @@ namespace Cars.Migrations
                     b.ToTable("VehicleMaintenances");
                 });
 
+            modelBuilder.Entity("Cars.Models.VehicleRepair", b =>
+                {
+                    b.Property<int>("RepairRequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RepairRequestId"));
+
+                    b.Property<decimal?>("CostEstimate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Issue")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Place")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PlateNo")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Vendor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("RepairRequestId");
+
+                    b.ToTable("VehicleRepairs");
+                });
+
+            modelBuilder.Entity("Cars.Models.VehicleViolation", b =>
+                {
+                    b.Property<int>("ViolationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ViolationId"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FineAmount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("PaidDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Points")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ViolationDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("ViolationId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("VehicleViolations");
+                });
+
+            modelBuilder.Entity("Cars.Models.Applicant", b =>
+                {
+                    b.HasOne("Cars.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Cars.Models.CarApply", b =>
                 {
-                    b.HasOne("Cars.Models.Driver", "Applicant")
+                    b.HasOne("Cars.Models.Applicant", "Applicant")
+                        .WithMany("CarApplications")
+                        .HasForeignKey("ApplicantId");
+
+                    b.HasOne("Cars.Models.Driver", "Driver")
                         .WithMany()
                         .HasForeignKey("DriverId");
 
+                    b.HasOne("Cars.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId");
+
                     b.Navigation("Applicant");
+
+                    b.Navigation("Driver");
+
+                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("Cars.Models.CarPassenger", b =>
@@ -559,9 +837,20 @@ namespace Cars.Migrations
                     b.Navigation("CarApply");
                 });
 
+            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
+                {
+                    b.HasOne("Cars.Models.CarApply", "Apply")
+                        .WithMany()
+                        .HasForeignKey("ApplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Apply");
+                });
+
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
-                    b.HasOne("Cars.Models.CarApply", "Application")
+                    b.HasOne("Cars.Models.CarApply", "CarApply")
                         .WithMany("DispatchOrders")
                         .HasForeignKey("ApplyId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -575,7 +864,7 @@ namespace Cars.Migrations
                         .WithMany("DispatchOrders")
                         .HasForeignKey("VehicleId");
 
-                    b.Navigation("Application");
+                    b.Navigation("CarApply");
 
                     b.Navigation("Driver");
 
@@ -610,6 +899,33 @@ namespace Cars.Migrations
                         .IsRequired();
 
                     b.Navigation("Driver");
+                });
+
+            modelBuilder.Entity("Cars.Models.VehicleInspection", b =>
+                {
+                    b.HasOne("Cars.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Cars.Models.VehicleViolation", b =>
+                {
+                    b.HasOne("Cars.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Cars.Models.Applicant", b =>
+                {
+                    b.Navigation("CarApplications");
                 });
 
             modelBuilder.Entity("Cars.Models.CarApply", b =>

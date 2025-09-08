@@ -86,13 +86,19 @@
     <!-- 統計圖 -->
     <div v-show="currentTab==='chart'">
         <div class="card" style="margin-top:14px; padding:20px">
-            <h3 style="margin-bottom:12px">駕駛人行駛里程比較</h3>
-            <canvas id="driverChart" height="120"></canvas>
-
-            <h3 style="margin:24px 0 12px">車輛行駛里程比較</h3>
-            <canvas id="vehicleChart" height="120"></canvas>
+            <div style="display:flex; gap:24px;">
+                <div style="flex:1">
+                    <h3 style="margin-bottom:12px">駕駛人行駛統計</h3>
+                    <canvas id="driverChart" height="260"></canvas>
+                </div>
+                <div style="flex:1">
+                    <h3 style="margin-bottom:12px">車輛行駛統計</h3>
+                    <canvas id="vehicleChart" height="260"></canvas>
+                </div>
+            </div>
         </div>
     </div>
+
 </div>
 
 @section Scripts {
@@ -145,30 +151,81 @@
               drivers.value = (res.data||[]).map(x=>({ id:x.driverId||x.id, name:x.driverName||x.name }));
             }
 
-            let driverChart, vehicleChart;
-            function drawCharts(){
-              if(!rows.value.length) return;
+                   let driverChart, vehicleChart;
+        function drawCharts(){
+          if(!rows.value.length) return;
 
-              // 駕駛
-              const byDriver={};
-              rows.value.forEach(r=>{ byDriver[r.driverName]=(byDriver[r.driverName]||0)+(Number(r.km)||0); });
-              const driverCtx=document.getElementById('driverChart');
-              if(driverChart) driverChart.destroy();
-              driverChart=new Chart(driverCtx,{ type:'bar', data:{
-                labels:Object.keys(byDriver),
-                datasets:[{label:'里程 (km)', data:Object.values(byDriver), backgroundColor:'#3b82f6'}]
-              }});
+          // ====== 駕駛：彙總 km / trips ======
+          const drvAgg = {};
+          rows.value.forEach(r => {
+            const k = r.driverName || '(未指派)';
+            if(!drvAgg[k]) drvAgg[k] = { km:0, trips:0 };
+            drvAgg[k].km    += Number(r.km)    || 0;
+            drvAgg[k].trips += Number(r.trips) || 0;
+          });
+          const driverLabels = Object.keys(drvAgg);
+          const driverKm     = driverLabels.map(k => drvAgg[k].km);
+          const driverTrips  = driverLabels.map(k => drvAgg[k].trips);
 
-              // 車輛
-              const byVehicle={};
-              rows.value.forEach(r=>{ byVehicle[r.plateNo]=(byVehicle[r.plateNo]||0)+(Number(r.km)||0); });
-              const vehicleCtx=document.getElementById('vehicleChart');
-              if(vehicleChart) vehicleChart.destroy();
-              vehicleChart=new Chart(vehicleCtx,{ type:'bar', data:{
-                labels:Object.keys(byVehicle),
-                datasets:[{label:'里程 (km)', data:Object.values(byVehicle), backgroundColor:'#10b981'}]
-              }});
+          const driverCtx = document.getElementById('driverChart');
+          if (driverChart) driverChart.destroy();
+          driverChart = new Chart(driverCtx, {
+            type: 'bar',
+            data: {
+              labels: driverLabels,
+              datasets: [
+                { label: '里程 (km)', data: driverKm,   yAxisID: 'yKm',    backgroundColor: '#3b82f6' },
+                { label: '趟次',      data: driverTrips,yAxisID: 'yTrips', backgroundColor: '#f59e0b' }
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { position: 'top' } },
+              scales: {
+                yKm:    { beginAtZero: true, title: { display:true, text:'公里' } },
+                yTrips: { beginAtZero: true, position:'right',
+                          grid: { drawOnChartArea:false },
+                          title: { display:true, text:'趟次' } }
+              }
             }
+          });
+
+          // ====== 車牌：彙總 km / trips ======
+          const vehAgg = {};
+          rows.value.forEach(r => {
+            const k = r.plateNo || '(未指派)';
+            if(!vehAgg[k]) vehAgg[k] = { km:0, trips:0 };
+            vehAgg[k].km    += Number(r.km)    || 0;
+            vehAgg[k].trips += Number(r.trips) || 0;
+          });
+          const plateLabels = Object.keys(vehAgg);
+          const plateKm     = plateLabels.map(k => vehAgg[k].km);
+          const plateTrips  = plateLabels.map(k => vehAgg[k].trips);
+
+          const vehicleCtx = document.getElementById('vehicleChart');
+          if (vehicleChart) vehicleChart.destroy();
+          vehicleChart = new Chart(vehicleCtx, {
+            type: 'bar',
+            data: {
+              labels: plateLabels,
+              datasets: [
+                { label: '里程 (km)', data: plateKm,   yAxisID: 'yKm',    backgroundColor: '#3b82f6' },
+                { label: '趟次',      data: plateTrips,yAxisID: 'yTrips', backgroundColor: '#f59e0b' }
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { position: 'top' } },
+              scales: {
+                yKm:    { beginAtZero: true, title: { display:true, text:'公里' } },
+                yTrips: { beginAtZero: true, position:'right',
+                          grid: { drawOnChartArea:false },
+                          title: { display:true, text:'趟次' } }
+              }
+            }
+          });
+        }
+
 
                    onMounted(async () => {
           const now = new Date();

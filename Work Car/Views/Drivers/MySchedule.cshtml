@@ -312,13 +312,14 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
-    const { createApp, ref, reactive, computed } = Vue;
+    const { createApp, ref, reactive, computed, watch } = Vue;
 
     createApp({
       setup(){
         const today = new Date();
-        const year  = ref(today.getFullYear());
-        const month = ref(today.getMonth()+1); // 1-12
+        const anchor = ref(new Date(today));
+        const year   = computed(()=> anchor.value.getFullYear());
+        const month  = computed(()=> anchor.value.getMonth()+1);
         const viewMode = ref('month');
 
         // 解析後端回來的 events，轉成以 yyyy-MM-dd 為 key 的 map
@@ -337,9 +338,9 @@
         }
 
         async function fetchMonth(){
-          // start = 本月1日，end = 下月1日（半開區間）
-          const start = new Date(year.value, month.value-1, 1);
-          const end   = new Date(year.value, month.value, 1);
+        // 依 anchor 對應的年/月抓：start=該月1號, end=次月1號（半開）
+          const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), 1);
+          const end   = new Date(anchor.value.getFullYear(), anchor.value.getMonth()+1, 1);
           const params = {
             start: start.toISOString(),
             end:   end.toISOString()
@@ -353,6 +354,24 @@
             (eventsMap[k] ||= []).push(ev);
           });
         }
+        //每周班表切換
+  function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-x.getDay()); return x; }
+        async function fetchWeek(){
+      const s = startOfWeek(anchor.value);
+      const e = new Date(s);
+      e.setDate(s.getDate()+7); // 半開區間 [s, e)
+      const params = { start: s.toISOString(), end: e.toISOString() };
+      const res = await axios.get('/Drivers/MySchedule/Events', { params });
+
+      // 跟 fetchMonth 一樣，先清空再塞
+      Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
+      (res.data || []).forEach(ev=>{
+        const k = dateKey(ev.start);
+        (eventsMap[k] ||= []).push(ev);
+      });
+    }
+
+
 
         // ====== 月曆計算 ======
         const rocYear = computed(()=> year.value - 1911);
@@ -383,8 +402,7 @@
         // 週視圖（包含今天的那週，Mon–Sun）
         const weekDays = computed(()=>{
           // 找出本月含今天的那週（以 Mon 起始）
-          const base = new Date(year.value, month.value-1, today.getDate());
-          const d0 = new Date(base);
+          const d0 = new Date(anchor.value);
           const dow = d0.getDay();
           d0.setDate(d0.getDate()-dow);
           const days=[];
@@ -419,15 +437,33 @@
           return m[code?.toUpperCase?.()] || code || '班次';
         }
 
-        async function gotoPrev(){
-          if(month.value>1){ month.value--; } else { month.value=12; year.value--; }
-          await fetchMonth();
-        }
-        async function gotoNext(){
-          if(month.value<12){ month.value++; } else { month.value=1; year.value++; }
-          await fetchMonth();
-        }
+    
 
+           async function gotoPrev(){
+      if (viewMode.value === 'week'){
+        anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate()-7);
+        await fetchWeek();
+      } else {
+        anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth()-1, 1);
+        await fetchMonth();
+      }
+    }
+    async function gotoNext(){
+      if (viewMode.value === 'week'){
+        anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate()+7);
+        await fetchWeek();
+      } else {
+        anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth()+1, 1);
+        await fetchMonth();
+      }
+    }
+       watch(viewMode, async (m)=>{
+        if (m === 'week') {
+          await fetchWeek();
+        } else {
+          await fetchMonth();
+        }
+      });
         // 初次載入
         fetchMonth();
 

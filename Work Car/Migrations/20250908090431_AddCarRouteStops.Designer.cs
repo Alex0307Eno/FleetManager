@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cars.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250906072550_FixDelegationAgentToDriver")]
-    partial class FixDelegationAgentToDriver
+    [Migration("20250908090431_AddCarRouteStops")]
+    partial class AddCarRouteStops
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -99,14 +99,14 @@ namespace Cars.Migrations
                     b.Property<string>("ReasonType")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RoundTripDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("RoundTripDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("RoundTripDuration")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("SingleDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("SingleDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("SingleDuration")
                         .HasColumnType("nvarchar(max)");
@@ -166,6 +166,41 @@ namespace Cars.Migrations
                     b.HasIndex("ApplyId");
 
                     b.ToTable("CarPassengers");
+                });
+
+            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
+                {
+                    b.Property<int>("StopId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StopId"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Lat")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Lng")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("OrderNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Place")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("StopId");
+
+                    b.HasIndex("ApplyId");
+
+                    b.ToTable("CarRouteStops");
                 });
 
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
@@ -250,8 +285,8 @@ namespace Cars.Migrations
                     b.Property<string>("Status")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TripDistance")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal?>("TripDistance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TripType")
                         .HasColumnType("nvarchar(max)");
@@ -259,13 +294,16 @@ namespace Cars.Migrations
                     b.Property<string>("UseDate")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("UseStart")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UseTime")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("VehicleId")
                         .HasColumnType("int");
 
-                    b.ToTable("DispatchOrders");
+                    b.ToTable("v_DispatchOrders");
                 });
 
             modelBuilder.Entity("Cars.Models.Driver", b =>
@@ -298,6 +336,9 @@ namespace Cars.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("IsAgent")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Mobile")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -318,61 +359,6 @@ namespace Cars.Migrations
                     b.ToTable("Drivers");
                 });
 
-            modelBuilder.Entity("Cars.Models.DriverAgent", b =>
-                {
-                    b.Property<int>("AgentId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AgentId"));
-
-                    b.Property<string>("AgentName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("BirthDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ContactAddress")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("EmergencyContactName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("EmergencyContactPhone")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("HouseholdAddress")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Mobile")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("NationalId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("AgentId");
-
-                    b.ToTable("DriverAgents");
-                });
-
             modelBuilder.Entity("Cars.Models.DriverDelegation", b =>
                 {
                     b.Property<int>("DelegationId")
@@ -381,7 +367,7 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DelegationId"));
 
-                    b.Property<int?>("AgentId")
+                    b.Property<int>("AgentDriverId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -390,13 +376,10 @@ namespace Cars.Migrations
                     b.Property<int>("DistanceKm")
                         .HasColumnType("int");
 
-                    b.Property<int?>("DriverAgentAgentId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("PrincipalDriverId")
+                    b.Property<int>("PrincipalDriverId")
                         .HasColumnType("int");
 
                     b.Property<string>("Reason")
@@ -412,9 +395,7 @@ namespace Cars.Migrations
 
                     b.HasKey("DelegationId");
 
-                    b.HasIndex("AgentId");
-
-                    b.HasIndex("DriverAgentAgentId");
+                    b.HasIndex("AgentDriverId");
 
                     b.HasIndex("PrincipalDriverId");
 
@@ -856,6 +837,17 @@ namespace Cars.Migrations
                     b.Navigation("CarApply");
                 });
 
+            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
+                {
+                    b.HasOne("Cars.Models.CarApply", "Apply")
+                        .WithMany()
+                        .HasForeignKey("ApplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Apply");
+                });
+
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
                     b.HasOne("Cars.Models.CarApply", "CarApply")
@@ -883,15 +875,15 @@ namespace Cars.Migrations
                 {
                     b.HasOne("Cars.Models.Driver", "Agent")
                         .WithMany()
-                        .HasForeignKey("AgentId");
-
-                    b.HasOne("Cars.Models.DriverAgent", null)
-                        .WithMany("Delegations")
-                        .HasForeignKey("DriverAgentAgentId");
+                        .HasForeignKey("AgentDriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("Cars.Models.Driver", "Principal")
                         .WithMany()
-                        .HasForeignKey("PrincipalDriverId");
+                        .HasForeignKey("PrincipalDriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Agent");
 
@@ -946,11 +938,6 @@ namespace Cars.Migrations
             modelBuilder.Entity("Cars.Models.Driver", b =>
                 {
                     b.Navigation("Dispatches");
-                });
-
-            modelBuilder.Entity("Cars.Models.DriverAgent", b =>
-                {
-                    b.Navigation("Delegations");
                 });
 
             modelBuilder.Entity("Cars.Models.Vehicle", b =>

@@ -32,30 +32,30 @@ namespace Cars.Controllers
                 if (dto == null || string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password))
                     return BadRequest(new { message = "帳號或密碼不可為空" });
 
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Account == dto.UserName);
+                var user = await _context.Users.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Account == dto.UserName);
 
                 if (user == null)
                     return Unauthorized(new { message = "帳號或密碼錯誤" });
 
-                if (user.IsActive == false)
-                {
+                if (!user.IsActive)
                     return Unauthorized(new { message = "帳號已停用，請聯絡管理員" });
-                }
-
 
                 bool valid = false;
-                if (!string.IsNullOrEmpty(user.PasswordHash))
+
+                // 1) 嘗試 BCrypt 驗證
+                if (!string.IsNullOrEmpty(user.PasswordHash) && user.PasswordHash.StartsWith("$2"))
                 {
-                    try
-                    {
-                        valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-                    }
+                    try { valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash); }
                     catch { valid = false; }
                 }
 
-                if (!valid && user.PasswordHash == dto.Password)
+                // 2) 舊資料：PasswordHash 不是 BCrypt，且正好等於明碼 → 升級
+                if (!valid && !string.IsNullOrEmpty(user.PasswordHash) && !user.PasswordHash.StartsWith("$2")
+                    && user.PasswordHash == dto.Password)
                 {
-                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+                    var entity = await _context.Users.FirstAsync(u => u.UserId == user.UserId);
+                    entity.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
                     await _context.SaveChangesAsync();
                     valid = true;
                 }
@@ -63,18 +63,19 @@ namespace Cars.Controllers
                 if (!valid)
                     return Unauthorized(new { message = "帳號或密碼錯誤" });
 
-                // ===== 加入 ClaimsPrincipal =====
+                // ===== 建立 ClaimsPrincipal（Cookie 登入）=====
                 var claims = new List<Claim>
         {
             new Claim(ClaimTypes.Name, user.DisplayName ?? user.Account),
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-            new Claim(ClaimTypes.Role, user.Role ?? "User")
+            new Claim(ClaimTypes.Role, user.Role ?? "User"),
+            new Claim("Account", user.Account)
         };
 
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 var authProps = new AuthenticationProperties
                 {
-                    IsPersistent = false, 
+                    IsPersistent = false,
                     ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
                 };
 
@@ -83,28 +84,28 @@ namespace Cars.Controllers
                     new ClaimsPrincipal(claimsIdentity),
                     authProps);
 
-                // 如果你還需要 Session，可以保留
-                HttpContext.Session.SetString("UserId", user.UserId.ToString());
-                HttpContext.Session.SetString("UserName", user.Account);
-                var role = user.Role ?? "User";
-                string redirectUrl = role == "Admin" ? Url.Action("Index", "Home") :
-                                     role == "Driver" ? Url.Action("Record", "Dispatches") :
-                                     role == "Applicant" ? Url.Action("Dispatch", "Dispatches") :
-                                     role == "Manager" ? Url.Action("Dispatch", "Dispatches")
-                                     : null;
+                // （可選）Session
+                HttpContext.Session?.SetString("UserId", user.UserId.ToString());
+                HttpContext.Session?.SetString("UserName", user.Account);
 
-                if (redirectUrl == null) return Forbid();
+                var role = user.Role ?? "User";
+                var redirectUrl =
+                      role == "Admin" ? Url.Action("Index", "Home")
+                    : role == "Driver" ? Url.Action("MySchedule", "Drivers") 
+                    : role == "Applicant" ? Url.Action("Dispatch", "Dispatches")
+                    : role == "Manager" ? Url.Action("Dispatch", "Dispatches")
+                    : role == "Agent" ? Url.Action("MySchedule", "Drivers")
+                    : Url.Action("Index", "Home");
+
                 return Ok(new
                 {
                     message = "登入成功",
                     userId = user.UserId,
                     userName = user.Account,
                     displayName = user.DisplayName,
-                    role = role,
-                    redirectUrl = redirectUrl
-
+                    role,
+                    redirectUrl
                 });
-
             }
             catch (Exception ex)
             {

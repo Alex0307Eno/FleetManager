@@ -24,7 +24,7 @@ namespace Cars.Controllers.Api
             [FromQuery] DateTime? dateTo,
             [FromQuery] string? driver,
             [FromQuery] string? applicant,
-            [FromQuery] string? plate,
+            [FromQuery] string? plateNo,
             [FromQuery] string? order)
         {
 
@@ -95,15 +95,15 @@ namespace Cars.Controllers.Api
             }
             if (!string.IsNullOrWhiteSpace(applicant))
             {
-                q = q.Where(x => x.ApplicantName.Contains(applicant));
+                q = q.Where(x => x.ApplicantName == applicant);
             }
-            if (!string.IsNullOrWhiteSpace(plate))
+            if (!string.IsNullOrWhiteSpace(plateNo))
             {
-                q = q.Where(x => x.PlateNo.Contains(plate));
+                q = q.Where(x => x.PlateNo == plateNo);
             }
 
             // 排序
-            
+
             var today = DateTime.Today;
 
             q = (order ?? "id_desc").ToLower() switch

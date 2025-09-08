@@ -12,8 +12,8 @@ namespace Cars.Models
         public string? DriverName { get; set; }
         public int? ApplyId { get; set; }
         public int? ApplicantId { get; set; }
-        public string? ApplicantName { get; set; }   // 對應 View.Name
-        public string? ApplicantDept { get; set; }   // 對應 View.Dept
+        public string? ApplicantName { get; set; }   
+        public string? ApplicantDept { get; set; }   
         public int? PassengerCount { get; set; }
         public string? UseDate { get; set; }
         public string? UseTime { get; set; }

@@ -42,7 +42,7 @@
             const userName = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
 
-            if (!userName || !password) {
+            if (!userName || !password){
               show('warning', '請輸入帳號與密碼');
               return;
             }
@@ -51,18 +51,23 @@
             btn.textContent = '登入中…';
 
             try {
-              // 同網域預設會帶 cookie；若跨網域請加 { withCredentials: true }
+              // 同網域會自帶 cookie；若跨網域，要加 { withCredentials:true }
               const { data } = await axios.post('/api/auth/login', { userName, password });
 
-              const url = data?.redirectUrl || '/';
               show('success', data?.message || '登入成功，將跳轉…');
-              setTimeout(() => { window.location.href = url; }, 300);
+              const url = data?.redirectUrl || '/';
+              setTimeout(() => location.href = url, 300);
+
             } catch (err) {
-              // 從伺服器取錯誤訊息；沒有就顯示狀態碼
-              const msgText =
-                err?.response?.data?.message ||
-                (`登入失敗${err?.response?.status ? `（${err.response.status}）` : ''}`);
-              show('danger', msgText);
+              // 優先顯示伺服器傳回的訊息，其次顯示狀態碼
+              const r = err?.response;
+              const text =
+                r?.data?.message ||
+                r?.data?.error || // 你後端 500 會帶 error/stack
+                (r ? `登入失敗（${r.status}）` : '無法連線伺服器');
+              show('danger', text);
+              console.error('LOGIN_ERROR', r?.status, r?.data || err);
+
             } finally {
               btn.disabled = false;
               btn.textContent = '登入';

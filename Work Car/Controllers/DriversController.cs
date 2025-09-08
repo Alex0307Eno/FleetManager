@@ -342,9 +342,9 @@ namespace Cars.Controllers
                 .OrderBy(s => s.WorkDate)
                 .Select(s => new {
                     id = s.ScheduleId,
-                    title = s.Shift,          // 直接顯示班別 (早班/午班…)
-                    start = s.WorkDate,       // FullCalendar 會自動轉 ISO
-                    end = s.WorkDate,       // 如果 Shift 沒有結束時間，就先用同一天
+                    title = s.Shift,         
+                    start = s.WorkDate,       
+                    end = s.WorkDate.AddDays(1),       
                     extendedProps = new
                     {
                         driverId = s.DriverId

@@ -130,7 +130,7 @@ namespace Cars.Areas.Admin.Controllers
 
             if (!string.IsNullOrEmpty(vm.Password))
             {
-                u.PasswordHash = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(vm.Password));
+                u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(vm.Password);
             }
 
             await _db.SaveChangesAsync();
@@ -177,7 +177,7 @@ namespace Cars.Areas.Admin.Controllers
                 return RedirectToAction(nameof(Edit), new { id });
             }
 
-            u.PasswordHash = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(newPassword));
+            u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
             await _db.SaveChangesAsync();
             TempData["ok"] = "密碼已重設";
             return RedirectToAction(nameof(Edit), new { id });

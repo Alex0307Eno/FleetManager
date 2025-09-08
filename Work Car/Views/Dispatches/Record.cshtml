@@ -55,16 +55,20 @@
 
                     <div class="filters-chip">
                         <label>申請人</label>
-                        <input type="text" placeholder="輸入姓名…" v-model.trim="q.applicant">
+                        <select v-model="q.applicant">
+                            <option value="">全部</option>
+                            <option v-for="a in uniqueApplicants" :key="a" :value="a">{{ a }}</option>
+                        </select>
                     </div>
 
-
-                    <div class="filters-search">
-                        <input type="text" placeholder="車輛（輸入車牌…）" v-model.trim="q.plate" @@keyup.enter="reload">
-                        <button class="icon-btn-ghost" title="搜尋" @@click="reload">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                        </button>
+                    <div class="filters-chip">
+                        <label>車牌</label>
+                        <select v-model="q.plateNo">
+                            <option value="">全部</option>
+                            <option v-for="p in uniquePlates" :key="p" :value="p">{{ p }}</option>
+                        </select>
                     </div>
+
                 </div>
 
                 <!-- 表格 -->
@@ -215,7 +219,7 @@
             setup(){
               
               // 查詢條件
-              const q = ref({ dateFrom:'', dateTo:'', driver:'', applicant:'', plate:'' })
+              const q = ref({ dateFrom:'', dateTo:'', driver:'', applicant:'', plateNo:'' })
               // 當月 1~最後 1 日
             function getMonthRange(){
               const now = new Date();
@@ -233,7 +237,17 @@
               const uniqueDrivers = computed(()=>{
                 const s = new Set(rows.value.map(r=>r.driver).filter(Boolean))
                 return Array.from(s)
-              })
+              });
+
+              const uniqueApplicants = computed(() => {
+                const set = new Set(rows.value.map(r => r.applicant).filter(Boolean));
+                return [...set];
+              });
+
+              const uniquePlates = computed(() => {
+                const set = new Set(rows.value.map(r => r.plate).filter(Boolean));
+                return [...set];
+              });
 
               // 篩選 + 時間排序
               const shown = computed(()=>{
@@ -241,7 +255,7 @@
                 const dt = q.value.dateTo   ? new Date(q.value.dateTo)   : null
                 const driver = (q.value.driver || '').trim()
                 const applicant = (q.value.applicant || '').trim()
-                const plate = (q.value.plate || '').trim()
+                const plateNo = (q.value.plate || '').trim()
 
                 return rows.value
                   .filter(r=>{
@@ -250,7 +264,7 @@
                     if (dt && d > endOfDay(dt)) return false
                     if (driver && r.driver !== driver) return false
                     if (applicant && !String(r.applicant).includes(applicant)) return false
-                    if (plate && !String(r.plate).includes(plate)) return false
+                    if (plateNo && String(r.plate) !== plateNo) return false
                     return true
                   })
               })
@@ -434,22 +448,22 @@
                     dateTo:   q.value.dateTo   || undefined,
                     driver:   q.value.driver   || undefined,
                     applicant:q.value.applicant|| undefined,
-                    plate:    q.value.plate    || undefined,
+                    plateNo:    q.value.plate    || undefined,
                     order:    'id_desc'
                   }
-                  const res = await axios.get('/api/dispatch/records', { params: { order: 'id_desc' } })
+                  const res = await axios.get('/api/dispatch/records', { params })
                   rows.value = (res.data || []).map(normalize)
                 }catch{
                   rows.value = mockRows().map(normalize)
                 }
                 lastUpdated.value = new Date().toLocaleString()
               }
-                      onMounted(() => {
-          const { start, end } = getMonthRange();
-          q.value.dateFrom = start;   // ✅ 這裡要跟 q 定義一致
-          q.value.dateTo   = end;
-          reload();                  // ✅ 呼叫 reload()
-        });
+             onMounted(() => {
+               const { start, end } = getMonthRange();
+               q.value.dateFrom = start;   
+               q.value.dateTo   = end;
+               reload();                 
+             });
 
                       function normalize(x){
           const did = x.dispatchId ?? x.id ?? Math.random().toString(16).slice(2);
@@ -503,7 +517,7 @@
               reload()
 
               return {
-                q, rows, shown, uniqueDrivers, lastUpdated,
+                q, rows, shown, uniqueDrivers, uniqueApplicants, uniquePlates, lastUpdated,
                 rocDate, timeSpan, fmtKm,statusText,statusClass,canEdit,
                 reload, viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
                 editing ,availDrivers, availVehicles,currentDriver,currentVehicle,

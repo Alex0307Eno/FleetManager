@@ -49,6 +49,21 @@
                             <input id="orig" class="form-control" placeholder="請輸入出發地" v-model="origin" required />
                             <div class="ac-dropdown" id="ac-orig"></div>
                         </div>
+                        <!-- 站點設定 -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex align-items-center justify-content-between">
+                                <div class="fw-bold">路線站點</div>
+                                <button type="button" class="btn btn-sm btn-primary" id="btnAddStop">＋ 新增站點</button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="stopsEmpty" class="text-center text-muted py-4">
+                                    目前沒有中途點，點「新增站點」開始建立。
+                                </div>
+                                <div class="list-group list-group-flush" id="stopsList" style="display:none;"></div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="StopsJson" id="StopsJson">
 
                         <div class="col-3">
                             <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" required />
@@ -466,11 +481,11 @@
           setup() {
             // ----- 小工具 -----
             const pad = n => String(n).padStart(2, "0");
-            function getLocalDateTimeString(date) {
+            function toLocalDateTimeString(date) {                    // ← 補上你原本呼叫但沒定義的工具
               return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
             }
             function toLocalISOString(date) {
-              const tzOffset = date.getTimezoneOffset() * 60000; // 轉本地不帶 Z
+              const tzOffset = date.getTimezoneOffset() * 60000;
               return new Date(date.getTime() - tzOffset).toISOString().slice(0, -1);
             }
             function toLocalNaive(dtLike) {
@@ -491,6 +506,17 @@
                 return `${pd.title || ''} ${pd.detail || ''}`.trim();
               }
               return '未知錯誤';
+            }
+            // 把任意距離字串轉成 number（decimal）或 null
+            function toDecimalOrNull(s) {
+              if (s == null) return null;
+              const t = String(s)
+                .replace(/[,，]/g, ".")
+                .replace(/[^\d.\-]/g, "")
+                .trim();
+              if (t === "" || t === "." || t === "-" || t === "-.") return null;
+              const n = Number(t);
+              return Number.isFinite(n) ? n : null;
             }
 
             // ---- 行程秒數（由 calcDistance 計算後更新）----
@@ -525,8 +551,8 @@
             const applicant = reactive({ name:'', birth:'', dept:'', ext:'', email:'' });
 
             // 時間
-            const useStart = ref(getLocalDateTimeString(now));
-            const useEnd   = ref(new Date(now.getTime() + 60*60*1000).toISOString());
+            const useStart = ref(toLocalDateTimeString(now));
+            const useEnd   = ref(toLocalDateTimeString(new Date(now.getTime() + 60*60*1000)));
 
             const arrivalDisplay = computed(() => {
               if (!useStart.value) return "";
@@ -537,7 +563,7 @@
               const arrival = new Date(start.getTime() + secs * 1000);
               useEnd.value = toLocalDateTimeString(arrival); // 同步後端用結束時間
               return `${arrival.getFullYear()}/${pad(arrival.getMonth()+1)}/${pad(arrival.getDate())} ${pad(arrival.getHours())}:${pad(arrival.getMinutes())}`;
-                    });
+            });
 
             // 車輛
             const vehicles = ref([]);
@@ -556,6 +582,9 @@
             const addPassenger    = () => { passengers.value.push({ name: "", deptTitle: "" }); syncPassengerCount(); };
             const removePassenger = (i) => { passengers.value.splice(i, 1); syncPassengerCount(); };
 
+            // 站點：改由 RouteStops 編輯器管理（不要在這裡放 ref）
+            // 取值：RouteStops.get()；如需預設值可用 RouteStops.set([...])
+
             // ----- 載入 API -----
             async function loadApplicant(){
               try{
@@ -568,10 +597,8 @@
 
             async function loadApplicants(){
               try{
-                // 你的後端已在 CarApplicationsController 暴露：GET /api/carapplications/applicants
                 const res = await axios.get('/api/carapplications/applicants', { withCredentials: true });
                 applicants.value = Array.isArray(res.data) ? res.data : [];
-
                 if (!selectedApplicantId.value && applicants.value.length) {
                   selectedApplicantId.value = applicants.value[0].applicantId;
                 }
@@ -585,7 +612,7 @@
               if (!useStart.value || !useEnd.value) return;
               try {
                 const fromStr = useStart.value;             // datetime-local 是本地無 Z
-                const toStr   = toLocalNaive(useEnd.value); // 把 ISO 轉成本地無 Z
+                const toStr   = toLocalNaive(useEnd.value); // 轉成本地無 Z
 
                 const res = await axios.get('/api/vehicles/available', {
                   params: {
@@ -643,55 +670,80 @@
             });
 
             // ----- 動作：計算距離/時間 -----
-            async function calcDistance() {
-              if (!origin.value || !destination.value) {
-                alert('請輸入出發地與目的地');
-                return;
-              }
-              try {
-                const res = await fetch(`/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`);
-                const data = await res.json();
-                if (data?.rows?.[0]?.elements?.[0]?.status !== 'OK') {
-                  alert('⚠️ 查無路線');
-                  return;
-                }
-                const distMeters = data.rows[0].elements[0].distance.value;
-                const durSecs    = data.rows[0].elements[0].duration.value;
+        // ----- 動作：計算距離/時間 -----
+        async function calcDistance() {
+          if (!origin.value || !destination.value) {
+            alert('請輸入出發地與目的地'); return;
+          }
 
-                singleDurationSec    = durSecs;
-                roundTripDurationSec = durSecs * 2;
+          // 從 RouteStops 取站點 → 組成 waypoints（優先 lat,lng；其次 address）
+          const stops = (window.RouteStops ? window.RouteStops.get() : []);
+          const waypoints = (stops || [])
+            .map(s => (s && (s.lat != null && s.lng != null))
+              ? `${s.lat},${s.lng}`
+              : (s && s.address ? s.address : null))
+            .filter(Boolean)
+            .join('|');
 
-                function formatDuration(seconds) {
-                  let hours = Math.floor(seconds / 3600);
-                  let mins  = Math.round((seconds % 3600) / 60);
-                  if (mins === 60) { hours += 1; mins = 0; }
-                  let t = '';
-                  if (hours > 0) t += hours + ' 小時';
-                  if (mins > 0)  t += (hours > 0 ? ' ' : '') + mins + ' 分鐘';
-                  return t;
-                }
+          try {
+            const url = `/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}`;
+            const res = await fetch(url);
+            const data = await res.json();
 
-                // 給顯示的距離/時間
-                singleDistance.value    = (distMeters / 1000).toFixed(1) + ' 公里';
-                singleDuration.value    = formatDuration(durSecs);
-                roundTripDistance.value = (distMeters * 2 / 1000).toFixed(1) + ' 公里';
-                roundTripDuration.value = formatDuration(durSecs * 2);
+            let distMeters = null, durSecs = null;
 
-                // 推估結束時間
-                const start = new Date(useStart.value);
-                if (!isNaN(start)) {
-                  const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
-                  if (secs > 0) {
-                    const arrival = new Date(start.getTime() + secs * 1000);
-                    useEnd.value = toLocalDateTimeString(arrival); // yyyy-MM-ddTHH:mm
-                    showForm.value = true;
-                    await loadVehicles();
-                  }
-                }
-              } catch (err) {
-                console.error('❌ 取得距離失敗', err);
-              }
+            // ★ 優先支援 Directions（routes/legs）— 可含中途站點
+            if (data?.routes?.[0]?.legs?.length) {
+              const legs = data.routes[0].legs;
+              distMeters = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0);
+              durSecs    = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0);
             }
+            // 次選：Distance Matrix（不含多站點）
+            else if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
+              distMeters = data.rows[0].elements[0].distance.value;
+              durSecs    = data.rows[0].elements[0].duration.value;
+            } else {
+              alert('⚠️ 查無路線'); return;
+            }
+
+            // 更新內部秒數（供到站時間與來回計算用）
+            singleDurationSec    = durSecs;
+            roundTripDurationSec = durSecs * 2;
+
+            // 顯示用格式化
+            const km = (m) => (m/1000).toFixed(1) + ' 公里';
+            const fmt = (seconds) => {
+              let h = Math.floor(seconds/3600);
+              let m = Math.round((seconds%3600)/60);
+              if (m === 60){ h += 1; m = 0; }
+              let t=''; if (h>0) t += h+' 小時'; if (m>0) t += (h>0?' ':'')+m+' 分鐘'; return t || '0 分鐘';
+            };
+
+            // 綁定到既有的顯示欄位
+            singleDistance.value    = km(distMeters);
+            singleDuration.value    = fmt(durSecs);
+            roundTripDistance.value = km(distMeters*2);
+            roundTripDuration.value = fmt(durSecs*2);
+
+            // 推估結束時間 + 載入可用車輛
+            const start = new Date(useStart.value);
+            if (!isNaN(start)) {
+              const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
+              const arrival = new Date(start.getTime() + secs*1000);
+              useEnd.value = toLocalDateTimeString(arrival);
+              showForm.value = true;
+              await loadVehicles();
+            }
+          } catch (err) {
+            console.error('❌ 取得距離失敗', err);
+          }
+        }
+
+            // ----- 其他顯示用欄位 -----
+            const singleDistance    = ref(null);
+            const singleDuration    = ref(null);
+            const roundTripDistance = ref(null);
+            const roundTripDuration = ref(null);
 
             // ----- 送出 -----
             async function onSubmit() {
@@ -734,18 +786,20 @@
                 reasonType: reasonType.value,
                 applyReason: applyReason.value,
                 origin: origin.value,
+                stops: (window.RouteStops ? window.RouteStops.get() : []),   // ← 這裡改成讀漂亮編輯器的值
                 destination: destination.value,
                 tripType: tripType.value,
-                singleDistance: String(singleDistance.value ?? ''),
+                singleDistance: toDecimalOrNull(singleDistance.value),
                 singleDuration: String(singleDuration.value ?? ''),
-                roundTripDistance: String(roundTripDistance.value ?? ''),
+                roundTripDistance: toDecimalOrNull(roundTripDistance.value),
                 roundTripDuration: String(roundTripDuration.value ?? ''),
                 vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
                 status: '待審核'
               };
-                if (applyFor.value === 'other' && selectedApplicantId.value) {
+              if (applyFor.value === 'other' && selectedApplicantId.value) {
                 payload.applicantId = selectedApplicantId.value;
-                }
+              }
+
               const dto = {
                 application: payload,
                 passengers: pax.map(p => ({
@@ -773,22 +827,18 @@
               }
             }
 
-            // ----- 其他顯示用欄位 -----
-            const singleDistance    = ref("");
-            const singleDuration    = ref("");
-            const roundTripDistance = ref("");
-            const roundTripDuration = ref("");
-
             // ----- 初始化 -----
-        onMounted(() => {
-          attachPlacesAutocomplete("orig", "ac-orig", (p)=>{ origin.value = p.text; }, 800, 'orig');
-          attachPlacesAutocomplete("dest", "ac-dest", (p)=>{ destination.value = p.text; }, 800, 'dest');
+            onMounted(() => {
+              attachPlacesAutocomplete("orig", "ac-orig", (p)=>{ origin.value = p.text; }, 800, 'orig');
+              attachPlacesAutocomplete("dest", "ac-dest", (p)=>{ destination.value = p.text; }, 800, 'dest');
 
-          loadApplicant();
-          loadVehicles();
-          if (applyFor.value === "other") loadApplicants();
-        });
+              loadApplicant();
+              loadVehicles();
+              if (applyFor.value === "other") loadApplicants();
 
+              // 若要預載既有中途點（例如編輯模式），可以：
+              // window.RouteStops?.set([{ place:'A', address:'xxx', lat:24.1, lng:121.5 }]);
+            });
 
             // ----- 對外暴露 -----
             return {
@@ -816,5 +866,100 @@
           }
         }).mount('#app');
     </script>
+    <script>
+        (function() {
+          console.log("🧭 RouteStops editor init");
+          const listEl   = document.getElementById('stopsList');
+          const emptyEl  = document.getElementById('stopsEmpty');
+          const hiddenEl = document.getElementById('StopsJson');
+          const btnAdd   = document.getElementById('btnAddStop');
+
+          if (!listEl || !emptyEl || !btnAdd) { console.warn('RouteStops: 必要的 DOM 元素不存在'); return; }
+
+          /** stops: { name, address, lat, lng }[] */
+          let stops = [];
+
+          function syncHidden(){ if (hiddenEl) hiddenEl.value = JSON.stringify(stops); }
+
+          function render(){
+            listEl.innerHTML = '';
+            if (!stops.length){
+              listEl.style.display='none'; emptyEl.style.display='block'; syncHidden(); return;
+            }
+            listEl.style.display='block'; emptyEl.style.display='none';
+
+            stops.forEach((it, idx) => {
+              const row = document.createElement('div');
+              row.className = 'list-group-item';
+              row.innerHTML = `
+                <div class="row g-2 align-items-center">
+                  <div class="col-4">
+                    <input type="text" class="form-control stop-name" placeholder="站點名稱(可不填)" value="${it.name || ''}">
+                  </div>
+                  <div class="col-6 position-relative">
+                    <input type="text" class="form-control stop-address" id="stop-addr-${idx}" placeholder="輸入地址或地點" value="${it.address || ''}">
+                    <div class="ac-dropdown" id="ac-stop-${idx}"></div>
+                  </div>
+                  <div class="col-2 text-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-act="remove" data-idx="${idx}">刪除</button>
+                  </div>
+                </div>`;
+              listEl.appendChild(row);
+
+              const nameInput = row.querySelector('.stop-name');
+              const addrInput = row.querySelector('.stop-address');
+              nameInput.addEventListener('input', () => { stops[idx].name = nameInput.value; syncHidden(); });
+              addrInput.addEventListener('input', () => { stops[idx].address = addrInput.value; syncHidden(); });
+
+              // 使用你頁面已存在的 attachPlacesAutocomplete
+              if (typeof attachPlacesAutocomplete === 'function') {
+                attachPlacesAutocomplete(`stop-addr-${idx}`, `ac-stop-${idx}`, (p) => {
+                  const lat = (typeof p?.geometry?.location?.lat === 'function') ? p.geometry.location.lat() : (p.lat ?? null);
+                  const lng = (typeof p?.geometry?.location?.lng === 'function') ? p.geometry.location.lng() : (p.lng ?? null);
+                  stops[idx].address = p.text || p.address || p.description || addrInput.value || '';
+                  stops[idx].lat = lat; stops[idx].lng = lng;
+                  syncHidden();
+                }, 800);
+              } else {
+                console.warn('attachPlacesAutocomplete 未定義，站點地址將無自動完成');
+              }
+            });
+
+            syncHidden();
+          }
+
+          function add(){ stops.push({ name:'', address:'', lat:null, lng:null }); render(); }
+          function remove(i){ stops.splice(i,1); render(); }
+
+          // 事件
+          btnAdd.addEventListener('click', add);
+          listEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-act="remove"]');
+            if (btn){ const i = parseInt(btn.dataset.idx,10); if(!isNaN(i)) remove(i); }
+          });
+
+          // 對外 API（供你已存在的 onSubmit 讀取）
+          window.RouteStops = {
+            get: () => stops.map(({ name, address, lat, lng }) => ({ name, address, lat, lng })),
+            set: (arr) => {
+              stops = Array.isArray(arr) ? arr.map(x => ({
+                name: x.name || x.place || '',
+                address: x.address || '',
+                lat: x.lat ?? null,
+                lng: x.lng ?? null
+              })) : [];
+              render();
+            },
+            add, remove, render
+          };
+
+          // 初始載入（若 #StopsJson 已有資料，編輯模式可還原）
+          try {
+            const init = (hiddenEl && hiddenEl.value && hiddenEl.value.trim()) ? JSON.parse(hiddenEl.value) : null;
+            if (init) window.RouteStops.set(init); else render();
+          } catch { render(); }
+        })();
+    </script>
+
 
 </body>

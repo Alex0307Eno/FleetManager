@@ -35,26 +35,34 @@ namespace Cars.Controllers
         {
             public CarApply Application { get; set; }
             public List<CarPassenger> Passengers { get; set; } = new();
+
+            public List<RouteStopDto> Stops { get; set; } = new();
+        }
+        //多點停靠
+        public class RouteStopDto
+        {
+            public string Place { get; set; }
+            public string Address { get; set; }
+            public decimal? Lat { get; set; }
+            public decimal? Lng { get; set; }
         }
 
 
 
-
-
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] AutoDispatcher dispatcher)
+        public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
         {
             if (dto == null || dto.Application == null)
                 return BadRequest("申請資料不得為空");
 
             var model = dto.Application;
 
-            // 🔑 檢查 Session UserId
+            // 1) 取得登入者
             var userIdStr = HttpContext.Session.GetString("UserId");
             if (!int.TryParse(userIdStr, out var userId))
                 return Unauthorized("尚未登入或 Session 遺失");
 
-            // 找申請人
+            // 2) 找申請人
             Cars.Models.Applicant applicant = null;
             if (model.ApplyFor == "self")
                 applicant = await _context.Applicants.FirstOrDefaultAsync(ap => ap.UserId == userId);
@@ -66,41 +74,55 @@ namespace Cars.Controllers
 
             model.ApplicantId = applicant.ApplicantId;
 
-            // 基本驗證
+            // 3) 基本驗證
             if (model.UseStart == default || model.UseEnd == default)
                 return BadRequest("起訖時間不得為空");
             if (model.UseEnd <= model.UseStart)
                 return BadRequest("結束時間必須晚於起始時間");
 
-
-
+            // 4) 計算是否長差
             bool isSingle = model.TripType == "單程"
               || model.TripType?.Equals("single", StringComparison.OrdinalIgnoreCase) == true;
 
-            decimal km = 0;
+            decimal km = isSingle ? (model.SingleDistance ?? 0) : (model.RoundTripDistance ?? 0);
+            if (km <= 0) km = model.SingleDistance ?? 0;
+            model.isLongTrip = km > 30;
 
-            if (isSingle)
+            // === 5) 先存「申請單」，取得真正的 ApplyId ===
+
+            _context.CarApplications.Add(model);                // ← 先加入母表
+            await _context.SaveChangesAsync();                  // ← 此步之後 model.ApplyId 才會有值
+
+            // 6) 乘客：若有就一起寫入（ApplyId 要用新產生的）
+            if (dto.Passengers != null && dto.Passengers.Count > 0)
             {
-                km = model.SingleDistance ?? 0;
+                foreach (var p in dto.Passengers)
+                {
+                    p.ApplyId = model.ApplyId;
+                }
+                _context.CarPassengers.AddRange(dto.Passengers);
+                await _context.SaveChangesAsync();
             }
-            else
+
+            // 7) 多點停靠：同樣要用新的 ApplyId
+            if (dto.Stops != null && dto.Stops.Count > 0)
             {
-                km = model.RoundTripDistance ?? 0;
+                var list = dto.Stops.Select((s, i) => new CarRouteStop
+                {
+                    ApplyId = model.ApplyId,                     // ← 不能用 0
+                    OrderNo = i,
+                    Place = s.Place?.Trim(),
+                    Address = s.Address?.Trim(),
+                    Lat = s.Lat,
+                    Lng = s.Lng
+                }).ToList();
 
-                // 如果 RoundTripDistance 沒填或是 0，退回用 SingleDistance
-                if (km <= 0)
-                    km = model.SingleDistance ?? 0;
+                _context.CarRouteStops.AddRange(list);
+                await _context.SaveChangesAsync();
             }
 
-            model.isLongTrip = km > 30; // 長差 = true, 短差 = false
-
-
-            // 存申請單
-            _context.CarApplications.Add(model);
-            await _context.SaveChangesAsync();
-
-            // === 自動派工 ===
-            var result = await dispatcher.AssignAsync(
+            // 8) 自動派工（用「已存在」的 ApplyId）
+            var result = await _dispatcher.AssignAsync(          // ← 用注入的 _dispatcher 欄位即可
                 model.ApplyId,
                 model.UseStart,
                 model.UseEnd,
@@ -114,16 +136,17 @@ namespace Cars.Controllers
                 return Ok(new
                 {
                     message = "申請成功，但派工失敗：" + result.Message,
-                    id = model.ApplyId
+                    id = model.ApplyId,
+                    isLongTrip = model.isLongTrip ? 1 : 0
                 });
             }
 
-            // 派工成功 → 更新申請單
+            // 9) 派工成功 → 回寫申請單的 DriverId（必要時也可寫 VehicleId）
             model.DriverId = result.DriverId;
             await _context.SaveChangesAsync();
 
-            var msg = $"申請完成，司機：{result.DriverName}，待管理員派車";
 
+            var msg = $"申請完成，司機：{result.DriverName}，待管理員派車";
 
             return Ok(new
             {
@@ -132,9 +155,10 @@ namespace Cars.Controllers
                 driverId = result.DriverId,
                 vehicleId = result.VehicleId,
                 plateNo = result.PlateNo,
-                isLongTrip = model.isLongTrip ? 1 : 0 // 回傳給前端看是短差/長差
+                isLongTrip = model.isLongTrip ? 1 : 0
             });
         }
+
 
 
         //完成審核自動派車
@@ -578,7 +602,7 @@ namespace Cars.Controllers
             return Ok(list);
         }
         //過濾可用司機
-        [HttpGet("available")]
+        [HttpGet("/api/drivers/available")]
         public async Task<IActionResult> GetAvailableDrivers()
         {
             var today = DateTime.Today;

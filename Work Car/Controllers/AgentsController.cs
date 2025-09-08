@@ -47,8 +47,17 @@ namespace Cars.Controllers
                     principalName = d.Principal != null ? d.Principal.DriverName : "",
                     reason = d.Reason,
                     period = ToRocPeriod(d.StartDate, d.EndDate),
-                    tripCount = d.TripCount,
-                    distanceKm = d.DistanceKm
+                    tripCount = _db.v_DispatchOrders
+                .Where(v => v.DriverId == d.AgentDriverId
+                         && v.UseStart >= d.StartDate.Date
+                         && v.UseStart < d.EndDate.Date.AddDays(1))
+                .Count(),
+
+                    distanceKm = _db.v_DispatchOrders
+                .Where(v => v.DriverId == d.AgentDriverId
+                         && v.UseStart >= d.StartDate.Date
+                         && v.UseStart < d.EndDate.Date.AddDays(1))
+                .Sum(v => v.TripDistance ?? 0m)
                 })
                 .ToListAsync();
 

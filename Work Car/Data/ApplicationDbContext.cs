@@ -19,7 +19,7 @@ namespace Cars.Data
         public DbSet<Cars.Models.Vehicle> Vehicles { get; set; }
         public DbSet<Driver> Drivers { get; set; }
         public DbSet<Cars.Models.Dispatch> Dispatches { get; set; }
-        public DbSet<DispatchOrder> DispatchOrders { get; set; }
+        public DbSet<DispatchOrder> v_DispatchOrders { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<DriverDelegation> DriverDelegations { get; set; }
 
@@ -31,6 +31,7 @@ namespace Cars.Data
 
         public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
 
+        public DbSet<CarRouteStop> CarRouteStops { get; set; }
 
 
     }

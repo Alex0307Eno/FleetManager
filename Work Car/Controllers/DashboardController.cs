@@ -45,7 +45,6 @@ namespace Cars.Controllers
 
         //  今日排班
         [HttpGet("schedule/today")]
-        [HttpGet("dashboard/schedule/today")]
         public async Task<IActionResult> TodaySchedule()
         {
             var today = DateTime.Today;
@@ -134,8 +133,10 @@ namespace Cars.Controllers
                                                        s.WorkDate == today &&
                                                        s.IsPresent == true),
                     isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId &&
-                                                         dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                                         dis.StartTime.Value <= now && dis.EndTime.Value >= now),
+                                     dis.StartTime.HasValue &&
+                                     dis.StartTime.Value <= now &&
+                                     (!dis.EndTime.HasValue || dis.EndTime.Value >= now)),
+
                     plateNo = (from dis in _db.Dispatches
                                where dis.DriverId == d.DriverId &&
                                      dis.StartTime.HasValue && dis.EndTime.HasValue &&
@@ -173,10 +174,15 @@ namespace Cars.Controllers
                                      dis.StartTime.Value <= now && dis.EndTime.Value >= now
                                select dis.EndTime).FirstOrDefault(),
                     lastLongEnd = _db.Dispatches
-                        .Where(x => x.DriverId == d.DriverId && x.IsLongTrip && x.EndTime != null)
-                        .OrderByDescending(x => x.EndTime)
-                        .Select(x => x.EndTime)
-                        .FirstOrDefault(),
+                    .Where(x => x.DriverId == d.DriverId
+                             && x.IsLongTrip
+                             && x.EndTime.HasValue
+                             && x.EndTime.Value.Date == today
+                             && x.EndTime.Value <= now)  // 只取已經結束的
+                    .OrderByDescending(x => x.EndTime)
+                    .Select(x => x.EndTime)
+                    .FirstOrDefault(),
+
                     isAgent = d.IsAgent
                 })
                 .ToListAsync();
