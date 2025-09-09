@@ -85,7 +85,9 @@
                         <tr v-for="r in filtered" :key="r.applyId">
                             <td class="mono">{{ r.useDate }}</td>
                             <td class="mono">{{ r.useTime }}</td>
-                            <td class="col-route">{{ r.route }}</td>
+                            <td class="col-route">
+                                {{ r.route }} ({{ r.tripType === 'round' ? '來回' : (r.tripType === 'single' ? '單程' : '') }})
+                            </td>
                             <td>
                                 <span v-if="r.reasonType">({{ r.reasonType }}) </span>{{ r.reason }}
                             </td>
@@ -235,6 +237,7 @@
           plateNo: x.plateNo || "",
           useDate: fmtDate(x.useStart),
           useTime: fmtTime(x.useStart),
+          tripType: x.tripType || "",
           useStartRaw: x.useStart,
           route: (x.origin || "") + " - " + (x.destination || ""),
           applicantName: x.applicantName || "",
@@ -360,27 +363,49 @@
               loadData();
             };
 
-            // 匯出目前 filtered
-            const exportCSV = () => {
-              const head = '用車日期,用車時間,目的地,事由,申請人,人數,行駛里程,審核狀態,駕駛人,車輛\n';
-              const body = filtered.value.map(r => ([
-                r.useDate, r.useTime,
-                `"${(r.route||"").replace(/"/g,'""')}"`,
-                `"${(r.reason||"").replace(/"/g,'""')}"`,
-                r.applicantName || "",
-                r.passengerCount ?? "",
-                r.tripDistance ?? "",
-                statusText(r.status),
-                r.driverName || '未指派',
-                r.plateNo || '未指派'
-              ].join(','))).join('\n');
+            // 匯出CSV
+        const exportCSV = () => {
+          const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌'];
 
-              const blob = new Blob([head+body], {type:'text/csv;charset=utf-8;'});
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url; a.download = '派車單.csv';
-              document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-            };
+          // 取目前畫面上的資料
+          const rowsForCsv = Array.isArray(filtered.value) ? filtered.value : [];
+          console.log('[exportCSV] rows:', rowsForCsv.length);
+
+          // 轉一列（含轉義）
+          const q = s => `"${String(s ?? '').replaceAll('"','""')}"`;
+
+          const lines = rowsForCsv.map(r => [
+            r.useDate,                           // 已在 shapeRow 轉好 yyyy-MM-dd
+            r.useTime,                           // 已在 shapeRow 轉好 HH:mm
+            r.route || '',                       // 路線（含停靠點的字串，若後端已有）
+            r.reasonType ? `(${r.reasonType}) ${r.reason || ''}` : (r.reason || ''),
+            r.applicantName || '',
+            r.passengerCount ?? '',
+            r.tripDistance ?? '',
+            r.status || '',
+            r.driverName || '',
+            r.plateNo || '',
+            ''                                   // 這頁沒有長短差欄位就留空，或自行帶入
+          ].map(q).join(','));
+
+          // ★ 關鍵：加 UTF-8 BOM，Excel 讀取不亂碼
+          const bom = '\uFEFF';
+          const csv = [headers.join(','), ...lines].join('\r\n');
+          const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+          const fileName = '派車紀錄.csv';
+
+          if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+            window.navigator.msSaveOrOpenBlob(blob, fileName);
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        };
 
             
 

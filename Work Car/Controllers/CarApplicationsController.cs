@@ -105,12 +105,18 @@ namespace Cars.Controllers
             }
 
             // 7) 多點停靠：同樣要用新的 ApplyId
+            // 7) 多點停靠：同樣要用新的 ApplyId
             if (dto.Stops != null && dto.Stops.Count > 0)
             {
+                Console.WriteLine($"[DEBUG] dto.Stops.Count = {dto.Stops.Count}");
+                // 驗證每筆資料
+                foreach (var s in dto.Stops)
+                    Console.WriteLine($"[DEBUG] stop => Place='{s.Place}', Address='{s.Address}', Lat={s.Lat}, Lng={s.Lng}");
+
                 var list = dto.Stops.Select((s, i) => new CarRouteStop
                 {
-                    ApplyId = model.ApplyId,                     // ← 不能用 0
-                    OrderNo = i,
+                    ApplyId = model.ApplyId,
+                    OrderNo = i + 1,                 // ← 建議從 1 開始
                     Place = s.Place?.Trim(),
                     Address = s.Address?.Trim(),
                     Lat = s.Lat,
@@ -118,11 +124,19 @@ namespace Cars.Controllers
                 }).ToList();
 
                 _context.CarRouteStops.AddRange(list);
-                await _context.SaveChangesAsync();
+                var affected = await _context.SaveChangesAsync();
+
+                // 寫入結果確認
+                var totalNow = await _context.CarRouteStops.CountAsync(x => x.ApplyId == model.ApplyId);
+                Console.WriteLine($"[DEBUG] CarRouteStops inserted={list.Count}, affected={affected}, totalNow={totalNow}");
+            }
+            else
+            {
+                Console.WriteLine("[DEBUG] dto.Stops is null or empty");
             }
 
             // 8) 自動派工（用「已存在」的 ApplyId）
-            var result = await _dispatcher.AssignAsync(          // ← 用注入的 _dispatcher 欄位即可
+            var result = await _dispatcher.AssignAsync(          
                 model.ApplyId,
                 model.UseStart,
                 model.UseEnd,

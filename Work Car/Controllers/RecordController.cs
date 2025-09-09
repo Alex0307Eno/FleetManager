@@ -128,6 +128,26 @@ namespace Cars.Controllers.Api
             // 先抓 rawRows（字串都保留）
             var rawRows = await q.ToListAsync();
 
+            // 取出本批要顯示的申請編號
+            var applyIds = rawRows.Select(x => x.ApplyId).Distinct().ToList();
+
+            // 一次把所有停靠點取回，照 OrderNo 排好；顯示優先 Place，無 Place 才用 Address
+            var stopDict = await _db.CarRouteStops
+                .AsNoTracking()
+                .Where(s => applyIds.Contains(s.ApplyId))
+                .OrderBy(s => s.OrderNo)
+                .Select(s => new { s.ApplyId, Text = (s.Place ?? s.Address) })
+                .ToListAsync();
+
+            // 依 ApplyId 分組成字典
+            var stopsMap = stopDict
+                .GroupBy(s => s.ApplyId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(v => v.Text)
+                          .Where(t => !string.IsNullOrWhiteSpace(t))
+                          .ToList()
+                );
             // EF 抓完再轉 DTO
             var rows = rawRows.Select(x =>
             {
@@ -151,6 +171,7 @@ namespace Cars.Controllers.Api
                     UseEnd = x.UseEnd,
                     Route = string.Join(" - ", new[] { x.Origin, x.Destination }
                                                 .Where(s => !string.IsNullOrWhiteSpace(s))),
+                    TripType = x.TripType,
                     ReasonType = x.ReasonType,
                     Reason = x.ApplyReason,
                     Applicant = x.ApplicantName,

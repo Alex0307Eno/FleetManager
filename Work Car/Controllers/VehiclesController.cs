@@ -29,14 +29,14 @@ namespace Cars.Controllers
         [HttpGet("TripStats")]
         public async Task<IActionResult> TripStats(
             DateTime? dateFrom, DateTime? dateTo,
-            int? driverId, string? plate, string? applicant, string? dept)
+            int? driverId, string? plate, string? applicant, string? dept, string? longShort)
         {
             var q = _db.CarApplications
     .Include(x => x.DispatchOrders)
         .ThenInclude(d => d.Driver)
     .Include(x => x.DispatchOrders)
         .ThenInclude(d => d.Vehicle)
-    .Include(x => x.Applicant)   // 👈 加這個
+    .Include(x => x.Applicant)   
     .AsNoTracking()
     .Select(x => new
     {
@@ -69,7 +69,8 @@ namespace Cars.Controllers
             if (!string.IsNullOrWhiteSpace(plate)) q = q.Where(x => x.plateNo != null && x.plateNo.Contains(plate));
             if (!string.IsNullOrWhiteSpace(applicant)) q = q.Where(x => x.applicantName != null && x.applicantName.Contains(applicant));
             if (!string.IsNullOrWhiteSpace(dept)) q = q.Where(x => x.applicantDept != null && x.applicantDept.Contains(dept));
-
+            if (!string.IsNullOrWhiteSpace(longShort))
+                q = q.Where(x => x.longShort == longShort.Trim());
             var list = await q
                 .OrderBy(x => x.driveDate)
                 .ThenBy(x => x.driverName)
@@ -93,20 +94,6 @@ namespace Cars.Controllers
             return Json(result);
         }
 
-        // 小工具：解析公里數
-        private static double ParseKm(string? single, string? round)
-        {
-            string? src = !string.IsNullOrWhiteSpace(round) ? round : single;
-            if (string.IsNullOrWhiteSpace(src)) return 0;
-
-            // 只保留數字和小數點，例如 "12 公里" -> "12"
-            var digits = new string(src.Where(c => char.IsDigit(c) || c == '.').ToArray());
-
-            if (double.TryParse(digits, out var km))
-                return km;
-
-            return 0;
-        }
 
         [HttpGet("ChartData")]
         public async Task<IActionResult> ChartData(DateTime? dateFrom, DateTime? dateTo, string type = "long")

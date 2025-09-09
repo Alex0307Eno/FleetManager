@@ -35,8 +35,8 @@ namespace Cars.Controllers
         {
             var q = await _db.DriverDelegations
                 .AsNoTracking()
-                .Include(d => d.Agent)        // 關聯 DriverAgents
-                .Include(d => d.Principal)    // 關聯 Drivers
+                .Include(d => d.Agent)        
+                .Include(d => d.Principal)    
                 .OrderByDescending(d => d.StartDate)
                 .Select(d => new
                 {
@@ -70,7 +70,7 @@ namespace Cars.Controllers
         {
             var list = await _db.Drivers
                 .AsNoTracking()
-                .Where(d => d.IsAgent)              // ★ 只取代理人
+                .Where(d => d.IsAgent)              
                 .OrderBy(d => d.DriverName)
                 .ToListAsync();
 

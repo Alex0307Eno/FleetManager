@@ -21,7 +21,7 @@
                 <div>民國 {{ rocYear }} 年 {{ month }} 月</div>
                 <button class="btn" @@click="next">＞</button>
 
-                <!-- 每月 / 每週 分段切換（貼著標題右邊） -->
+                <!-- 每月 / 每週 分段切換 -->
                 <div class="seg" style="margin-left:12px;">
                     <button class="seg-btn" :class="{active: viewMode==='month'}" @@click="viewMode='month'">每月</button>
                     <button class="seg-btn" :class="{active: viewMode==='week'}" @@click="viewMode='week'">每週</button>
@@ -377,22 +377,103 @@
       }
     }
 
-        // 匯出 CSV（取當前週）
-        function exportCSV(){
-          const head='日期,時段,代號,駕駛\n';
-          let rows='';
-          weekDays.value.forEach((d,i)=>{
-            rows += `${d.date},早午,${codes.am[i]},${who(codes.am[i])}\n`;
-            rows += `${d.date},午晚,${codes.pm[i]},${who(codes.pm[i])}\n`;
-            rows += `${d.date},一般(1),${codes.g1[i]},${who(codes.g1[i])}\n`;
-            rows += `${d.date},一般(2),${codes.g2[i]},${who(codes.g2[i])}\n`;
-            rows += `${d.date},一般(3),${codes.g3[i]},${who(codes.g3[i])}\n`;
-          });
-          const blob=new Blob([head+rows],{type:'text/csv;charset=utf-8;'});
-          const url=URL.createObjectURL(blob);
-          const a=document.createElement('a'); a.href=url; a.download=`班表_${rocYear}-${month.value}-w${selectedWeek.value+1}.csv`;
-          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        // 匯出 CSV
+    // ✅ 直接替換原本的 exportCSV（放在 setup() 內）
+    const exportCSV = () => {
+      // 小工具
+      const pad = n => String(n).padStart(2, '0');
+      const dowName = i => ['週日','週一','週二','週三','週四','週五','週六'][i];
+      const Q = s => `"${String(s ?? '').replaceAll('"','""')}"`;
+
+      // 要輸出的欄位（每月就把整個月份的平日列出）
+      const headers = ['日期','星期','早・午','午・晚','一般(1)','一般(2)','一般(3)','長差第一順位'];
+
+      // 依檢視模式決定匯出的日期清單（每月/每週）
+      let dates = [];
+      if (viewMode.value === 'month') {
+        // ▶ 每月：抓當月所有日期
+        const y = yearAD.value;
+        const m = month.value;                // 1-12
+        const daysInThisMonth = new Date(y, m, 0).getDate();
+        for (let d = 1; d <= daysInThisMonth; d++) {
+          dates.push(new Date(y, m - 1, d));
         }
+      } else {
+        // ▶ 每週：抓所選那週的 Mon~Fri
+        const w = weeksOfMonth.value[selectedWeek.value];
+        if (!w) {
+          alert('目前沒有可匯出的週次');
+          return;
+        }
+        let d = new Date(w[0]); // 週一
+        for (let i = 0; i < 5; i++) {
+          dates.push(new Date(d));
+          d.setDate(d.getDate() + 1);
+        }
+      }
+
+      // 只輸出平日（Mon..Fri）
+      const rows = [];
+      for (const dt of dates) {
+        const dow = dt.getDay();       // 0..6
+        if (dow < 1 || dow > 5) continue; // 只要 週一～週五
+        const idx = dow - 1;           // 對應 codes 的索引 (0=Mon..4=Fri)
+
+        // 取出當日各班別的代碼與姓名
+        const cAM = codes.am[idx];  const nAM = who(cAM);
+        const cPM = codes.pm[idx];  const nPM = who(cPM);
+        const cG1 = codes.g1[idx];  const nG1 = who(cG1);
+        const cG2 = codes.g2[idx];  const nG2 = who(cG2);
+        const cG3 = codes.g3[idx];  const nG3 = who(cG3); // 長差第一順位
+
+        rows.push({
+          date: `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`,
+          dow:  dowName(dow),
+          am:   `${cAM}：${nAM}`,
+          pm:   `${cPM}：${nPM}`,
+          g1:   `${cG1}：${nG1}`,
+          g2:   `${cG2}：${nG2}`,
+          g3:   `${cG3}：${nG3}`,
+          long: `${cG3}：${nG3}`,
+        });
+      }
+
+      if (!rows.length) {
+        alert('目前沒有可匯出的資料');
+        return;
+      }
+
+      // 轉 CSV（加 UTF-8 BOM，Excel 不會亂碼）
+      const lines = rows.map(r => [
+        r.date, r.dow, r.am, r.pm, r.g1, r.g2, r.g3, r.long
+      ].map(Q).join(','));
+
+      const bom = '\uFEFF';
+      const csv = [headers.join(','), ...lines].join('\r\n');
+      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+
+      // 檔名：排班表_民國114年09月.csv（依目前月/週動態產生）
+      const fileName = (() => {
+        const yRoc = rocYear;
+        const mStr = pad(month.value);
+        return viewMode.value === 'month'
+          ? `排班表_民國${yRoc}年${mStr}月.csv`
+          : `排班表_民國${yRoc}年${mStr}月_第${selectedWeek.value + 1}週.csv`;
+      })();
+
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+        window.navigator.msSaveOrOpenBlob(blob, fileName);
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    };
+
 
         return {
           rocYear, month, viewMode,

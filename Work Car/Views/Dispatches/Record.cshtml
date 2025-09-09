@@ -95,7 +95,9 @@
                             <tr v-for="r in shown" :key="r.dispatchId">
                                 <td class="mono">{{ rocDate(r.useStart) }}</td>
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
-                                <td class="col-route"><div>{{ r.route }}</div></td>
+                                <td class="col-route">
+                                    {{ r.route }} ({{ r.tripType === 'round' ? '來回' : (r.tripType === 'single' ? '單程' : '') }})
+                                </td>
                                 <td>
                                     <span v-if="r.reasonType">({{ r.reasonType }}) </span>{{ r.reason }}
                                 </td>
@@ -255,7 +257,7 @@
                 const dt = q.value.dateTo   ? new Date(q.value.dateTo)   : null
                 const driver = (q.value.driver || '').trim()
                 const applicant = (q.value.applicant || '').trim()
-                const plateNo = (q.value.plate || '').trim()
+                const plateNo = (q.value.plateNo || '').trim()
 
                 return rows.value
                   .filter(r=>{
@@ -425,20 +427,57 @@
             alert("刪除失敗");
           }
         };
-              function exportCsv(){
-                const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差']
-                const lines = shown.value.map(r=>[
-                  rocDate(r.useStart), timeSpan(r.useStart, r.useEnd),
-                  r.route,r.reasonType, r.reason, r.applicant, r.seats, r.km ?? '',
-                  r.status, r.driver, r.plate, r.longShort ?? ''
-                ].map(s=>`"${String(s??'').replaceAll('"','""')}"`).join(','))
-                const csv = [headers.join(','), ...lines].join('\r\n')
-                const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url; a.download = '派車紀錄.csv'; a.click()
-                URL.revokeObjectURL(url)
-              }
+        // ✅ 放在 setup() 內，使用 shown.value（就是你表格當前顯示的資料）
+        // ✅ 自動加 UTF-8 BOM，Excel 開啟不會亂碼
+        const exportCsv = () => {
+          const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差'];
+
+          const rowsForCsv = Array.isArray(shown.value) ? shown.value : [];
+
+          // 轉義用：把每格包成 "..." 並處理雙引號
+          const Q = s => `"${String(s ?? '').replaceAll('"', '""')}"`;
+
+          const lines = rowsForCsv.map(r => [
+            // 你這頁已經有 rocDate / timeSpan，可直接用
+            rocDate(r.useStart),
+            timeSpan(r.useStart, r.useEnd),
+
+            // 路線：優先用 route（含停靠點），否則退回 出發地 - 目的地
+            r.route || ((r.origin || '') + ' - ' + (r.destination || '')),
+
+            // 事由：(類別) 內容
+            r.reasonType ? `(${r.reasonType}) ${r.reason || ''}` : (r.reason || ''),
+
+            r.applicant ?? '',
+            r.seats ?? '',
+            r.km ?? '',
+
+            // 匯出顯示文字（而非原始 code）
+            statusText(r.status),
+
+            r.driver ?? '',
+            r.plate ?? '',
+            r.longShort ?? ''
+          ].map(Q).join(','));
+
+          // ★ 關鍵：加 BOM，Excel 會用 UTF-8 正確顯示中文
+          const bom = '\uFEFF';
+          const csv = [headers.join(','), ...lines].join('\r\n');
+          const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+
+          const fileName = '派車紀錄.csv';
+          if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+            window.navigator.msSaveOrOpenBlob(blob, fileName);
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        };
 
               // 載入資料
               async function reload(){
@@ -473,6 +512,7 @@
             useStart:   x.useStart ?? x.start ?? new Date(),
             useEnd:     x.useEnd   ?? x.end   ?? new Date(Date.now()+60*60*1000),
             route:      x.route ?? `${x.origin ?? ''} - ${x.destination ?? ''}`,
+            tripType:   x.tripType || "",
             reasonType: x.reasonType ?? '',
             reason:     x.reason ?? x.applyReason ?? '',
             applicant:  x.applicant ?? x.applicantName ?? '',
@@ -512,6 +552,7 @@
                if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
                return "s-wait"; // 待審核
              };
+
 
               // init
               reload()

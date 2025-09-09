@@ -8,6 +8,7 @@
         public DateTime? UseStart { get; set; }     // a.UseStart
         public DateTime? UseEnd { get; set; }       // a.UseEnd
         public string? Route { get; set; }          // a.Route 或 Origin-Destination
+        public string TripType { get; set; }
         public string? ReasonType { get; set; }     // a.ReasonType
         public string? Reason { get; set; }         // a.ApplyReason
         public string? Applicant { get; set; }      // a.ApplicantName

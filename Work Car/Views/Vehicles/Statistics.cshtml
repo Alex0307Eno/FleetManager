@@ -8,15 +8,14 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-
 <div id="app" class="wrap" v-cloak>
     <div class="topbar">
         <h2 style="margin:0 0 12px 4px; color:#fff">車輛管理 ＞ 行車歷程統計</h2>
     </div>
     <!-- 分頁籤 -->
     <div class="tabs">
-        <a class="tab" :class="{active: currentTab==='table'}" @@click ="currentTab='table'">行車歷程</a>
-        <a class="tab" :class="{active: currentTab==='chart'}" @@click ="currentTab='chart'">統計圖</a>
+        <a class="tab" :class="{active: currentTab==='table'}" @@click="currentTab='table'">行車歷程</a>
+        <a class="tab" :class="{active: currentTab==='chart'}" @@click="currentTab='chart'">統計圖</a>
     </div>
 
     <!-- 行車歷程表格 -->
@@ -29,15 +28,36 @@
                 <input type="date" v-model="q.dateTo">
             </div>
             <div class="chip">
-                <select v-model="q.driverId" @@change ="reload">
+                <select v-model="q.driverId" @@change="reload">
                     <option :value="null">駕駛人（全部）</option>
                     <option v-for="d in drivers" :key="d.id" :value="d.id">{{ d.name }}</option>
                 </select>
             </div>
-            <div class="chip"><input type="text" v-model.trim="q.plate" placeholder="車輛車號"></div>
-            <div class="chip"><input type="text" v-model.trim="q.applicant" placeholder="申請人"></div>
-            <div class="chip"><input type="text" v-model.trim="q.dept" placeholder="申請單位"></div>
-            <button class="search-btn" @@click ="reload"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <div class="chip">
+                <label>車輛車號</label>
+                <select v-model="q.plate">
+                    <option value="">全部</option>
+                    <option v-for="p in plates" :key="p" :value="p">{{ p }}</option>
+                </select>
+            </div>
+            <div class="chip">
+                <label>申請人</label>
+                <select v-model="q.applicant">
+                    <option value="">全部</option>
+                    <option v-for="a in applicants" :key="a" :value="a">{{ a }}</option>
+                </select>
+            </div>
+            <div class="chip">
+                <label>申請單位</label>
+                <select v-model="q.dept">
+                    <option value="">全部</option>
+                    <option v-for="d in depts" :key="d" :value="d">{{ d }}</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" @@click="reload">搜尋</button>
+            <button class="btn btn-success" style="margin-left:6px;font-weight:700" @@click="exportCsv">
+                匯出
+            </button>
         </div>
 
         <div class="card">
@@ -85,6 +105,24 @@
 
     <!-- 統計圖 -->
     <div v-show="currentTab==='chart'">
+        <!-- 統計圖專用篩選列 -->
+        <div class="filters">
+            <div class="chip">
+                <input type="date" v-model="chartQ.dateFrom">
+                <span>~</span>
+                <input type="date" v-model="chartQ.dateTo">
+            </div>
+            <div class="chip">
+                <label>長/短差</label>
+                <select v-model="chartQ.longShort">
+                    <option value="">全部</option>
+                    <option value="長差">長差</option>
+                    <option value="短差">短差</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" @@click="reloadChart">搜尋</button>
+        </div>
+
         <div class="card" style="margin-top:14px; padding:20px">
             <div style="display:flex; gap:24px;">
                 <div style="flex:1">
@@ -98,7 +136,6 @@
             </div>
         </div>
     </div>
-
 </div>
 
 @section Scripts {
@@ -107,23 +144,21 @@
 
         createApp({
           setup(){
-            const currentTab = ref('table'); // 預設顯示表格
+            const currentTab = ref('table');
             const today = new Date();
             const pad = n=>String(n).padStart(2,'0');
-            // 算出當月的 1 號
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            // 算出當月的最後一天
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            const q = ref({
-              dateFrom: `${firstDay.getFullYear()}-${pad(firstDay.getMonth() + 1)}-${pad(firstDay.getDate())}`,
-              dateTo: `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`,
-              driverId: null,
-              plate: '',
-              applicant: '',
-              dept: ''
-            });            
+
+            // 行車歷程用
+            const q = ref({ dateFrom:'', dateTo:'', driverId:null, plate:'', applicant:'', dept:'' });
             const rows = ref([]);
             const drivers = ref([]);
+            const plates = ref([]);
+            const applicants = ref([]);
+            const depts = ref([]);
+
+            // 統計圖用
+            const chartQ = ref({ dateFrom:'', dateTo:'', longShort:'' });
+
             const rocDate = d=>{
               const x=new Date(d); if(isNaN(x)) return '';
               return `${x.getFullYear()-1911}/${pad(x.getMonth()+1)}/${pad(x.getDate())}`;
@@ -141,9 +176,16 @@
             async function reload(){
               const res = await axios.get('/Vehicles/TripStats',{ params:q.value });
               rows.value = Array.isArray(res.data) ? res.data : [];
-              drawCharts();
-                console.log("🚗 TripStats data:", res.data); 
+              // 填充下拉選單資料
+              plates.value = [...new Set(rows.value.map(r=>r.plateNo).filter(Boolean))];
+              applicants.value = [...new Set(rows.value.map(r=>r.applicantName).filter(Boolean))];
+              depts.value = [...new Set(rows.value.map(r=>r.applicantDept).filter(Boolean))];
+            }
 
+            async function reloadChart(){
+              const res = await axios.get('/Vehicles/TripStats',{ params:chartQ.value });
+              rows.value = Array.isArray(res.data) ? res.data : [];
+              drawCharts();
             }
 
             async function loadDrivers(){
@@ -151,95 +193,92 @@
               drivers.value = (res.data||[]).map(x=>({ id:x.driverId||x.id, name:x.driverName||x.name }));
             }
 
-                   let driverChart, vehicleChart;
-        function drawCharts(){
-          if(!rows.value.length) return;
+            let driverChart, vehicleChart;
+            function drawCharts(){
+              if(!rows.value.length) return;
+              // 駕駛統計
+              const drvAgg = {};
+              rows.value.forEach(r=>{
+                const k = r.driverName || '(未指派)';
+                if(!drvAgg[k]) drvAgg[k] = { km:0, trips:0 };
+                drvAgg[k].km += Number(r.km)||0;
+                drvAgg[k].trips += Number(r.trips)||0;
+              });
+              const driverLabels = Object.keys(drvAgg);
+              const driverKm = driverLabels.map(k=>drvAgg[k].km);
+              const driverTrips = driverLabels.map(k=>drvAgg[k].trips);
 
-          // ====== 駕駛：彙總 km / trips ======
-          const drvAgg = {};
-          rows.value.forEach(r => {
-            const k = r.driverName || '(未指派)';
-            if(!drvAgg[k]) drvAgg[k] = { km:0, trips:0 };
-            drvAgg[k].km    += Number(r.km)    || 0;
-            drvAgg[k].trips += Number(r.trips) || 0;
-          });
-          const driverLabels = Object.keys(drvAgg);
-          const driverKm     = driverLabels.map(k => drvAgg[k].km);
-          const driverTrips  = driverLabels.map(k => drvAgg[k].trips);
+              const driverCtx = document.getElementById('driverChart');
+              if(driverChart) driverChart.destroy();
+              driverChart = new Chart(driverCtx,{
+                type:'bar',
+                data:{ labels:driverLabels, datasets:[
+                  {label:'里程 (km)', data:driverKm, yAxisID:'yKm', backgroundColor:'#3b82f6'},
+                  {label:'趟次', data:driverTrips, yAxisID:'yTrips', backgroundColor:'#f59e0b'}
+                ]},
+                options:{ responsive:true, scales:{
+                  yKm:{beginAtZero:true,title:{display:true,text:'公里'}},
+                  yTrips:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'趟次'}}
+                }}
+              });
 
-          const driverCtx = document.getElementById('driverChart');
-          if (driverChart) driverChart.destroy();
-          driverChart = new Chart(driverCtx, {
-            type: 'bar',
-            data: {
-              labels: driverLabels,
-              datasets: [
-                { label: '里程 (km)', data: driverKm,   yAxisID: 'yKm',    backgroundColor: '#3b82f6' },
-                { label: '趟次',      data: driverTrips,yAxisID: 'yTrips', backgroundColor: '#f59e0b' }
-              ]
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { position: 'top' } },
-              scales: {
-                yKm:    { beginAtZero: true, title: { display:true, text:'公里' } },
-                yTrips: { beginAtZero: true, position:'right',
-                          grid: { drawOnChartArea:false },
-                          title: { display:true, text:'趟次' } }
-              }
+              // 車牌統計
+              const vehAgg = {};
+              rows.value.forEach(r=>{
+                const k = r.plateNo || '(未指派)';
+                if(!vehAgg[k]) vehAgg[k] = { km:0, trips:0 };
+                vehAgg[k].km += Number(r.km)||0;
+                vehAgg[k].trips += Number(r.trips)||0;
+              });
+              const plateLabels = Object.keys(vehAgg);
+              const plateKm = plateLabels.map(k=>vehAgg[k].km);
+              const plateTrips = plateLabels.map(k=>vehAgg[k].trips);
+
+              const vehicleCtx = document.getElementById('vehicleChart');
+              if(vehicleChart) vehicleChart.destroy();
+              vehicleChart = new Chart(vehicleCtx,{
+                type:'bar',
+                data:{ labels:plateLabels, datasets:[
+                  {label:'里程 (km)', data:plateKm, yAxisID:'yKm', backgroundColor:'#3b82f6'},
+                  {label:'趟次', data:plateTrips, yAxisID:'yTrips', backgroundColor:'#f59e0b'}
+                ]},
+                options:{ responsive:true, scales:{
+                  yKm:{beginAtZero:true,title:{display:true,text:'公里'}},
+                  yTrips:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'趟次'}}
+                }}
+              });
             }
-          });
 
-          // ====== 車牌：彙總 km / trips ======
-          const vehAgg = {};
-          rows.value.forEach(r => {
-            const k = r.plateNo || '(未指派)';
-            if(!vehAgg[k]) vehAgg[k] = { km:0, trips:0 };
-            vehAgg[k].km    += Number(r.km)    || 0;
-            vehAgg[k].trips += Number(r.trips) || 0;
-          });
-          const plateLabels = Object.keys(vehAgg);
-          const plateKm     = plateLabels.map(k => vehAgg[k].km);
-          const plateTrips  = plateLabels.map(k => vehAgg[k].trips);
-
-          const vehicleCtx = document.getElementById('vehicleChart');
-          if (vehicleChart) vehicleChart.destroy();
-          vehicleChart = new Chart(vehicleCtx, {
-            type: 'bar',
-            data: {
-              labels: plateLabels,
-              datasets: [
-                { label: '里程 (km)', data: plateKm,   yAxisID: 'yKm',    backgroundColor: '#3b82f6' },
-                { label: '趟次',      data: plateTrips,yAxisID: 'yTrips', backgroundColor: '#f59e0b' }
-              ]
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { position: 'top' } },
-              scales: {
-                yKm:    { beginAtZero: true, title: { display:true, text:'公里' } },
-                yTrips: { beginAtZero: true, position:'right',
-                          grid: { drawOnChartArea:false },
-                          title: { display:true, text:'趟次' } }
-              }
+            // 匯出 CSV
+            function exportCsv(){
+              const headers = ['行車日期','駕駛人','車輛車號','申請單位','申請人','行駛里程','行駛趟次','長差/短差'];
+              const lines = rows.value.map(r=>[
+                rocDate(r.driveDate), r.driverName, r.plateNo, r.applicantDept, r.applicantName,
+                r.km, r.trips, r.longShort
+              ].map(s=>`"${String(s??'').replaceAll('"','""')}"`).join(','));
+              const bom = '\uFEFF';
+              const csv = [headers.join(','),...lines].join('\r\n');
+              const blob = new Blob([bom+csv],{type:'text/csv;charset=utf-8;'});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href=url; a.download='行車歷程.csv'; a.click();
+              URL.revokeObjectURL(url);
             }
-          });
-        }
 
+            onMounted(async()=>{
+              const start = new Date(today.getFullYear(), today.getMonth(), 1);
+              const end = new Date(today.getFullYear(), today.getMonth()+1, 0);
+              q.value.dateFrom = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`;
+              q.value.dateTo = `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`;
+              chartQ.value.dateFrom = q.value.dateFrom;
+              chartQ.value.dateTo = q.value.dateTo;
+              await reload();
+              await reloadChart();
+              await loadDrivers();
+            });
 
-                   onMounted(async () => {
-          const now = new Date();
-          const start = new Date(now.getFullYear(), now.getMonth(), 1);
-          const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-          q.value.dateFrom = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
-          q.value.dateTo   = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
-
-          await reload();
-          await loadDrivers();
-        });
-
-            return { currentTab, q, rows, drivers, reload, rocDate, shortDept, sumKm, sumTrips };
+            return { currentTab,q,chartQ,rows,drivers,plates,applicants,depts,
+              reload,reloadChart,rocDate,shortDept,sumKm,sumTrips,exportCsv };
           }
         }).mount('#app');
     </script>

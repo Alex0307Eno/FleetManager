@@ -148,21 +148,27 @@ namespace Cars.Controllers
 
 
         //自動指派代理人
-        private async Task<int> PickAutoAgent(int principalDriverId, string? shift, DateTime today)
+        private async Task<int> PickAutoAgent(int principalDriverId, string shift, DateTime today)
         {
             var now = DateTime.Now;
 
-            // 候選：今天有出勤、而且是代理人(IsAgent=true)；排除本人
+            // 當天與昨天的日界線
+            var dayStart = today.Date;
+            var dayEnd = dayStart.AddDays(1);
+            var yStart = dayStart.AddDays(-1);
+            var yEnd = dayStart;
+
+            // 候選：代理人，排除本人
             var agents = await _db.Drivers
-            .Where(d => d.IsAgent && d.DriverId != principalDriverId)
-            .Select(d => d.DriverId)
-            .ToListAsync();
+                .Where(d => d.IsAgent && d.DriverId != principalDriverId)
+                .Select(d => d.DriverId)
+                .ToListAsync();
 
             if (agents.Count == 0) return 0;
 
             // 今天已在代理別人的人（避免一人代理多人）
             var busyAgentIds = await _db.DriverDelegations
-                .Where(g => g.StartDate.Date <= today && today <= g.EndDate.Date)
+                .Where(g => g.StartDate < dayEnd && g.EndDate >= dayStart) // 與今天有交集
                 .Select(g => g.AgentDriverId)
                 .Distinct()
                 .ToListAsync();
@@ -182,23 +188,54 @@ namespace Cars.Controllers
                 .Distinct()
                 .ToListAsync();
 
-            var pool = agents
-         .Where(id => !busyAgentIds.Contains(id)
-                   && !onDutyIds.Contains(id)
-                   && !restIds.Contains(id))
-         .ToList();
+            //  昨天替「這位本尊」有效的代理人
+            var yesterdayForPrincipal = await _db.DriverDelegations
+                .Where(g => g.PrincipalDriverId == principalDriverId &&
+                            g.StartDate < yEnd && g.EndDate >= yStart) // 與昨天有交集
+                .Select(g => g.AgentDriverId)
+                .Distinct()
+                .ToListAsync();
 
-            if (!pool.Any()) return 0;
+            //  昨天有出勤的代理人
+            var workedYesterday = await _db.Dispatches
+                .Where(dis => dis.StartTime >= yStart && dis.StartTime < yEnd)
+                .Select(dis => dis.DriverId ?? 0)
+                .Distinct()
+                .ToListAsync();
+
+            // 基本可用池
+            var basePool = agents
+                .Where(id => !busyAgentIds.Contains(id)
+                          && !onDutyIds.Contains(id)
+                          && !restIds.Contains(id))
+                .ToList();
+
+            // 先排除「昨天替同一位本尊」的代理人
+            var pool = basePool
+                .Where(id => !yesterdayForPrincipal.Contains(id))
+                .ToList();
+
+            // 若因此沒人，再排除「昨天有出勤」者
+            if (pool.Count == 0)
+                pool = basePool.Where(id => !workedYesterday.Contains(id)).ToList();
+
+            // 再不行就用原本池（避免完全選不到）
+            if (pool.Count == 0)
+                pool = basePool;
+
+            if (pool.Count == 0) return 0;
 
             // 今天派工數少者優先
             var todayCounts = await _db.Dispatches
-                .Where(dis => dis.StartTime.HasValue && dis.StartTime.Value.Date == today)
+                .Where(dis => dis.StartTime >= dayStart && dis.StartTime < dayEnd)
                 .GroupBy(dis => dis.DriverId)
                 .Select(g => new { DriverId = g.Key ?? 0, Cnt = g.Count() })
                 .ToDictionaryAsync(x => x.DriverId, x => x.Cnt);
 
+            // 排序：今日派工數 → 昨天是否出勤（出勤者往後）→ DriverId
             return pool
                 .OrderBy(id => todayCounts.ContainsKey(id) ? todayCounts[id] : 0)
+                .ThenBy(id => workedYesterday.Contains(id) ? 1 : 0)
                 .ThenBy(id => id)
                 .First();
         }
@@ -293,7 +330,7 @@ namespace Cars.Controllers
                 }
             }
 
-            // 僅更新允許的欄位（避免 Overposting）
+            // 僅更新允許的欄位
             entity.DriverName = input.DriverName;
             entity.NationalId = input.NationalId;
             entity.BirthDate = input.BirthDate;
