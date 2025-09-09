@@ -13,6 +13,6 @@
         public User User { get; set; }
 
         //  對應多筆申請單
-        public ICollection<CarApply> CarApplications { get; set; }
+        public ICollection<CarApplication> CarApplications { get; set; }
     }
 }

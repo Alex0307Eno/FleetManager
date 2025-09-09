@@ -1,6 +1,6 @@
 ﻿namespace Cars.Models
 {
-    public class RecordDto
+    public class Record
     {
         public int Id { get; set; }                 // d.DispatchId
 

@@ -16,6 +16,6 @@ namespace Cars.Models
         public string? DeptTitle { get; set; } 
 
         [ForeignKey("ApplyId")]
-        public CarApply? CarApply { get; set; }
+        public CarApplication? CarApply { get; set; }
     }
 }

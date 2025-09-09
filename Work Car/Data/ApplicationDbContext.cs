@@ -14,7 +14,7 @@ namespace Cars.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Applicant> Applicants { get; set; }
 
-        public DbSet<CarApply> CarApplications { get; set; }
+        public DbSet<CarApplication> CarApplications { get; set; }
         public DbSet<CarPassenger> CarPassengers { get; set; }
         public DbSet<Cars.Models.Vehicle> Vehicles { get; set; }
         public DbSet<Driver> Drivers { get; set; }
@@ -30,8 +30,7 @@ namespace Cars.Data
         public DbSet<VehicleViolation> VehicleViolations { get; set; }
 
         public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
-
-        public DbSet<CarRouteStop> CarRouteStops { get; set; }
+        public DbSet<DispatchApplication> DispatchApplications { get; set; }
 
 
     }

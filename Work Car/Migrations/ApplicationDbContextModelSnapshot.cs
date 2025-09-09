@@ -59,7 +59,7 @@ namespace Cars.Migrations
                     b.ToTable("Applicants");
                 });
 
-            modelBuilder.Entity("Cars.Models.CarApply", b =>
+            modelBuilder.Entity("Cars.Models.CarApplication", b =>
                 {
                     b.Property<int>("ApplyId")
                         .ValueGeneratedOnAdd()
@@ -165,41 +165,6 @@ namespace Cars.Migrations
                     b.ToTable("CarPassengers");
                 });
 
-            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
-                {
-                    b.Property<int>("StopId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StopId"));
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ApplyId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("Lat")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("Lng")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("OrderNo")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Place")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("StopId");
-
-                    b.HasIndex("ApplyId");
-
-                    b.ToTable("CarRouteStops");
-                });
-
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
                     b.Property<int>("DispatchId")
@@ -242,6 +207,35 @@ namespace Cars.Migrations
                     b.HasIndex("VehicleId");
 
                     b.ToTable("Dispatches");
+                });
+
+            modelBuilder.Entity("Cars.Models.DispatchApplication", b =>
+                {
+                    b.Property<int>("DispatchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DispatchId"));
+
+                    b.Property<int>("ApplicationApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DispatchId1")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Seats")
+                        .HasColumnType("int");
+
+                    b.HasKey("DispatchId");
+
+                    b.HasIndex("ApplicationApplyId");
+
+                    b.HasIndex("DispatchId1");
+
+                    b.ToTable("DispatchApplications");
                 });
 
             modelBuilder.Entity("Cars.Models.DispatchOrder", b =>
@@ -802,7 +796,7 @@ namespace Cars.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Cars.Models.CarApply", b =>
+            modelBuilder.Entity("Cars.Models.CarApplication", b =>
                 {
                     b.HasOne("Cars.Models.Applicant", "Applicant")
                         .WithMany("CarApplications")
@@ -825,7 +819,7 @@ namespace Cars.Migrations
 
             modelBuilder.Entity("Cars.Models.CarPassenger", b =>
                 {
-                    b.HasOne("Cars.Models.CarApply", "CarApply")
+                    b.HasOne("Cars.Models.CarApplication", "CarApply")
                         .WithMany("Passengers")
                         .HasForeignKey("ApplyId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -834,20 +828,9 @@ namespace Cars.Migrations
                     b.Navigation("CarApply");
                 });
 
-            modelBuilder.Entity("Cars.Models.CarRouteStop", b =>
-                {
-                    b.HasOne("Cars.Models.CarApply", "Apply")
-                        .WithMany()
-                        .HasForeignKey("ApplyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Apply");
-                });
-
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
-                    b.HasOne("Cars.Models.CarApply", "CarApply")
+                    b.HasOne("Cars.Models.CarApplication", "CarApply")
                         .WithMany("DispatchOrders")
                         .HasForeignKey("ApplyId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -866,6 +849,25 @@ namespace Cars.Migrations
                     b.Navigation("Driver");
 
                     b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Cars.Models.DispatchApplication", b =>
+                {
+                    b.HasOne("Cars.Models.CarApplication", "Application")
+                        .WithMany("DispatchLinks")
+                        .HasForeignKey("ApplicationApplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cars.Models.Dispatch", "Dispatch")
+                        .WithMany("Applications")
+                        .HasForeignKey("DispatchId1")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Dispatch");
                 });
 
             modelBuilder.Entity("Cars.Models.DriverDelegation", b =>
@@ -925,11 +927,18 @@ namespace Cars.Migrations
                     b.Navigation("CarApplications");
                 });
 
-            modelBuilder.Entity("Cars.Models.CarApply", b =>
+            modelBuilder.Entity("Cars.Models.CarApplication", b =>
                 {
+                    b.Navigation("DispatchLinks");
+
                     b.Navigation("DispatchOrders");
 
                     b.Navigation("Passengers");
+                });
+
+            modelBuilder.Entity("Cars.Models.Dispatch", b =>
+                {
+                    b.Navigation("Applications");
                 });
 
             modelBuilder.Entity("Cars.Models.Driver", b =>

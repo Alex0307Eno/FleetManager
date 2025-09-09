@@ -53,6 +53,16 @@ button.btn.btn-primary {
         border-color: #1d4ed8 !important;
     }
 
+button.btn.btn-secondary {
+    background-color: #6b7280 !important; /* 灰色底 */
+    border-color: #6b7280 !important;
+    color: #fff !important;
+}
+    button.btn.btn-secondary:hover {
+        background-color: #4b5563 !important; /* 深灰 hover */
+        border-color: #4b5563 !important;
+    }
+
 .topbar {
     display: flex;
     justify-content: space-between;
@@ -492,4 +502,7 @@ td.col-route {
     text-overflow: clip;
 }
 
+.merge-row {
+    background-color: #faf8f3; /* 淡米色背景，凸顯子列 */
+}
 

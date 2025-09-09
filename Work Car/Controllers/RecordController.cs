@@ -18,7 +18,7 @@ namespace Cars.Controllers.Api
 
 
         [HttpGet("records")]
-        public async Task<ActionResult<IEnumerable<RecordDto>>> GetRecords(
+        public async Task<ActionResult<IEnumerable<Record>>> GetRecords(
              
             [FromQuery] DateTime? dateFrom,
             [FromQuery] DateTime? dateTo,
@@ -130,52 +130,74 @@ namespace Cars.Controllers.Api
 
             // 取出本批要顯示的申請編號
             var applyIds = rawRows.Select(x => x.ApplyId).Distinct().ToList();
+            // 這批派車單的 id
+            var dispatchIds = rawRows.Select(x => x.DispatchId).Distinct().ToList();
 
-            // 一次把所有停靠點取回，照 OrderNo 排好；顯示優先 Place，無 Place 才用 Address
-            var stopDict = await _db.CarRouteStops
-                .AsNoTracking()
-                .Where(s => applyIds.Contains(s.ApplyId))
-                .OrderBy(s => s.OrderNo)
-                .Select(s => new { s.ApplyId, Text = (s.Place ?? s.Address) })
+            // 取出每張派車單的併單匯總（總座位、筆數）
+            var linkAgg = await _db.DispatchApplications
+                .Where(l => dispatchIds.Contains(l.DispatchId))
+                .GroupBy(l => l.DispatchId)
+                .Select(g => new
+                {
+                    DispatchId = g.Key,
+                    LinkSeats = g.Sum(x => (int?)x.Seats) ?? 0,
+                    LinkCount = g.Count()
+                })
                 .ToListAsync();
+            var linkAggMap = linkAgg.ToDictionary(k => k.DispatchId, v => new { v.LinkSeats, v.LinkCount });
 
-            // 依 ApplyId 分組成字典
-            var stopsMap = stopDict
-                .GroupBy(s => s.ApplyId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(v => v.Text)
-                          .Where(t => !string.IsNullOrWhiteSpace(t))
-                          .ToList()
-                );
-            // EF 抓完再轉 DTO
-            var rows = rawRows.Select(x =>
+            // 取出每張派車單的子列（併入的申請）
+            var linkDetails = await
+                (from l in _db.DispatchApplications.AsNoTracking()
+                 join a in _db.CarApplications.AsNoTracking() on l.ApplyId equals a.ApplyId
+                 join p in _db.Applicants.AsNoTracking() on a.ApplicantId equals p.ApplicantId
+                 where dispatchIds.Contains(l.DispatchId)
+                 select new
+                 {
+                     l.DispatchId,
+                     a.ApplyId,
+                     a.UseStart,
+                     a.UseEnd,
+                     a.Origin,
+                     a.Destination,
+                     a.ReasonType,
+                     a.ApplyReason,
+                     ApplicantName = p.Name,
+                     Seats = l.Seats,                 // 這筆併單實際佔用座位
+                     a.TripType,
+                     a.SingleDistance,
+                     a.RoundTripDistance,
+                     a.Status
+                 }).ToListAsync();
+
+            // === 組最終 rows：主列 + 子列（子列緊貼主列之後） ===
+            var rows = new List<Record>();
+
+            foreach (var x in rawRows)
             {
-                // 先算出公里數
+                // 主列公里
                 decimal km = 0;
+                if (x.TripType == "single") km = x.SingleDistance ?? 0;
+                else if (x.TripType == "round") km = x.RoundTripDistance ?? 0;
+                var longShort = km > 30 ? "長差" : "短差";
 
-                if (x.TripType == "single")
-                    km = x.SingleDistance ?? 0;   
-                else if (x.TripType == "round")
-                    km = x.RoundTripDistance ?? 0;
+                // 主列加總座位（主申請 + 已併入）
+                var agg = linkAggMap.ContainsKey(x.DispatchId) ? linkAggMap[x.DispatchId] : new { LinkSeats = 0, LinkCount = 0 };
+                var totalSeats = (x.PassengerCount) + agg.LinkSeats;
 
-
-                // 判斷長/短差
-                string longShort = km > 30 ? "長差" : "短差";
-
-                return new RecordDto
+                // ① 主列
+                rows.Add(new Record
                 {
                     Id = x.DispatchId,
                     ApplyId = x.ApplyId,
                     UseStart = x.UseStart,
                     UseEnd = x.UseEnd,
-                    Route = string.Join(" - ", new[] { x.Origin, x.Destination }
-                                                .Where(s => !string.IsNullOrWhiteSpace(s))),
+                    Route = string.Join(" - ", new[] { x.Origin, x.Destination }.Where(s => !string.IsNullOrWhiteSpace(s))),
                     TripType = x.TripType,
                     ReasonType = x.ReasonType,
                     Reason = x.ApplyReason,
                     Applicant = x.ApplicantName,
-                    Seats = x.PassengerCount,
+                    Seats = totalSeats,   // 顯示總座位（含併單）
                     Km = km,
                     Status = x.Status,
                     Driver = x.DriverName,
@@ -183,12 +205,49 @@ namespace Cars.Controllers.Api
                     Plate = x.PlateNo,
                     VehicleId = x.VehicleId,
                     LongShort = longShort
-                };
-            }).ToList();
+                    // 如果你的 Record 有 MergeCount 欄位，也可補：MergeCount = agg.LinkCount
+                });
+
+                // ② 子列（按時間排序，緊貼在主列之後）
+                var children = linkDetails
+                    .Where(ld => ld.DispatchId == x.DispatchId)
+                    .OrderBy(ld => ld.UseStart)
+                    .ToList();
+
+                foreach (var c in children)
+                {
+                    decimal km2 = 0;
+                    if (c.TripType == "single") km2 = c.SingleDistance ?? 0;
+                    else if (c.TripType == "round") km2 = c.RoundTripDistance ?? 0;
+                    var ls2 = km2 > 30 ? "長差" : "短差";
+
+                    rows.Add(new Record
+                    {
+                        Id = x.DispatchId,          // 與主列相同，方便前端判斷同一車次
+                        ApplyId = c.ApplyId,
+                        UseStart = c.UseStart,
+                        UseEnd = c.UseEnd,
+                        Route = string.Join(" - ", new[] { c.Origin, c.Destination }.Where(s => !string.IsNullOrWhiteSpace(s))),
+                        TripType = c.TripType,
+                        ReasonType = c.ReasonType,
+                        Reason = c.ApplyReason,
+                        Applicant = c.ApplicantName,
+                        Seats = c.Seats,           // 子列顯示這筆併單的座位數
+                        Km = km2,
+                        Status = c.Status,
+                        // 子列通常不需要再顯示駕駛/車輛（可留空或沿用主列）
+                        Driver = null,
+                        DriverId = null,
+                        Plate = null,
+                        VehicleId = null,
+                        LongShort = ls2
+                    });
+                }
+            }
 
             return Ok(rows);
         }
-        // 🔹 查詢單筆
+        // 查詢單筆
         [HttpGet("{id}")]
         public async Task<IActionResult> GetOne(int id)
         {
@@ -221,16 +280,7 @@ namespace Cars.Controllers.Api
         }
 
 
-        // 小工具：從字串中抓出數字部分
-        private static decimal ParseDistance(string? input)
-        {
-            if (string.IsNullOrWhiteSpace(input)) return 0;
-
-            // 把非數字、小數點的字元移掉，只留下數字
-            var cleaned = new string(input.Where(c => char.IsDigit(c) || c == '.').ToArray());
-
-            return decimal.TryParse(cleaned, out var value) ? value : 0;
-        }
+        
         // 🔹 更新 (Update)
         public class UpdateDispatchDto
         {
@@ -257,7 +307,7 @@ namespace Cars.Controllers.Api
 
 
 
-        // 🔹 刪除 (Delete)
+        //  刪除 (Delete)
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -267,6 +317,130 @@ namespace Cars.Controllers.Api
             _db.Dispatches.Remove(row);
             await _db.SaveChangesAsync();
             return Ok(new { message = "刪除成功" });
+        }
+
+
+        // 併單請求 DTO
+        public class MergeLinkDto
+        {
+            public int DispatchId { get; set; }
+            public int? Seats { get; set; } // 若沒帶，預設用該申請的 PassengerCount
+        }
+
+        // ➊ 併單：把某個申請併入指定派車單
+        [HttpPost("{dispatchId}/links")]
+        public async Task<IActionResult> AddLink(int dispatchId, [FromBody] MergeLinkDto dto)
+        {
+            // dto 裡面要傳另一張 DispatchId（不是 ApplyId）
+            var targetDispatch = await _db.Dispatches
+                .Include(d => d.Applications)
+                .FirstOrDefaultAsync(d => d.DispatchId == dto.DispatchId);
+
+            if (targetDispatch == null)
+                return NotFound("找不到要併入的派車單");
+
+            // 檢查不能跟自己併
+            if (dispatchId == dto.DispatchId)
+                return BadRequest("不能將同一張派車單併入自己");
+
+            // 檢查是否已經併入過
+            var exists = await _db.DispatchApplications
+                .FindAsync(dispatchId, targetDispatch.ApplyId);
+            if (exists != null)
+                return BadRequest("此派車單已經併入過");
+
+            // 核心寫入
+            var link = new DispatchApplication
+            {
+                DispatchId = dispatchId,
+                Seats = dto.Seats??0,
+            };
+
+            _db.DispatchApplications.Add(link);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "併單成功", dispatchId, targetDispatchId = dto.DispatchId });
+        }
+
+        // ➋ 取消併單
+        [HttpDelete("{dispatchId}/links/{applyId}")]
+        public async Task<IActionResult> RemoveLink(int dispatchId, int applyId)
+        {
+            var link = await _db.DispatchApplications.FindAsync(dispatchId, applyId);
+            if (link == null) return NotFound();
+
+            _db.DispatchApplications.Remove(link);
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "已取消併單" });
+        }
+
+        // ➌ 查看某派車單的併單列表
+        [HttpGet("{dispatchId}/links")]
+        public async Task<IActionResult> ListLinks(int dispatchId)
+        {
+            var rows = await _db.DispatchApplications
+                .Where(x => x.DispatchId == dispatchId)
+                .Join(_db.CarApplications,
+                      x => x.ApplyId,
+                      a => a.ApplyId,
+                      (x, a) => new {
+                          a.ApplyId,
+                          a.Origin,
+                          a.Destination,
+                          a.UseStart,
+                          a.UseEnd,
+                          a.PassengerCount,
+                          Seats = x.Seats
+                      })
+                .ToListAsync();
+
+            return Ok(rows);
+        }
+
+        // 查詢可併入的申請單
+        [HttpGet("{dispatchId}/available-apps")]
+        public async Task<IActionResult> GetAvailableAppsForDispatch(int dispatchId)
+        {
+            // 找到派車單
+            var dispatch = await _db.Dispatches.FindAsync(dispatchId);
+            if (dispatch == null) return NotFound("派車單不存在");
+
+            // 找到主申請
+            var mainApp = await _db.CarApplications.FindAsync(dispatch.ApplyId);
+            if (mainApp == null) return BadRequest("主申請不存在");
+
+            // 已經併入的申請 Id
+            var linkedIds = await _db.DispatchApplications
+                .Where(l => l.DispatchId == dispatchId)
+                .Select(l => l.ApplyId)
+                .ToListAsync();
+
+            // 要排除的：主申請 + 已併入
+            var excludeIds = new HashSet<int>(linkedIds);
+            excludeIds.Add(dispatch.ApplyId);
+
+            // 篩選候選：完成審核 or 待派車，時間需與主申請重疊
+            var apps = await _db.CarApplications
+                .Where(a =>
+                    (a.Status == "完成審核" || a.Status == "待派車") &&
+                    !(a.UseEnd < mainApp.UseStart || a.UseStart > mainApp.UseEnd) &&
+                    !excludeIds.Contains(a.ApplyId))
+                .OrderBy(a => a.UseStart)
+                .Select(a => new {
+                    
+                    a.Origin,
+                    a.Destination,
+                    a.UseStart,
+                    a.UseEnd,
+                    a.PassengerCount,
+                    DispatchId = _db.Dispatches
+                  .Where(d => d.ApplyId == a.ApplyId)
+                  .Select(d => d.DispatchId)
+                  .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            return Ok(apps);
         }
 
 

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Cars.Models
 {
-    public class CarApply
+    public class CarApplication
     {
         [Key]
 
@@ -44,6 +44,9 @@ namespace Cars.Models
         public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>();
         public Driver? Driver { get; set; }
         public ICollection<Dispatch>? DispatchOrders { get; set; }
+        [NotMapped]
+        public ICollection<DispatchApplication> DispatchLinks { get; set; } = new List<DispatchApplication>();
+
 
     }
 }

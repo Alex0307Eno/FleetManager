@@ -24,9 +24,10 @@
                     <a class="btn btn-warning fw-bold" asp-controller="Dispatches" asp-action="Dispatch">
                         用車申請
                     </a>
-                    <a class="btn btn-success fw-bold" asp-controller="Dispatches" asp-action="Dispatch">
+                    <button class="btn btn-success fw-bold" @@click="openMergeModal()">
                         共乘併單
-                    </a>
+                    </button>
+
                     <button class="btn btn-outline" @@click="exportCsv">
                         <i class="fa-solid fa-file-export"></i> 匯出
                     </button>
@@ -91,8 +92,12 @@
                                 {
                                     <th style="width:140px">功能</th>
                                 }
+                        </thead>
+
                                 <tbody>
-                            <tr v-for="r in shown" :key="r.dispatchId">
+                            <tr v-for="(r,i) in shown"
+                                :key="r.id + '-' + r.applyId"
+                                :class="{ 'merge-row': i>0 && shown[i-1].dispatchId === r.dispatchId }">
                                 <td class="mono">{{ rocDate(r.useStart) }}</td>
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
                                 <td class="col-route">
@@ -193,6 +198,88 @@
                 </div>
             </div>
         </div>
+        <!-- 共乘併單 Modal -->
+        <div v-if="showMergeModal" class="modal-mask">
+            <div class="modal-container">
+                <h3 class="modal-title">共乘併單</h3>
+
+                <!-- 選擇派車單 -->
+                <div class="form-group">
+                    <label>選擇派車單</label>
+                    <select v-model.number="currentDispatchId" class="form-control">
+                        <option v-for="opt in dispatchOptions" :key="opt.id" :value="opt.id">
+                            #{{ opt.id }}｜{{ opt.text }}
+                        </option>
+                    </select>
+                </div>
+
+                <!-- 已併入清單 -->
+                <div class="form-group" style="margin-top:10px;">
+                    <label>已併入的申請</label>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>申請單</th>
+                                <th>起訖</th>
+                                <th>時間</th>
+                                <th>座位</th>
+                                <th style="width:90px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="!mergedApps || mergedApps.length===0">
+                                <td colspan="5" class="text-muted">目前沒有併入任何申請</td>
+                            </tr>
+                            <tr v-for="a in mergedApps" :key="a.applyId">
+                                <td class="mono">#{{ a.applyId }}</td>
+                                <td>{{ a.origin }} → {{ a.destination }}</td>
+                                <td class="mono">{{ rocDate(a.useStart) }} {{ timeSpan(a.useStart, a.useEnd) }}</td>
+                                <td class="mono">{{ a.seats }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" title="取消併單"
+                                            @@click="removeLink(currentDispatchId, a.applyId)">
+                                        取消
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 新增併單 -->
+                <div class="form-group" style="margin-top:10px;">
+                    <label>新增併單</label>
+                    <div class="row">
+                        <div class="col">
+                            <select v-model.number="currentDispatchId" class="form-control">
+                                <option :value="null" disabled>請選擇派車單</option>
+                                <option v-for="a in filteredApplicantOptions" :key="a.dispatchId" :value="a.dispatchId">
+                                    #{{ a.applyId }}｜{{ a.origin }}→{{ a.destination }}｜{{ rocDate(a.useStart) }}
+                                </option>
+
+                            </select>
+
+                        </div>
+                        <div class="col">
+                            <input v-model.number="newSeats" type="number" min="0" class="form-control" placeholder="座位數（可留空預設帶申請人數）" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary"
+                                    :disabled="!currentDispatchId || !newChildDispatchId"
+                                    @@click="addLink()">
+                                併入
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="text-end" style="margin-top:12px;">
+                    <button class="btn btn-secondary" @@click="showMergeModal=false">關閉</button>
+                </div>
+            </div>
+        </div>
+    
 
 
         <div v-if="viewing" class="modal-mask">
@@ -214,7 +301,7 @@
 
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-          const { createApp, ref, computed, onMounted } = Vue
+          const { createApp, ref, computed, onMounted, watch } = Vue
 
           createApp({
 
@@ -231,9 +318,58 @@
               const f = d => d.toISOString().slice(0,10);
               return { start: f(first), end: f(last) };
             }
-              // 資料
+
+            //共乘併單
+              const showMergeModal     = ref(false);
+              const currentDispatchId  = ref(null);
+              const mergedApps         = ref([]);
+              const newSeats           = ref(null);
+              const applicantOptions = ref([]);
+              const newChildDispatchId = ref(null)
+
+             // 資料
               const rows = ref([])
               const lastUpdated = ref(new Date().toLocaleString())
+              //共乘併車選單
+                   const dispatchOptions = computed(() => {
+          const arr = Array.isArray(shown.value) ? shown.value : [];
+
+          // 視為母列：有駕駛 或 有車牌
+          const mains = arr.filter(r => r && (r.driver || r.plate));
+
+          // 依 dispatchId 去重，並防止缺欄位
+          const uniq = new Map();
+          for (const r of mains) {
+            const id = Number(r?.dispatchId);
+            if (!Number.isFinite(id)) continue;  // 防呆：沒有 id 就跳過
+            if (!uniq.has(id)) {
+              uniq.set(id, {
+                id,
+                useStart: r.useStart,
+                useEnd:   r.useEnd,
+                route:    r.route,
+                text: `${rocDate(r.useStart)} ${timeSpan(r.useStart, r.useEnd)}｜${r.route || ''}`
+              });
+            }
+          }
+          return [...uniq.values()];
+        });
+
+          // 目前選擇派車單的「主申請 ApplyId」
+                const currentMainApplyId = computed(() => {
+          if (!currentDispatchId.value) return null;
+          const group = (shown.value || []).filter(r => r.dispatchId === currentDispatchId.value);
+          if (!group.length) return null;
+          const main = group.find(r => r.driver || r.plate) || group[0];
+          return main?.applyId ?? null;
+        });
+
+         
+                // 新增併單下拉用的清單（已排除母列主申請）
+        const filteredApplicantOptions = computed(() => {
+          const mainId = currentMainApplyId.value;
+          return (applicantOptions.value || []).filter(a => a.applyId !== mainId);
+        });
 
               // 唯一駕駛清單
               const uniqueDrivers = computed(()=>{
@@ -270,6 +406,92 @@
                     return true
                   })
               })
+
+              //共乘併單模窗
+         function openMergeModal(id) {
+          showMergeModal.value = true;
+          currentDispatchId.value = Number.isInteger(id) ? id : (dispatchOptions.value[0]?.id || null);
+          if (currentDispatchId.value) {
+            loadLinks();            
+            loadApplicantOptions();
+                console.log("dispatchId", currentDispatchId.value)
+          }
+        }
+
+
+
+        // 讀取併單清單
+                async function loadLinks() {
+          if (!currentDispatchId.value) { mergedApps.value = []; return; }
+          try {
+            const res = await axios.get(`/api/dispatch/${currentDispatchId.value}/links`);
+            mergedApps.value = res.data || [];
+          } catch (err) {
+            console.error('loadLinks error', err);
+            alert('載入併單清單失敗');
+          }
+        }
+        //讀取可併單清單
+       async function loadApplicantOptions() {
+         if (!currentDispatchId.value) {
+          applicantOptions.value = [];
+                  console.warn("⚠️ currentDispatchId is null, skip loadApplicantOptions");
+
+          return;
+        }
+               try {
+                           console.log("🔍 loading available apps for dispatch", currentDispatchId.value);
+
+        const res = await axios.get(`/api/dispatch/${currentDispatchId.value}/available-apps`);
+                console.log("✅ API 回傳", res.data);
+
+              applicantOptions.value = res.data || [];
+        } catch (err) {
+          console.error("loadApplicantOptions error", err);
+          applicantOptions.value = [];
+        }
+    }
+        // 新增併單
+               
+        async function addLink() {
+          if (!currentDispatchId.value) { alert('請先選擇派車單'); return; }
+              if (!newChildDispatchId.value) { alert('請選擇申請單'); return; }
+
+          try {
+            await axios.post(`/api/dispatch/${currentDispatchId.value}/links`, {
+              dispatchId: newChildDispatchId.value,
+              seats: newSeats.value || null
+            });
+
+            await Promise.all([
+              loadLinks(),             
+              loadApplicantOptions(),  
+              reload(),
+            ]);
+
+            newChildDispatchId.value = null;
+            newSeats.value = null;
+          } catch (err) {
+            console.error('addLink error', err);
+            alert(err?.response?.data ?? '併單失敗');
+          }
+        }
+
+
+        // 取消併單
+        async function removeLink(dispatchId, applyId) {
+          if (!dispatchId || !applyId) return;
+          if (!confirm(`確定要取消申請 #${applyId} 的併單嗎？`)) return;
+
+          try {
+            await axios.delete(`/api/dispatch/${dispatchId}/links/${applyId}`);
+            await loadLinks(dispatchId);
+            await reload();
+          } catch (err) {
+            console.error('removeLink error', err);
+            alert('取消併單失敗');
+          }
+        }
 
               // 工具
               const pad = n => String(n).padStart(2,'0')
@@ -315,11 +537,6 @@
           // 有駕駛 → 只能在出發前編輯
           return start > new Date();
         }
-
-
-
-
-
 
         // U: 編輯
           
@@ -427,8 +644,8 @@
             alert("刪除失敗");
           }
         };
-        // ✅ 放在 setup() 內，使用 shown.value（就是你表格當前顯示的資料）
-        // ✅ 自動加 UTF-8 BOM，Excel 開啟不會亂碼
+
+        //匯出CSV
         const exportCsv = () => {
           const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差'];
 
@@ -487,7 +704,7 @@
                     dateTo:   q.value.dateTo   || undefined,
                     driver:   q.value.driver   || undefined,
                     applicant:q.value.applicant|| undefined,
-                    plateNo:    q.value.plate    || undefined,
+                    plateNo:    q.value.plateNo    || undefined,
                     order:    'id_desc'
                   }
                   const res = await axios.get('/api/dispatch/records', { params })
@@ -501,7 +718,8 @@
                const { start, end } = getMonthRange();
                q.value.dateFrom = start;   
                q.value.dateTo   = end;
-               reload();                 
+               reload();         
+               loadApplicantOptions();
              });
 
                       function normalize(x){
@@ -552,18 +770,43 @@
                if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
                return "s-wait"; // 待審核
              };
+       //共乘併單選項
+        watch(currentDispatchId, async (id) => {
+          if (!id) { mergedApps.value = []; applicantOptions.value = []; return; }
+          await Promise.all([loadLinks(), loadApplicantOptions()]);
+        });
 
 
               // init
               reload()
 
-              return {
-                q, rows, shown, uniqueDrivers, uniqueApplicants, uniquePlates, lastUpdated,
-                rocDate, timeSpan, fmtKm,statusText,statusClass,canEdit,
-                reload, viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
-                editing ,availDrivers, availVehicles,currentDriver,currentVehicle,
-                selectedDriverId, selectedVehicleId, drivers, vehicles, exportCsv
-              }
+         return {
+          // 篩選與查詢
+          q,
+
+          // 核心資料
+          rows,shown,drivers,vehicles,
+
+          // 下拉選單用的唯一清單
+          uniqueDrivers,uniqueApplicants,uniquePlates,
+
+          // 更新時間
+          lastUpdated,
+
+          // 格式化與輔助方法
+          rocDate,timeSpan,fmtKm,statusText,statusClass,canEdit,
+
+          // 檢視與編輯狀態
+          viewing,editing,currentDriver,currentVehicle,selectedDriverId,selectedVehicleId,availDrivers,availVehicles,
+
+          // 共乘併單相關
+            showMergeModal,currentDispatchId,mergedApps,newChildDispatchId,newSeats,dispatchOptions,applicantOptions, currentMainApplyId,filteredApplicantOptions,
+
+
+              // 動作方法
+          reload, viewRow, closeView,editRow,confirmEdit,cancelEdit,removeRow,openMergeModal,loadLinks,addLink,removeLink,exportCsv,
+        };
+
             }
           }).mount('#app')
         })

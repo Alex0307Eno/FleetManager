@@ -24,11 +24,15 @@ namespace Cars.Models
 
         // 導覽屬性
         [ForeignKey("ApplyId")]
-        public CarApply CarApply { get; set; }
+        public CarApplication CarApply { get; set; }
 
 
         public virtual Vehicle? Vehicle { get; set; }
         public virtual Driver? Driver { get; set; }
+
+
+        public ICollection<DispatchApplication> Applications { get; set; } = new List<DispatchApplication>();
+
     }
 }
 
