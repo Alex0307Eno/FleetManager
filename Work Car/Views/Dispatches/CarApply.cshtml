@@ -51,7 +51,6 @@
                         </div>
                        
 
-                        <input type="hidden" name="StopsJson" id="StopsJson">
 
                         <div class="col-3">
                             <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" required />
@@ -213,11 +212,20 @@
                             <div class="col-3">
                                 <label>搭乘人數 *</label>
                                 <input type="number" class="form-control" :value="passengers.length" readonly>
+                                <div v-if="capacityError" style="color:red; margin-top:4px;">
+                                    {{ capacityError }}
+                                </div>
                             </div>
                             <div class="col-auto">
-                                <button type="button" class="btn btn-primary" @@click="addPassenger">新增乘客</button>
+                                <button type="button"
+                                        class="btn btn-primary"
+                                        @@click ="addPassenger"
+                                        :disabled="!canAddPassenger">
+                                    新增乘客
+                                </button>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -568,11 +576,53 @@
             // 乘客名單
             const passengers = ref([{ name: "", deptTitle: "" }]);
             const syncPassengerCount = () => { passengerCount.value = passengers.value.length; };
-            const addPassenger    = () => { passengers.value.push({ name: "", deptTitle: "" }); syncPassengerCount(); };
-            const removePassenger = (i) => { passengers.value.splice(i, 1); syncPassengerCount(); };
+            async function addPassenger() {
+            // 判斷是否超過最大容量
+              if (maxCapacity.value > 0 && passengers.value.length >= maxCapacity.value) {
+                capacityError.value = `⚠️ 目前最多只能載 ${maxCapacity.value} 人`;
+                return;
+              }
+              passengers.value.push({ name: "", deptTitle: "" });
+              syncPassengerCount();
+              await checkCapacity();
+            }
+            
+            async function removePassenger(i) {
+              passengers.value.splice(i, 1);
+              syncPassengerCount();
+              await checkCapacity();
+            }
 
-            // 站點：改由 RouteStops 編輯器管理（不要在這裡放 ref）
-            // 取值：RouteStops.get()；如需預設值可用 RouteStops.set([...])
+            // 可否再新增乘客
+            const canAddPassenger = computed(() => {
+              if (maxCapacity.value > 0 && passengers.value.length >= maxCapacity.value) {
+                return false;
+              }
+              return true;
+            });
+            //檢查載客量
+            const capacityError = ref("");  // 顯示錯誤訊息
+            const maxCapacity = ref(0);     // 從後端查回的最大容量
+
+                    async function checkCapacity() {
+          if (!useStart.value || !useEnd.value) return;
+          try {
+            const res = await axios.get("/api/carapplications/max-capacity", {
+              params: { from: useStart.value, to: useEnd.value }
+            });
+            maxCapacity.value = res.data.max || 0;
+
+            if (passengers.value.length >= maxCapacity.value && maxCapacity.value > 0) 
+            {
+              capacityError.value = `⚠️ 目前最多只能載 ${maxCapacity.value} 人`;
+            } else {
+              capacityError.value = "";
+            }
+          } catch (err) {
+            console.error("❌ checkCapacity error", err);
+          }
+        }
+         
 
             // ----- 載入 API -----
             async function loadApplicant(){
@@ -658,7 +708,11 @@
               if (val === 'self') selectedApplicantId.value = null;
             });
 
-            // ----- 動作：計算距離/時間 -----
+           // 監聽乘客數變化也自動檢查
+            watch(passengers, () => {
+              checkCapacity();
+            }, { deep: true });
+
         // ----- 動作：計算距離/時間 -----
         async function calcDistance() {
           if (!origin.value || !destination.value) {
@@ -763,20 +817,12 @@
             return;
           }
 
+
+
           const pax = (passengers.value || []).filter(p => p && p.name && p.name.trim());
           console.log("👥 passengers:", pax);
 
-          // 從 RouteStops 取資料並轉換成後端要的格式
-          const stopsDto = (window.RouteStops ? window.RouteStops.get() : [])
-            .map(s => ({
-              place:   (s.name || s.place || '').trim(),
-              address: (s.address || '').trim(),
-              lat:     (s.lat ?? null),
-              lng:     (s.lng ?? null)
-            }))
-            .filter(s => s.address || (s.lat != null && s.lng != null));
-
-          console.log("🛑 stopsDto (送到後端的停靠點):", stopsDto);
+         
 
           const payload = {
             applyFor: applyFor.value,
@@ -809,7 +855,6 @@
               name: p.name.trim(),
               deptTitle: p.deptTitle || null
             })),
-            stops: stopsDto
           };
 
           console.log("🚚 DTO 最終送出內容:", dto);
@@ -864,7 +909,7 @@
               arrivalDisplay, fmtDateTimeLocal, calcDistance,
 
               // 乘客
-              passengers, addPassenger, removePassenger,
+              passengers, addPassenger, removePassenger,checkCapacity,capacityError,canAddPassenger,
 
               // 送出
               onSubmit
@@ -872,100 +917,7 @@
           }
         }).mount('#app');
     </script>
-    <script>
-        (function() {
-          console.log("🧭 RouteStops editor init");
-          const listEl   = document.getElementById('stopsList');
-          const emptyEl  = document.getElementById('stopsEmpty');
-          const hiddenEl = document.getElementById('StopsJson');
-          const btnAdd   = document.getElementById('btnAddStop');
 
-          if (!listEl || !emptyEl || !btnAdd) { console.warn('RouteStops: 必要的 DOM 元素不存在'); return; }
-
-          /** stops: { name, address, lat, lng }[] */
-          let stops = [];
-
-          function syncHidden(){ if (hiddenEl) hiddenEl.value = JSON.stringify(stops); }
-
-          function render(){
-            listEl.innerHTML = '';
-            if (!stops.length){
-              listEl.style.display='none'; emptyEl.style.display='block'; syncHidden(); return;
-            }
-            listEl.style.display='block'; emptyEl.style.display='none';
-
-            stops.forEach((it, idx) => {
-              const row = document.createElement('div');
-              row.className = 'list-group-item';
-              row.innerHTML = `
-                <div class="row g-2 align-items-center">
-                  <div class="col-4">
-                    <input type="text" class="form-control stop-name" placeholder="站點名稱(可不填)" value="${it.name || ''}">
-                  </div>
-                  <div class="col-6 position-relative">
-                    <input type="text" class="form-control stop-address" id="stop-addr-${idx}" placeholder="輸入地址或地點" value="${it.address || ''}">
-                    <div class="ac-dropdown" id="ac-stop-${idx}"></div>
-                  </div>
-                  <div class="col-2 text-end">
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-act="remove" data-idx="${idx}">刪除</button>
-                  </div>
-                </div>`;
-              listEl.appendChild(row);
-
-              const nameInput = row.querySelector('.stop-name');
-              const addrInput = row.querySelector('.stop-address');
-              nameInput.addEventListener('input', () => { stops[idx].name = nameInput.value; syncHidden(); });
-              addrInput.addEventListener('input', () => { stops[idx].address = addrInput.value; syncHidden(); });
-
-              // 使用你頁面已存在的 attachPlacesAutocomplete
-              if (typeof attachPlacesAutocomplete === 'function') {
-                attachPlacesAutocomplete(`stop-addr-${idx}`, `ac-stop-${idx}`, (p) => {
-                  const lat = (typeof p?.geometry?.location?.lat === 'function') ? p.geometry.location.lat() : (p.lat ?? null);
-                  const lng = (typeof p?.geometry?.location?.lng === 'function') ? p.geometry.location.lng() : (p.lng ?? null);
-                  stops[idx].address = p.text || p.address || p.description || addrInput.value || '';
-                  stops[idx].lat = lat; stops[idx].lng = lng;
-                  syncHidden();
-                }, 800);
-              } else {
-                console.warn('attachPlacesAutocomplete 未定義，站點地址將無自動完成');
-              }
-            });
-
-            syncHidden();
-          }
-
-          function add(){ stops.push({ name:'', address:'', lat:null, lng:null }); render(); }
-          function remove(i){ stops.splice(i,1); render(); }
-
-          // 事件
-          btnAdd.addEventListener('click', add);
-          listEl.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-act="remove"]');
-            if (btn){ const i = parseInt(btn.dataset.idx,10); if(!isNaN(i)) remove(i); }
-          });
-
-          // 對外 API（供你已存在的 onSubmit 讀取）
-          window.RouteStops = {
-            get: () => stops.map(({ name, address, lat, lng }) => ({ name, address, lat, lng })),
-            set: (arr) => {
-              stops = Array.isArray(arr) ? arr.map(x => ({
-                name: x.name || x.place || '',
-                address: x.address || '',
-                lat: x.lat ?? null,
-                lng: x.lng ?? null
-              })) : [];
-              render();
-            },
-            add, remove, render
-          };
-
-          // 初始載入（若 #StopsJson 已有資料，編輯模式可還原）
-          try {
-            const init = (hiddenEl && hiddenEl.value && hiddenEl.value.trim()) ? JSON.parse(hiddenEl.value) : null;
-            if (init) window.RouteStops.set(init); else render();
-          } catch { render(); }
-        })();
-    </script>
 
 
 </body>

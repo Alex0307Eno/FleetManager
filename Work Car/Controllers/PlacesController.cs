@@ -21,7 +21,7 @@ namespace Cars.Controllers
             _httpClientFactory = httpClientFactory;
             _settings = settings.Value;
         }
-
+        #region google api 地址自動完成與地點細節
         public class AutocompleteInput { 
             public string Input { get; set; } = "";
             public string? SessionToken { get; set; }  
@@ -118,7 +118,7 @@ namespace Cars.Controllers
 
             return Content(body, "application/json");
         }
-
+        #endregion
 
     }
 }

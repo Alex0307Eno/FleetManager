@@ -41,7 +41,7 @@ namespace Cars
             .AddCookie(options =>
             {
                 options.Cookie.Name = "CarsAuth";
-                options.LoginPath = "/Auth/Login";   // 沒登入時導向
+                options.LoginPath = "/Account/Login";   // 沒登入時導向
                 options.LogoutPath = "/Auth/Logout"; // 登出路徑
             });
 

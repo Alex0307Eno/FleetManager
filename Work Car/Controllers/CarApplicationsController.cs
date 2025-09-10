@@ -80,11 +80,22 @@ namespace Cars.Controllers
             decimal km = isSingle ? (model.SingleDistance ?? 0) : (model.RoundTripDistance ?? 0);
             if (km <= 0) km = model.SingleDistance ?? 0;
             model.isLongTrip = km > 30;
+            // 4-b) 驗證當下是否有車輛能承載這麼多人
+            var maxCap = await GetMaxAvailableCapacityAsync(model.UseStart, model.UseEnd);
+            if (maxCap == 0)
+            {
+                return BadRequest("目前時段沒有任何可用車輛");
+            }
+            if (model.PassengerCount > maxCap)
+            {
+                return BadRequest($"申請乘客數 {model.PassengerCount} 超過可用車輛最大容量 {maxCap}");
+            }
+
 
             // === 5) 先存「申請單」，取得真正的 ApplyId ===
 
-            _context.CarApplications.Add(model);                // ← 先加入母表
-            await _context.SaveChangesAsync();                  // ← 此步之後 model.ApplyId 才會有值
+            _context.CarApplications.Add(model);                
+            await _context.SaveChangesAsync();                  
 
             // 6) 乘客：若有就一起寫入（ApplyId 要用新產生的）
             if (dto.Passengers != null && dto.Passengers.Count > 0)
@@ -136,9 +147,38 @@ namespace Cars.Controllers
                 isLongTrip = model.isLongTrip ? 1 : 0
             });
         }
+        [HttpGet("max-capacity")]
+        public async Task<IActionResult> GetMaxCapacity([FromQuery] DateTime from, [FromQuery] DateTime to)
+        {
+            if (from == default || to == default || from >= to)
+                return BadRequest(new { message = "時間參數錯誤" });
+
+            var max = await GetMaxAvailableCapacityAsync(from, to);
+            return Ok(new { max });
+        }
+
+        // 計算最大載客量
+        private async Task<int> GetMaxAvailableCapacityAsync(DateTime from, DateTime to)
+        {
+            var q = _context.Vehicles.AsQueryable();
+
+            // 只取可用車
+            q = q.Where(v => (v.Status ?? "") == "可用");
+
+            // 避開該時段被派工(Dispatches)
+            q = q.Where(v => !_context.Dispatches.Any(d =>
+                d.VehicleId == v.VehicleId && from < d.EndTime && d.StartTime < to));
+
+            // 避開該時段已被申請(CarApplications)的車
+            q = q.Where(v => !_context.CarApplications.Any(a =>
+                a.VehicleId == v.VehicleId && from < a.UseEnd && a.UseStart < to));
+
+            // 回傳最大容量（沒有車則回 0）
+            var max = await q.Select(v => (int?)v.Capacity).MaxAsync();
+            return max ?? 0;
+        }
 
         #endregion
-
 
 
         #region dispatches頁面功能

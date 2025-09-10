@@ -137,13 +137,17 @@
                                 <td class="mono">{{ fmtKm(r.km) }}</td>
                                 <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
 
-                                <!-- 母單才會有駕駛/車牌，子單維持空或顯示破折號 -->
-                                <td><span class="pill" :class="!isGroupHead(i) ? 's-muted' : ''">{{ isGroupHead(i) ? (r.driver || '未指派') : '—' }}</span></td>
                                 <td>
-                                    <span class="pill blue" :class="(isGroupHead(i) && r.plate) ? '' : 's-muted'">
-                                        {{ isGroupHead(i) ? (r.plate || '未指派') : '—' }}
+                                    <span class="pill" :class="!isGroupHead(i) ? 's-muted' : ''">
+                                        {{ r.driver || '未指派' }}
                                     </span>
                                 </td>
+                                <td>
+                                    <span class="pill blue" :class="r.plate ? '' : 's-muted'">
+                                        {{ r.plate || '未指派' }}
+                                    </span>
+                                </td>
+
 
                                 <td>
                                     <a href="javascript:;" @@click="toggleLongShort(r)"
@@ -358,8 +362,8 @@
               }
               //有子單的話母單才顯示箭頭
               function hasChildren(dispatchId) {
-                return rows.value.some(r => r.dispatchId === dispatchId && !(r.driver || r.plate));
-               }
+                return rows.value.filter(r => r.dispatchId === dispatchId).length > 1;
+              }
 
 
               // 查詢條件
@@ -380,7 +384,6 @@
               // === 共乘併單相關 state ===
               const showMergeModal = ref(false);
               const currentDispatchId = ref(null);
-              const mergeOptions = ref([])
               const mergedApps = ref([]);
               const newSeats = ref(null);
               const applicantOptions = ref([]);
@@ -528,7 +531,6 @@
               async function loadDispatchOptions() {
                 console.groupCollapsed("🟩 loadDispatchOptions");
                 if (!currentDispatchId.value) {
-                  console.warn("❎ currentDispatchId is null, skip loadDispatchOptions");
                   applicantOptions.value = [];
                   console.groupEnd();
                   return;

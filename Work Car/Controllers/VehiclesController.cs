@@ -1,4 +1,5 @@
 ﻿using Cars.Data;
+using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,14 +18,8 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public VehiclesController(ApplicationDbContext db) => _db = db;
 
-        // 頁面：行車歷程統計（表格）
-        [HttpGet("Statistics")]
-        public IActionResult Statistics() => View();
-
-        // 頁面：行車歷程統計圖（保留）
-        [HttpGet("FuelStatsChart")]
-        public IActionResult FuelStatsChart() => View();
-
+       
+        #region 行車歷程清單
         // API：行車歷程清單（查詢 + 回傳 JSON）
         [HttpGet("TripStats")]
         public async Task<IActionResult> TripStats(
@@ -32,13 +27,13 @@ namespace Cars.Controllers
             int? driverId, string? plate, string? applicant, string? dept, string? longShort)
         {
             var q = _db.CarApplications
-    .Include(x => x.DispatchOrders)
-        .ThenInclude(d => d.Driver)
-    .Include(x => x.DispatchOrders)
-        .ThenInclude(d => d.Vehicle)
-    .Include(x => x.Applicant)   
-    .AsNoTracking()
-    .Select(x => new
+         .Include(x => x.DispatchOrders)
+         .ThenInclude(d => d.Driver)
+         .Include(x => x.DispatchOrders)
+         .ThenInclude(d => d.Vehicle)
+         .Include(x => x.Applicant)   
+         .AsNoTracking()
+         .Select(x => new
     {
         id = x.ApplyId,
         driveDate = x.UseStart.Date,
@@ -93,8 +88,9 @@ namespace Cars.Controllers
 
             return Json(result);
         }
+        #endregion
 
-
+        #region 行車歷程統計圖表
         [HttpGet("ChartData")]
         public async Task<IActionResult> ChartData(DateTime? dateFrom, DateTime? dateTo, string type = "long")
         {
@@ -160,5 +156,8 @@ namespace Cars.Controllers
 
             return Json(new { drivers = driverAgg, vehicles = plateAgg });
         }
+        #endregion
+
+        
     }
 }

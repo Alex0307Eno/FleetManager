@@ -13,8 +13,8 @@ namespace Cars.Controllers
     {
         private readonly ApplicationDbContext _db;
         public FuelController(ApplicationDbContext db) { _db = db; }
-
-        // 下拉：車種（用 Vehicles.Model，若你有 Type/Category 就改成那個欄位）
+        #region 油耗統計
+        // 下拉：車種
         [HttpGet("categories")]
         public async Task<IActionResult> GetCategories()
         {
@@ -49,7 +49,7 @@ namespace Cars.Controllers
         // 主查詢：油耗統計
         // 里程 = 期間內同車輛 Max(Odometer) - Min(Odometer)
         // 每公升行駛公里數 = 里程 / (汽油+柴油 公升)
-        // 平均公里數 = 里程 / 筆數（簡化定義；你要改成按日/月平均也很容易）
+        // 平均公里數 = 里程 / 筆數
         [HttpGet("stats")]
         public async Task<IActionResult> Stats(
             [FromQuery] string? category = null,
@@ -118,5 +118,6 @@ namespace Cars.Controllers
 
             return Ok(result);
         }
+        #endregion
     }
 }

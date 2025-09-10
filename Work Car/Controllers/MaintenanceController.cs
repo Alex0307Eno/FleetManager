@@ -15,6 +15,7 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public MaintenanceController(ApplicationDbContext db) { _db = db; }
 
+        #region 車輛基本狀態
         // 取得車牌清單（下拉用）
         [HttpGet("vehicles")]
         public async Task<IActionResult> GetVehicles()
@@ -26,7 +27,7 @@ namespace Cars.Controllers
 
             return Ok(list);
         }
-
+        // 取得車輛詳細資料
         [HttpGet("vehicle/{id}")]
         public async Task<IActionResult> GetVehicleDetail(int id)
         {
@@ -57,6 +58,8 @@ namespace Cars.Controllers
                 v.Retired
             });
         }
+
+        // 更新車輛狀態
         [HttpPut("vehicle/{vehicleId}/status")]
         public async Task<IActionResult> UpdateVehicleStatus(int vehicleId, [FromBody] string status)
         {
@@ -66,9 +69,9 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return NoContent();
         }
+        #endregion
 
-
-
+        #region 保養紀錄 CRUD
         // 查某車的保養紀錄
         [HttpGet]
         public async Task<IActionResult> List([FromQuery] int vehicleId)
@@ -171,7 +174,9 @@ namespace Cars.Controllers
             public string? Vendor { get; set; }
             public string? Note { get; set; }
         }
+        #endregion
 
+        #region 維修紀錄 CRUD
         // 新增報修
         [HttpPost("repair")]
         public async Task<IActionResult> CreateRepair([FromBody] RepairRequestDto dto)
@@ -266,10 +271,9 @@ namespace Cars.Controllers
 
             return Ok(new { message = "status updated" });
         }
+        #endregion
 
-
-
-
+        #region 驗車紀錄 CRUD
         [HttpGet("inspections")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetInspections([FromQuery] int vehicleId)
@@ -357,7 +361,9 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return Ok(new { message = "deleted" });
         }
-
+        #endregion
+        
+        #region 違規紀錄 CRUD
         // --------------------- 違規紀錄 CRUD ---------------------
         [HttpGet("violations")]
         [Authorize(Roles = "Admin")]
@@ -458,7 +464,7 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return Ok(new { message = "deleted" });
         }
-
+        #endregion
 
     }
 }

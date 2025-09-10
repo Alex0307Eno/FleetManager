@@ -14,7 +14,7 @@ namespace Cars.Controllers
         {
             _context = context;
         }
-
+        #region 測試資料庫連線
         [HttpGet]
         public IActionResult Get()
         {
@@ -38,6 +38,7 @@ namespace Cars.Controllers
                     stack = ex.StackTrace
                 });
             }
+            #endregion
         }
     }
 }

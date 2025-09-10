@@ -37,8 +37,15 @@ namespace Cars.Controllers.Api
             Console.WriteLine($"[Console] GetRecords called: dateFrom={dateFrom}, dateTo={dateTo}, driver={driver}, applicant={applicant}, plateNo={plateNo}, order={order}");
             _logger.LogInformation("GetRecords called {@Params}", new { dateFrom, dateTo, driver, applicant, plateNo, order });
 
+            //抓出被選取的子單
+            var childIds = await _db.DispatchLinks
+            .Select(l => l.ChildDispatchId)
+            .ToListAsync();
+
+
             var q =
                 from d in _db.Dispatches.AsNoTracking()
+                where !childIds.Contains(d.DispatchId) //  過濾掉子單
                 join v in _db.Vehicles.AsNoTracking() on d.VehicleId equals v.VehicleId into vg
                 from v in vg.DefaultIfEmpty()
                 join r in _db.Drivers.AsNoTracking() on d.DriverId equals r.DriverId into rg
@@ -178,10 +185,30 @@ namespace Cars.Controllers.Api
                      a.Status
                  }).ToListAsync();
             _logger.LogDebug("linkDetails count={Count}", linkDetails.Count);
+            //母單
+               
 
             var rows = new List<Record>();
             foreach (var x in rawRows)
             {
+                // 找出這個母單底下的子單
+                var children = linkDetails
+                  .Where(ld => ld.ParentDispatchId == x.DispatchId)
+                  .OrderBy(ld => ld.UseStart)
+                  .ToList();
+                //  計算合併後的時間範圍
+                var allStarts = new List<DateTime>();
+                var allEnds = new List<DateTime>();
+
+                if (x.UseStart != null) allStarts.Add(x.UseStart);
+                if (x.UseEnd != null) allEnds.Add(x.UseEnd);
+
+                allStarts.AddRange(children.Where(c => c.UseStart != null).Select(c => c.UseStart));
+                allEnds.AddRange(children.Where(c => c.UseEnd != null).Select(c => c.UseEnd));
+
+                var minStart = allStarts.Any() ? allStarts.Min() : x.UseStart;
+                var maxEnd = allEnds.Any() ? allEnds.Max() : x.UseEnd;
+                //母單里程判斷
                 decimal km = 0;
                 if (x.TripType == "single") km = x.SingleDistance ?? 0;
                 else if (x.TripType == "round") km = x.RoundTripDistance ?? 0;
@@ -195,8 +222,8 @@ namespace Cars.Controllers.Api
                 {
                     Id = x.DispatchId,
                     ApplyId = x.ApplyId,
-                    UseStart = x.UseStart,
-                    UseEnd = x.UseEnd,
+                    UseStart = minStart,
+                    UseEnd = maxEnd,
                     Route = string.Join(" - ", new[] { x.Origin, x.Destination }.Where(s => !string.IsNullOrWhiteSpace(s))),
                     TripType = x.TripType,
                     ReasonType = x.ReasonType,
@@ -213,18 +240,21 @@ namespace Cars.Controllers.Api
                     ChildDispatchId = null, // 主單沒有 ChildDispatchId
                 });
 
-                var children = linkDetails.Where(ld => ld.ParentDispatchId == x.DispatchId).OrderBy(ld => ld.UseStart).ToList();
+
+                //子單
+               
                 foreach (var c in children)
                 {
                     decimal km2 = 0;
                     if (c.TripType == "single") km2 = c.SingleDistance ?? 0;
                     else if (c.TripType == "round") km2 = c.RoundTripDistance ?? 0;
                     var ls2 = km2 > 30 ? "長差" : "短差";
-
+                
                     rows.Add(new Record
                     {
                         Id = x.DispatchId,
                         ApplyId = c.ApplyId,
+                        ChildDispatchId = c.ChildDispatchId,
                         UseStart = c.UseStart,
                         UseEnd = c.UseEnd,
                         Route = string.Join(" - ", new[] { c.Origin, c.Destination }.Where(s => !string.IsNullOrWhiteSpace(s))),
@@ -235,10 +265,10 @@ namespace Cars.Controllers.Api
                         Seats = c.Seats,
                         Km = km2,
                         Status = c.Status,
-                        Driver = null,
-                        DriverId = null,
-                        Plate = null,
-                        VehicleId = null,
+                        Driver = x.DriverName,
+                        DriverId = x.DriverId,
+                        Plate = x.PlateNo,
+                        VehicleId = x.VehicleId,
                         LongShort = ls2
                     });
                 }
@@ -343,6 +373,33 @@ namespace Cars.Controllers.Api
                 return NotFound();
             }
 
+            // 1️找出子單連結
+            var childLinks = await _db.DispatchLinks
+                .Where(l => l.ParentDispatchId == id)
+                .ToListAsync();
+
+            if (childLinks.Any())
+            {
+                // 2️先移除連結
+                _db.DispatchLinks.RemoveRange(childLinks);
+
+                // 3️ 找出子單，清空駕駛與車輛（回復獨立狀態）
+                var childIds = childLinks.Select(l => l.ChildDispatchId).ToList();
+                var children = await _db.Dispatches
+                    .Where(d => childIds.Contains(d.DispatchId))
+                    .ToListAsync();
+
+                foreach (var c in children)
+                {
+                    c.DriverId = null;
+                    c.VehicleId = null;
+                }
+
+                Console.WriteLine($"[Console] Delete: detached {children.Count} children from parent {id}");
+                _logger.LogInformation("Delete: detached {Count} children from parent {Id}", children.Count, id);
+            }
+
+            // 4️刪掉母單本身
             _db.Dispatches.Remove(row);
             await _db.SaveChangesAsync();
 
@@ -351,6 +408,7 @@ namespace Cars.Controllers.Api
 
             return Ok(new { message = "刪除成功" });
         }
+
         #endregion
 
 
@@ -362,27 +420,73 @@ namespace Cars.Controllers.Api
             public int? Seats { get; set; }
         }
 
-        [HttpPost("{dispatchId}/links")]
-        public async Task<IActionResult> AddLink(int dispatchId, [FromBody] MergeLinkDto dto)
+        [HttpPost("dispatch/{parentId}/links")]
+        public async Task<IActionResult> AddLink(int parentId, [FromBody] MergeLinkDto dto)
         {
-            if (dispatchId == dto.DispatchId)
-                return BadRequest("不能將同一張派車單併入自己");
+            // 1) 找到母單 + 其車輛容量 + 主申請人數
+            var parent = await _db.Dispatches
+                .AsNoTracking()
+                .Where(d => d.DispatchId == parentId)
+                .Select(d => new {
+                    d.DispatchId,
+                    d.VehicleId,
+                    d.ApplyId,
+                    VehicleCapacity = _db.Vehicles
+                        .Where(v => v.VehicleId == d.VehicleId)
+                        .Select(v => (int?)v.Capacity).FirstOrDefault(),
+                    MainSeats = _db.CarApplications
+                        .Where(a => a.ApplyId == d.ApplyId)
+                        .Select(a => a.PassengerCount).FirstOrDefault()
+                })
+                .FirstOrDefaultAsync();
 
-            var exists = await _db.DispatchLinks.FindAsync(dispatchId, dto.DispatchId);
-            if (exists != null)
-                return BadRequest("此派車單已經併入過");
+            if (parent == null) return NotFound("母單不存在");
+            if (parent.VehicleCapacity == null) return BadRequest("母單尚未指派車輛，無法併單");
 
+            // 2) 已併單座位總和（若當初 link.Seats 為 null 就用子申請的 PassengerCount）
+            var usedByLinks = await (
+                from l in _db.DispatchLinks
+                join a in _db.CarApplications on l.ChildDispatchId equals a.ApplyId into aa
+                from a in aa.DefaultIfEmpty()
+                where l.ParentDispatchId == parentId
+                select (int)(l.Seats)
+            ).SumAsync();
+
+            var capacity = parent.VehicleCapacity.Value;
+            var used = parent.MainSeats + usedByLinks;
+            var remaining = capacity - used;
+            if (remaining < 0) remaining = 0;
+
+            // 3) 這次想併入幾人：payload seats ?? 子申請本身人數
+            //    （dto.DispatchId 是「子派車單」→ childApplyId）
+            var childApp = await (
+                from d in _db.Dispatches
+                join a in _db.CarApplications on d.ApplyId equals a.ApplyId
+                where d.DispatchId == dto.DispatchId
+                select new { a.ApplyId, a.PassengerCount }
+            ).FirstOrDefaultAsync();
+
+            if (childApp == null) return BadRequest("子單不存在");
+            var seatsWanted = dto.Seats ?? childApp.PassengerCount;
+            if (seatsWanted <= 0) return BadRequest("座位數必須大於 0");
+
+            // 4) 容量檢查
+            if (seatsWanted > remaining)
+            {
+                return BadRequest($"剩餘座位 {remaining}，不足以併入 {seatsWanted} 人");
+            }
+
+            // 5) OK → 寫入
             var link = new DispatchLink
             {
-                ParentDispatchId = dispatchId,
-                ChildDispatchId = dto.DispatchId,
-                Seats = dto.Seats ?? 0
+                ParentDispatchId = parentId,
+                ChildDispatchId = childApp.ApplyId, // 你系統的 Child 設計是用 ApplyId
+                Seats = seatsWanted
             };
-
             _db.DispatchLinks.Add(link);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "併單成功", parent = dispatchId, child = dto.DispatchId });
+            return Ok(new { message = "併入成功", remainingAfter = remaining - seatsWanted });
         }
         #endregion
 
@@ -396,6 +500,14 @@ namespace Cars.Controllers.Api
                 return NotFound();
 
             _db.DispatchLinks.Remove(link);
+
+            // 移除關聯時，子單駕駛與車輛清空
+            var child = await _db.Dispatches.FindAsync(childDispatchId);
+            if (child != null)
+            {
+                child.DriverId = null;
+                child.VehicleId = null;
+            }
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "已取消併單" });
@@ -466,7 +578,7 @@ namespace Cars.Controllers.Api
             from d in _db.Dispatches
             join a in _db.CarApplications on d.ApplyId equals a.ApplyId
             where
-                (a.Status == "完成審核" || a.Status == "待派車") &&
+                (a.Status == "完成審核" ) &&
                 !(a.UseEnd < mainApp.StartTime || a.UseStart > mainApp.EndTime) &&
                 !excludeIds.Contains(d.DispatchId)    
             orderby a.UseStart

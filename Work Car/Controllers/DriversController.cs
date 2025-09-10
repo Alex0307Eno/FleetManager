@@ -19,6 +19,8 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public DriversController(ApplicationDbContext db) => _db = db;
 
+        #region 司機基本資料與出勤狀況
+
         [HttpGet("Records")]
         public async Task<ActionResult<IEnumerable<DriverListItem>>> Records()
         {
@@ -145,8 +147,10 @@ namespace Cars.Controllers
                 return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
             }
         }
+        #endregion
 
 
+        #region 自動指派代理人(暫)
         //自動指派代理人
         private async Task<int> PickAutoAgent(int principalDriverId, string shift, DateTime today)
         {
@@ -239,9 +243,9 @@ namespace Cars.Controllers
                 .ThenBy(id => id)
                 .First();
         }
+        #endregion
 
-
-
+        #region 司機CRUD
         [HttpGet("")]
         public async Task<IActionResult> Index()
         {
@@ -253,7 +257,7 @@ namespace Cars.Controllers
         }
 
         [HttpGet("Details/{id}")]
-        public async Task<IActionResult> DetailsApi(int id)
+        public async Task<IActionResult> Details(int id)
         {
             var driver = await _db.Drivers
             .AsNoTracking()
@@ -344,6 +348,10 @@ namespace Cars.Controllers
             await _db.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
+
+        #endregion
+
+        #region 司機個人班表
         // 司機自己的班表頁
         [Authorize(Roles = "Driver")]
         [HttpGet("MySchedule")] 
@@ -391,7 +399,9 @@ namespace Cars.Controllers
 
             return Ok(events);
         }
+        #endregion
 
+        #region 司機出勤與排班dto
         // 出勤
         public class DriverListItem
         {
@@ -411,6 +421,6 @@ namespace Cars.Controllers
             public bool IsPresentToday { get; set; }   // 今天是否出勤
             public bool HasTodaySchedule { get; set; } // 今天是否有排班
         }
-
+        #endregion
     }
 }

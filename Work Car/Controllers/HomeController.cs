@@ -5,7 +5,8 @@ using System.Diagnostics;
 
 namespace Cars.Controllers
 {
-    
+    [Authorize]
+    [Authorize(Roles = "Admin")]
     public class HomeController : Controller
     {
         private readonly IConfiguration _config;
