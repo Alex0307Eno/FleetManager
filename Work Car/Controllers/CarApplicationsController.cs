@@ -30,22 +30,15 @@ namespace Cars.Controllers
             _dispatcher = dispatcher;
         }
 
+        #region 建立申請單
         // 建立申請單（含搭乘人員清單）
         public class CarApplyDto
         {
             public CarApplication Application { get; set; }
             public List<CarPassenger> Passengers { get; set; } = new();
 
-            public List<RouteStopDto> Stops { get; set; } = new();
         }
-        //多點停靠
-        public class RouteStopDto
-        {
-            public string Place { get; set; }
-            public string Address { get; set; }
-            public decimal? Lat { get; set; }
-            public decimal? Lng { get; set; }
-        }
+      
 
 
 
@@ -144,50 +137,13 @@ namespace Cars.Controllers
             });
         }
 
+        #endregion
 
 
-        //完成審核自動派車
-        [HttpPost("applications/{applyId:int}/approve-assign")]
-        public async Task<IActionResult> ApproveAndAssign(
-    int applyId,
-    [FromQuery] int passengerCount,
-    [FromQuery] int? preferredVehicleId = null)
-        {
-            // 1) 找此申請單對應、未派車的派工
-            var dispatch = await _context.Dispatches
-            .Where(d => d.ApplyId == applyId
-            && d.DispatchStatus != "已取消"
-            && d.DriverId != null)                 
-            .OrderByDescending(d => d.DispatchId)
-            .FirstOrDefaultAsync();
 
-            if (dispatch == null)
-                return NotFound(new { message = "找不到待派車的派工（可能已派車或尚未指派駕駛）。" });
+        #region dispatches頁面功能
 
-            // 2) 自動派車（可選擇指定車輛）
-            var result = await _dispatcher.ApproveAndAssignVehicleAsync(dispatch.DispatchId, passengerCount, preferredVehicleId);
-            if (!result.Success)
-                return BadRequest(new { message = result.Message });
-
-            // 3) 更新申請單狀態為「審核完成」
-            var app = await _context.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
-            if (app != null)
-            {
-                app.Status = "完成審核";
-                app.VehicleId = result.VehicleId; 
-                app.DriverId = result.DriverId;   
-                await _context.SaveChangesAsync();
-            }
-
-            return Ok(new
-            {
-                message = result.Message ?? "完成審核，已派車",
-                driverId = result.DriverId,
-                vehicleId = result.VehicleId,
-                plateNo = result.PlateNo
-            });
-        }
-
+        #region 取得全部申請人
         // 取得全部申請人
         [HttpGet("applicants")]
         public async Task<IActionResult> GetApplicants()
@@ -381,9 +337,9 @@ namespace Cars.Controllers
             return Ok(list);
         }
 
+        #endregion
 
-
-
+        #region 檢視單筆申請單
         // 取得單筆申請單 + 搭乘人員
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
@@ -441,7 +397,41 @@ namespace Cars.Controllers
             });
 
         }
+        #endregion
 
+        #region 刪除申請單
+        // 刪除申請單（連同搭乘人員）
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var app = await _context.CarApplications.FindAsync(id);
+            if (app == null) return NotFound();
+
+            // 刪掉子表（派工單）
+            var dispatches = _context.Dispatches.Where(d => d.ApplyId == id);
+            _context.Dispatches.RemoveRange(dispatches);
+
+            // 刪掉子表（乘客）
+            var passengers = _context.CarPassengers.Where(p => p.ApplyId == id);
+            _context.CarPassengers.RemoveRange(passengers);
+
+            // 最後刪掉申請單
+            _context.CarApplications.Remove(app);
+            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "刪除成功" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "刪除失敗", detail = ex.Message });
+            }
+        }
+        #endregion
+
+
+        #region 更新審核狀態
         public class StatusDto { public string? Status { get; set; } }
 
         [HttpPatch("{id}/status")]
@@ -506,44 +496,9 @@ namespace Cars.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "狀態已更新", status = app.Status });
         }
+        #endregion
 
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] CarApplication model)
-        {
-            var app = await _context.CarApplications.FindAsync(id);
-            if (app == null) return NotFound();
-
-            // 基本驗證
-            if (model.UseStart == default(DateTime) || model.UseEnd == default(DateTime))
-                return BadRequest("起訖時間不得為空");
-            if (model.UseEnd <= model.UseStart)
-                return BadRequest("結束時間必須晚於起始時間");
-
-            // === 申請單欄位更新 ===
-            app.ApplyFor = model.ApplyFor;
-            app.VehicleType = model.VehicleType;
-            app.PurposeType = model.PurposeType;
-            app.VehicleId = model.VehicleId; // 可為 null
-            app.PassengerCount = model.PassengerCount;
-            app.UseStart = model.UseStart;
-            app.UseEnd = model.UseEnd;
-            app.DriverId = model.DriverId; // 可為 null
-            app.ReasonType = model.ReasonType;
-            app.ApplyReason = model.ApplyReason;
-            app.Origin = model.Origin;
-            app.Destination = model.Destination;
-            app.TripType = model.TripType;
-            app.SingleDistance = model.SingleDistance;
-            app.SingleDuration = model.SingleDuration;
-            app.RoundTripDistance = model.RoundTripDistance;
-            app.RoundTripDuration = model.RoundTripDuration;
-            app.Status = string.IsNullOrWhiteSpace(model.Status) ? app.Status : model.Status;
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "更新成功" });
-        }
-
+        #region 過濾可用車輛與司機
         // 過濾可用車輛（排除 使用中 / 維修中 / 該時段已被派工）
         [HttpGet("/api/vehicles/available")]
         public async Task<IActionResult> GetAvailableVehicles(DateTime from, DateTime to, int? capacity = null)
@@ -560,13 +515,13 @@ namespace Cars.Controllers
             if (capacity.HasValue)
                 q = q.Where(v => v.Capacity >= capacity.Value);
 
-            // 🚫 避開該時段已被派工的車 (Dispatches)
+            //  避開該時段已被派工的車 (Dispatches)
             q = q.Where(v => !_context.Dispatches.Any(d =>
                 d.VehicleId == v.VehicleId &&
                 from < d.EndTime &&
                 d.StartTime < to));
 
-            // 🚫 避開該時段已經有申請單的車 (CarApplications)
+            //  避開該時段已經有申請單的車 (CarApplications)
             q = q.Where(v => !_context.CarApplications.Any(a =>
                 a.VehicleId == v.VehicleId &&
                 from < a.UseEnd &&
@@ -682,38 +637,94 @@ namespace Cars.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "指派已更新" });
         }
+        #endregion
+
+        #region 審核後自動派車
+        //完成審核自動派車
+        [HttpPost("applications/{applyId:int}/approve-assign")]
+        public async Task<IActionResult> ApproveAndAssign(
+    int applyId,
+    [FromQuery] int passengerCount,
+    [FromQuery] int? preferredVehicleId = null)
+        {
+            // 1) 找此申請單對應、未派車的派工
+            var dispatch = await _context.Dispatches
+            .Where(d => d.ApplyId == applyId
+            && d.DispatchStatus != "已取消"
+            && d.DriverId != null)                 
+            .OrderByDescending(d => d.DispatchId)
+            .FirstOrDefaultAsync();
+
+            if (dispatch == null)
+                return NotFound(new { message = "找不到待派車的派工（可能已派車或尚未指派駕駛）。" });
+
+            // 2) 自動派車（可選擇指定車輛）
+            var result = await _dispatcher.ApproveAndAssignVehicleAsync(dispatch.DispatchId, passengerCount, preferredVehicleId);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
+
+            // 3) 更新申請單狀態為「審核完成」
+            var app = await _context.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
+            if (app != null)
+            {
+                app.Status = "完成審核";
+                app.VehicleId = result.VehicleId; 
+                app.DriverId = result.DriverId;   
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new
+            {
+                message = result.Message ?? "完成審核，已派車",
+                driverId = result.DriverId,
+                vehicleId = result.VehicleId,
+                plateNo = result.PlateNo
+            });
+        }
+
+        #endregion
 
 
-        // 刪除申請單（連同搭乘人員）
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+
+
+        #endregion
+
+        #region 更新申請單(無功能)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, [FromBody] CarApplication model)
         {
             var app = await _context.CarApplications.FindAsync(id);
             if (app == null) return NotFound();
 
-            // 刪掉子表（派工單）
-            var dispatches = _context.Dispatches.Where(d => d.ApplyId == id);
-            _context.Dispatches.RemoveRange(dispatches);
+            // 基本驗證
+            if (model.UseStart == default(DateTime) || model.UseEnd == default(DateTime))
+                return BadRequest("起訖時間不得為空");
+            if (model.UseEnd <= model.UseStart)
+                return BadRequest("結束時間必須晚於起始時間");
 
-            // 刪掉子表（乘客）
-            var passengers = _context.CarPassengers.Where(p => p.ApplyId == id);
-            _context.CarPassengers.RemoveRange(passengers);
+            // === 申請單欄位更新 ===
+            app.ApplyFor = model.ApplyFor;
+            app.VehicleType = model.VehicleType;
+            app.PurposeType = model.PurposeType;
+            app.VehicleId = model.VehicleId; // 可為 null
+            app.PassengerCount = model.PassengerCount;
+            app.UseStart = model.UseStart;
+            app.UseEnd = model.UseEnd;
+            app.DriverId = model.DriverId; // 可為 null
+            app.ReasonType = model.ReasonType;
+            app.ApplyReason = model.ApplyReason;
+            app.Origin = model.Origin;
+            app.Destination = model.Destination;
+            app.TripType = model.TripType;
+            app.SingleDistance = model.SingleDistance;
+            app.SingleDuration = model.SingleDuration;
+            app.RoundTripDistance = model.RoundTripDistance;
+            app.RoundTripDuration = model.RoundTripDuration;
+            app.Status = string.IsNullOrWhiteSpace(model.Status) ? app.Status : model.Status;
 
-            // 最後刪掉申請單
-            _context.CarApplications.Remove(app);
             await _context.SaveChangesAsync();
-            try
-            {
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "刪除成功" });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = "刪除失敗", detail = ex.Message });
-            }
+            return Ok(new { message = "更新成功" });
         }
-
-
-
+        #endregion
     }
 }

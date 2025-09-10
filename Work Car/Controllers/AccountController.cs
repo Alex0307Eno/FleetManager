@@ -15,6 +15,8 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public AccountController(ApplicationDbContext db) { _db = db; }
 
+
+        #region 登入登出
         [HttpGet]
         public async Task<IActionResult> Profile()
         {
@@ -37,7 +39,9 @@ namespace Cars.Controllers
             };
             return View(vm);
         }
+        #endregion
 
+        #region 個人資料
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Profile(Profile vm)
         {
@@ -59,7 +63,17 @@ namespace Cars.Controllers
             TempData["ok"] = "已更新個人資料";
             return RedirectToAction(nameof(Profile));
         }
+        #endregion
 
+        #region 登入頁面
+        [AllowAnonymous]
+        public IActionResult Login()
+        {
+            return View();
+        }
+        #endregion
+
+        #region 登出回到登入頁面
         [HttpPost]
         public async Task<IActionResult> Logout()
         {
@@ -67,13 +81,10 @@ namespace Cars.Controllers
             HttpContext.Session.Clear();
             return RedirectToAction("Login", "Account");
         }
+        #endregion
 
-        [AllowAnonymous]
-        public IActionResult Login()
-        {
-            return View();
-        }
 
-        
+
+
     }
 }

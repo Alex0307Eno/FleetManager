@@ -19,7 +19,7 @@ namespace Cars.Controllers
         {
             _db = db; 
         }
-
+        #region 卡片數字
         //  卡片數字
         [HttpGet("cards")]
         public async Task<IActionResult> Cards()
@@ -42,7 +42,9 @@ namespace Cars.Controllers
                 pendingReviewCount
             });
         }
+        #endregion
 
+        #region 今日排班
         //  今日排班
         [HttpGet("schedule/today")]
         public async Task<IActionResult> TodaySchedule()
@@ -113,7 +115,9 @@ namespace Cars.Controllers
 
             return Ok(list);
         }
+        #endregion
 
+        #region 駕駛目前狀態
         //駕駛目前狀態
         [HttpGet("drivers/today-status")]
         public async Task<IActionResult> DriversTodayStatus()
@@ -316,7 +320,6 @@ namespace Cars.Controllers
 
         }
 
-
         //駕駛目前狀態(休息中)
         [HttpGet("vehicles/today-status")]
         public async Task<IActionResult> VehiclesTodayStatus()
@@ -373,8 +376,9 @@ namespace Cars.Controllers
 
             return Ok(result);
         }
+        #endregion
 
-
+        #region 今日未完成任務
         //  未完成派工
         [HttpGet("dispatch/uncomplete")]
         public async Task<IActionResult> Uncomplete()
@@ -442,7 +446,9 @@ namespace Cars.Controllers
 
             return Ok(data);
         }
+        #endregion
 
+        #region 今日待審核申請
         //  待審核申請
         [HttpGet("applications/pending")]
         public async Task<IActionResult> PendingApps()
@@ -499,6 +505,7 @@ namespace Cars.Controllers
             });
 
             return Ok(data);
+            #endregion
         }
     }
 }

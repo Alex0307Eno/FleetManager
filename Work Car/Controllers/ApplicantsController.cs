@@ -14,6 +14,8 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         public ApplicantsController(ApplicationDbContext db) { _db = db; }
 
+
+        #region 申請者基本資料
         [HttpGet("me")]
         public async Task<IActionResult> Me()
         {
@@ -21,7 +23,6 @@ namespace Cars.Controllers
             if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(new { message = "尚未登入" });
             if (!int.TryParse(userIdStr, out var userId)) return Unauthorized(new { message = "無效的使用者" });
 
-            // 從 Applicants 撈完整資料（欄位名稱請照你的實際模型調整）
             var me = await _db.Applicants
                 .Where(a => a.UserId == userId)
                 .Select(a => new {
@@ -49,5 +50,6 @@ namespace Cars.Controllers
 
             return Ok(fallback ?? new { name = "", birth = "", dept = "", ext = "", email = "" });
         }
+        #endregion
     }
 }

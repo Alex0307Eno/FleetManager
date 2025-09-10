@@ -45,7 +45,7 @@ namespace Cars.Models
         public Driver? Driver { get; set; }
         public ICollection<Dispatch>? DispatchOrders { get; set; }
         [NotMapped]
-        public ICollection<DispatchApplication> DispatchLinks { get; set; } = new List<DispatchApplication>();
+        public ICollection<DispatchLink> Dispatches { get; set; } = new List<DispatchLink>();
 
 
     }

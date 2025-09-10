@@ -17,7 +17,7 @@ namespace Cars.Areas.Admin.Controllers
         private readonly ApplicationDbContext _db;
         public UsersController(ApplicationDbContext db) { _db = db; }
 
-        // GET: /Admin/Users
+        #region admin 菜單：使用者列表
         [Authorize]
 
         public async Task<IActionResult> Index(string? q, string? role, bool? active)
@@ -48,7 +48,9 @@ namespace Cars.Areas.Admin.Controllers
             return View(list);
         }
 
-        // GET: /Admin/Users/Create
+        #endregion
+
+        #region admin 新增使用者
         public IActionResult Create()
         {
             return View(new UserVm());
@@ -86,7 +88,9 @@ namespace Cars.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // GET: /Admin/Users/Edit/5
+        #endregion
+
+        #region admin 編輯使用者
         public async Task<IActionResult> Edit(int id)
         {
             var u = await _db.Users.FindAsync(id);
@@ -137,8 +141,9 @@ namespace Cars.Areas.Admin.Controllers
             TempData["ok"] = "使用者已更新";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
-        // POST: /Admin/Users/Delete/5
+        #region admin 刪除使用者
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
@@ -150,8 +155,9 @@ namespace Cars.Areas.Admin.Controllers
             TempData["ok"] = "使用者已刪除";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
-        // POST: /Admin/Users/ToggleActive/5
+        #region admin 啟用/停用使用者
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleActive(int id)
         {
@@ -163,8 +169,9 @@ namespace Cars.Areas.Admin.Controllers
             TempData["ok"] = u.IsActive ? "已啟用" : "已停用";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
-        // POST: /Admin/Users/ResetPassword/5
+        #region admin 重設密碼
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetPassword(int id, string? newPassword)
         {
@@ -183,15 +190,17 @@ namespace Cars.Areas.Admin.Controllers
             return RedirectToAction(nameof(Edit), new { id });
         }
     }
+    #endregion
 
-    // 簡單 VM（只管理 User；Email/Dept/Ext/Birth 在 Applicant 模組）
+        #region ViewModel
     public class UserVm
     {
         public int UserId { get; set; }
         public string Account { get; set; } = string.Empty;
         public string? DisplayName { get; set; }
-        public string Role { get; set; } = "User"; // Admin / Driver / User
+        public string Role { get; set; } = "User"; 
         public bool IsActive { get; set; } = true;
-        public string? Password { get; set; } // create 或 edit 可填
+        public string? Password { get; set; } 
     }
+    #endregion
 }

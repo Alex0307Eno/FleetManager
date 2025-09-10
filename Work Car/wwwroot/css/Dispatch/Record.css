@@ -11,7 +11,7 @@
     --primary-600: #1d4ed8;
     --row-alt: #fffdf7;
     --shadow: 0 1px 3px rgba(16,24,40,.08);
-    /* ✅ 補上狀態用色 */
+    /*  補上狀態用色 */
     --ok: #16a34a;
     --ok-bg: #ecfdf5;
     --ok-br: #a7f3d0;
@@ -61,6 +61,16 @@ button.btn.btn-secondary {
     button.btn.btn-secondary:hover {
         background-color: #4b5563 !important; /* 深灰 hover */
         border-color: #4b5563 !important;
+    }
+
+button.btn.btn-danger {
+    background-color: #b91c1c !important; /* 紅色底 */
+    border-color: #b91c1c !important;
+    color: #fff !important;
+}
+    button.btn.btn-danger:hover {
+        background-color: #991b1b !important; /* 深紅 hover */
+        border-color: #991b1b !important;
     }
 
 .topbar {
@@ -433,7 +443,7 @@ tbody td {
     background: #fff;
     border-radius: 10px;
     padding: 20px 24px;
-    width: 360px;
+    width: 720px;
     max-width: 90%;
     box-shadow: 0 4px 12px rgba(0,0,0,.15);
     animation: fadeIn .2s ease-out;
@@ -505,4 +515,57 @@ td.col-route {
 .merge-row {
     background-color: #faf8f3; /* 淡米色背景，凸顯子列 */
 }
+
+/* 行底色 */
+tr.row-parent {
+    background: #f8fafc;
+}
+/* 母單 */
+tr.row-child {
+    background: #ffffff;
+}
+    /* 子單 */
+    tr.row-child.collapsed-child {
+        display: none;
+    }
+/* 收合時隱藏子單 */
+
+/* 組隔線 */
+tr.row-parent td {
+    border-top: 2px solid #e2e8f0;
+}
+
+/* 小標籤 */
+.tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.tag-parent {
+    background: #dbeafe;
+    color: #1e40af;
+}
+/* 藍 */
+.tag-child {
+    background: #e5e7eb;
+    color: #374151;
+}
+/* 灰 */
+
+/* 展開/收合箭頭 */
+.group-toggle {
+    margin-right: 6px;
+    color: #64748b;
+    text-decoration: none;
+}
+
+    .group-toggle:hover {
+        color: #334155;
+    }
+
+
 

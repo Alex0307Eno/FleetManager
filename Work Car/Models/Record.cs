@@ -20,5 +20,8 @@
         public string? Plate { get; set; }          // v.PlateNo
         public int? VehicleId { get; set; }         // v.VehicleId
         public string? LongShort { get; set; }      // 若有欄位就回；沒有就 null
+
+        public int? ChildDispatchId { get; set; }  //  子單派車編號，母單為 null
+
     }
 }

@@ -20,7 +20,7 @@ namespace Cars.Controllers
             _settings = settings.Value;
             _httpClientFactory = httpClientFactory;
         }
-
+        #region google api 算距離與時間
         [HttpGet]
         public async Task<IActionResult> GetDistance([FromQuery] string origin, [FromQuery] string destination)
         {
@@ -42,5 +42,6 @@ namespace Cars.Controllers
 
             return Content(body, "application/json");
         }
+        #endregion
     }
 }

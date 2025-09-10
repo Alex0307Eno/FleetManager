@@ -30,8 +30,13 @@ namespace Cars.Models
         public virtual Vehicle? Vehicle { get; set; }
         public virtual Driver? Driver { get; set; }
 
+        // 母單 → 併入的子單
+        public ICollection<DispatchLink> ChildLinks { get; set; }
 
-        public ICollection<DispatchApplication> Applications { get; set; } = new List<DispatchApplication>();
+        // 子單 → 被併入的母單
+        public ICollection<DispatchLink> ParentLinks { get; set; }
+
+
 
     }
 }

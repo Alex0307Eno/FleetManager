@@ -18,7 +18,7 @@ namespace Cars.Controllers
         {
             _context = context;
         }
-
+        #region 登入驗證
         public class LoginDto
         {
             public string UserName { get; set; }
@@ -84,7 +84,7 @@ namespace Cars.Controllers
                     new ClaimsPrincipal(claimsIdentity),
                     authProps);
 
-                // （可選）Session
+                // Session
                 HttpContext.Session?.SetString("UserId", user.UserId.ToString());
                 HttpContext.Session?.SetString("UserName", user.Account);
 
@@ -112,20 +112,10 @@ namespace Cars.Controllers
                 return StatusCode(500, new { message = "伺服器錯誤", error = ex.Message, stack = ex.StackTrace });
             }
         }
-        [HttpPost]
-        public async Task<IActionResult> Logout()
-        {
-            // 登出：清除 cookie 驗證
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        #endregion
 
-            // 清除 Session
-            HttpContext.Session.Clear();
-
-            // 導回首頁或登入頁
-            return RedirectToAction("Login", "Account");
-            // 或者直接 return RedirectToAction("Login", "Account");
-        }
-
+        
+        #region 登出導回登入頁面
         [HttpGet("Logout")]
         public async Task<IActionResult> LogoutGet()
         {
@@ -133,6 +123,7 @@ namespace Cars.Controllers
             HttpContext.Session.Clear();
             return RedirectToAction("Login", "Account");
         }
+        #endregion
 
     }
 }

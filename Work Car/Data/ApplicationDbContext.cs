@@ -30,7 +30,27 @@ namespace Cars.Data
         public DbSet<VehicleViolation> VehicleViolations { get; set; }
 
         public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
-        public DbSet<DispatchApplication> DispatchApplications { get; set; }
+        public DbSet<DispatchLink> DispatchLinks { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<DispatchLink>()
+                .HasKey(dl => new { dl.ParentDispatchId, dl.ChildDispatchId });
+
+            modelBuilder.Entity<DispatchLink>()
+                .HasOne(dl => dl.ParentDispatch)
+                .WithMany(d => d.ChildLinks)
+                .HasForeignKey(dl => dl.ParentDispatchId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DispatchLink>()
+                .HasOne(dl => dl.ChildDispatch)
+                .WithMany(d => d.ParentLinks)
+                .HasForeignKey(dl => dl.ChildDispatchId)
+                .OnDelete(DeleteBehavior.Restrict);
+        }
 
 
     }

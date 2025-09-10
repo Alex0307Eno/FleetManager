@@ -22,14 +22,10 @@ namespace Cars.Controllers
             _db = db;
         }
 
-        // 頁面
-        [HttpGet("")]
-        public IActionResult Index()
-        {
-            return View();
-        }
 
-        // === 提供代理紀錄 API ===
+
+        #region 代理紀錄
+        // 代理紀錄 
         [HttpGet("Records")]
         public async Task<IActionResult> Records()
         {
@@ -63,8 +59,11 @@ namespace Cars.Controllers
 
             return Json(q);
         }
+        #endregion
 
-        // === 提供代理人員基本資料 API ===
+        #region 代理人基本資料
+
+        //代理人員基本資料
         [HttpGet("profiles")]
         public async Task<IActionResult> Profiles()
         {
@@ -91,8 +90,10 @@ namespace Cars.Controllers
 
             return Json(result);
         }
+        #endregion
 
-        // === 小工具 ===
+        #region 轉換工具
+        //小工具 
         private static string ToRocDate(DateTime dt)
             => $"{dt.Year - 1911}/{dt.Month:00}/{dt.Day:00}";
 
@@ -113,5 +114,6 @@ namespace Cars.Controllers
             }
             return s + "-" + e;
         }
+        #endregion
     }
 }
