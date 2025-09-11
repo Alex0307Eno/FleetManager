@@ -505,14 +505,33 @@
         };
 
 
-            return {
-              rows, loading, error,canEdit,
-              filters, drivers, applicants, cars,
-              filtered, statusText, statusClass,
-              reloadByDate, resetFilters, exportCSV,
-              viewRow, closeView,viewing,editRow, confirmEdit, cancelEdit,removeRow,
-              editing, newStatus
-            };
+       return {
+          // 狀態 & 資料
+          rows, loading, error,
+          filters, drivers, applicants, cars,
+
+          // 前端篩選
+          filtered,
+
+          // 顯示用工具
+          statusText, statusClass, canEdit,
+
+          //篩選操作
+          reloadByDate, resetFilters,
+
+          // 匯出
+          exportCSV,
+
+          // 檢視 
+          viewing, viewRow, closeView,
+
+          //編輯
+          editing, newStatus, editRow, confirmEdit, cancelEdit,
+
+          //刪除
+          removeRow
+        };
+
           }
         }).mount('#app');
     </script>

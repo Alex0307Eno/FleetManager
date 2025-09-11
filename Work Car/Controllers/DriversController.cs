@@ -9,6 +9,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
+
 namespace Cars.Controllers
 {
     [Authorize]
@@ -18,6 +19,33 @@ namespace Cars.Controllers
     {
         private readonly ApplicationDbContext _db;
         public DriversController(ApplicationDbContext db) => _db = db;
+
+
+        #region 班表管理頁
+        // 管理端：查所有/指定司機的班表
+        [Authorize(Roles = "Admin")]
+        [HttpGet("Schedule/Events")]
+        public async Task<IActionResult> GetSchedules(int year, int month)
+        {
+            var list = await _db.Schedules
+                .Include(s => s.Driver)
+                .Where(s => s.WorkDate.Year == year && s.WorkDate.Month == month)
+                .OrderBy(s => s.WorkDate)
+                .Select(s => new {
+                    scheduleId = s.ScheduleId,
+                    workDate = s.WorkDate,
+                    shift = s.Shift,       // AM / PM / G1 / G2 / G3
+                    isPresent = s.IsPresent,
+                    driverId = s.DriverId,
+                    driverName = s.Driver.DriverName
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+        #endregion
+
+
 
         #region 司機基本資料與出勤狀況
 

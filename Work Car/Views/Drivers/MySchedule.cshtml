@@ -1,7 +1,10 @@
 ﻿@{
     ViewData["Title"] = "我的班表";
 }
-
+<link rel="stylesheet" href="/css/Driver/MySchedule.css" />
+<!-- Vue 3 + axios（CDN） -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <div id="app" class="wrap" v-cloak>
     <div class="topbar">
         <h1>我的值勤班表</h1>
@@ -102,214 +105,9 @@
     </div>
 </div>
 
-<!-- ===== 樣式（貼近你的截圖） ===== -->
-<style>
-    :root {
-        --bg: #eef3f8;
-        --card: #fff;
-        --border: #e5e7eb;
-        --text: #111827;
-        --muted: #64748b;
-        --primary: #1e6fb8;
-    }
 
-    [v-cloak] {
-        display: none;
-    }
 
-    .wrap {
-        max-width: 1280px;
-        margin: 24px auto;
-        padding: 0 16px
-    }
 
-    .topbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 12px 16px
-    }
-
-    .grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 16px
-    }
-
-    .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 10px
-    }
-
-    .card-hd {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
-        font-weight: 700
-    }
-
-    .card-bd {
-        padding: 12px 16px
-    }
-
-    .stack {
-        display: grid;
-        gap: 16px
-    }
-
-    .btn {
-        border: 1px solid var(--border);
-        background: #fff;
-        border-radius: 8px;
-        padding: 6px 10px;
-        cursor: pointer
-    }
-
-    .help {
-        color: var(--muted);
-        font-size: 12px
-    }
-
-    .seg {
-        display: inline-flex;
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        overflow: hidden
-    }
-
-    .seg-btn {
-        background: #f1f5f9;
-        border: 0;
-        padding: 6px 12px;
-        cursor: pointer
-    }
-
-        .seg-btn.active {
-            background: #2563eb;
-            color: #fff
-        }
-
-    .month-head {
-        display: grid;
-        grid-template-columns: repeat(7,1fr);
-        gap: 4px;
-        margin-bottom: 6px;
-        color: #334155;
-        text-align: center
-    }
-
-    .month-grid {
-        display: grid;
-        grid-template-columns: repeat(7,1fr);
-        grid-auto-rows: 110px;
-        gap: 6px
-    }
-
-    .day {
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: #fff;
-        padding: 4px 8px;
-        display: flex;
-        flex-direction: column
-    }
-
-    .day-hd {
-        display: flex;
-        justify-content: flex-start
-    }
-
-        .day-hd.today {
-            color: #2563eb;
-            font-weight: 700
-        }
-
-    .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 4px 8px;
-        background: #f1f5f9;
-        margin: 2px 0;
-        font-size: 13px;
-        color: #111
-    }
-
-    .pill-dark {
-        background: #e2e8f0;
-        border-color: #d1d5db
-    }
-
-    .blank {
-        height: 20px
-    }
-
-    .mini-cal {
-        display: grid;
-        grid-template-columns: repeat(7,1fr);
-        gap: 4px
-    }
-
-    .mini-head {
-        font-size: 12px;
-        color: #475569;
-        text-align: center
-    }
-
-    .mini-cell {
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        text-align: center;
-        padding: 6px 0;
-        background: #fff
-    }
-
-        .mini-cell.today {
-            outline: 2px solid var(--primary)
-        }
-
-        .mini-cell.has {
-            background: #f8fafc;
-            border-color: #cbd5e1
-        }
-
-    .table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0
-    }
-
-        .table th, .table td {
-            border-right: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 8px 10px;
-            vertical-align: top
-        }
-
-            .table th:first-child, .table td:first-child {
-                border-left: 1px solid var(--border)
-            }
-
-        .table thead th {
-            background: #fafbff;
-            text-align: center
-        }
-
-    .mono {
-        font-variant-numeric: tabular-nums
-    }
-</style>
-
-<!-- Vue 3 + axios（CDN） -->
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
     const { createApp, ref, reactive, computed, watch } = Vue;
@@ -467,13 +265,29 @@
         // 初次載入
         fetchMonth();
 
-        return {
-          rocYear, year, month, viewMode,
-          firstWeekday, daysInMonth, isToday,
-          monthGrid, weekDays, monthShiftGroups,
-          dayEvents, keyOf, shiftLabel,
-          gotoPrev, gotoNext
-        };
+     return {
+      //狀態 & 畫面設定
+      rocYear,
+      year,
+      month,
+      viewMode,
+
+      //計算用屬性 / 工具
+      firstWeekday,
+      daysInMonth,
+      isToday,
+      monthGrid,
+      weekDays,
+      monthShiftGroups,
+      dayEvents,
+      keyOf,
+      shiftLabel,
+
+      //操作方法
+      gotoPrev,
+      gotoNext
+    };
+
       }
     }).mount('#app');
 </script>

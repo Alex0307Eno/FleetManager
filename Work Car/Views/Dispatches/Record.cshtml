@@ -158,14 +158,14 @@
 
                                 <!-- 功能列：母單可以編輯/刪除；子單維持檢視或不顯示 -->
                                 <td>
-                                    @if (User.IsInRole("Admin"))
-                                    {
                                     <div class="actions" v-if="isGroupHead(i)">
+                                        @if (User.IsInRole("Admin"))
+                                        {
                                         <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
                                         <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
+                                        }
                                     </div>
-                                    }
                                     <div class="actions" v-else>
                                         <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
                                     </div>
@@ -424,7 +424,7 @@
                   if (dt && d > endOfDay(dt)) return false
                   if (driver && r.driver !== driver) return false
                   if (applicant && !String(r.applicant).includes(applicant)) return false
-                  if (plateNo && String(r.plateNo) !== plateNo) return false
+                  if (plateNo && String(r.plate || '').trim() !== plateNo) return false
                   return true
                 })
               })
@@ -827,7 +827,7 @@
                   status: x.status ?? x.dispatchStatus ?? '待審核',
                   driver: x.driver ?? x.driverName ?? '',
                   driverId: x.driverId ?? null,
-                  plate: x.plate ?? x.plateNo ?? '',
+                  plate: x.plate ?? x.plateNo ?? x.PlateNo ?? '',
                   vehicleId: x.vehicleId ?? null,
                   longShort: x.longShort ?? (Math.random() > 0.5 ? '長差' : '短差')
                 }

@@ -192,8 +192,20 @@
 
 
             onMounted(load)
-            return { drivers, rocDate, viewModalOpen, currentDriver, viewDriver, toggleAttendance   }
-          }
+        return {
+          //狀態 & 資料
+          drivers,
+          rocDate,
+
+          //Modal 狀態
+          viewModalOpen,
+          currentDriver,
+
+          //操作方法
+          viewDriver,
+          toggleAttendance
+        };
+                  }
         }).mount('#app')
     </script>
 </body>
