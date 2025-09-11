@@ -7,10 +7,10 @@ namespace Cars.Models
     public class VehicleViolation
     {
         [Key]
-        public int ViolationId { get; set; }
+        public int ViolationId { get; set; }         // 主鍵
 
         [Required]
-        public int VehicleId { get; set; }           // FK → Vehicles.VehicleId
+        public int VehicleId { get; set; }           // 車輛外鍵
 
         [Required]
         public DateTime ViolationDate { get; set; }  // 發生日期
@@ -36,6 +36,6 @@ namespace Cars.Models
 
         // 導覽
         [ForeignKey("VehicleId")]
-        public virtual Vehicle Vehicle { get; set; }
+        public virtual Vehicle Vehicle { get; set; } // 車輛導覽屬性
     }
 }

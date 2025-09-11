@@ -6,46 +6,45 @@ namespace Cars.Models
     public class CarApplication
     {
         [Key]
+        public int ApplyId { get; set; }                // 主鍵
+        public string? ApplyFor { get; set; }           // 申請人
+        public string? VehicleType { get; set; }        // 車種
+        public string? PurposeType { get; set; }        // 用途
+        public int ? VehicleId { get; set; }            // 車輛外鍵
+        public Vehicle? Vehicle { get; set; }           // 車輛導覽屬性
 
-        public int ApplyId { get; set; }  // 主鍵
-
-       
-
-        public string? ApplyFor { get; set; }
-        public string? VehicleType { get; set; }
-        public string? PurposeType { get; set; }
-        public int ? VehicleId { get; set; }
-        public Vehicle? Vehicle { get; set; }
-
-        public int PassengerCount { get; set; }
+        public int PassengerCount { get; set; }         // 預計乘車人數
         [Required]
-        public DateTime UseStart { get; set; }
+        public DateTime UseStart { get; set; }          // 預計用車起始時間
         [Required]
-        public DateTime UseEnd { get; set; }
+        public DateTime UseEnd { get; set; }            // 預計用車結束時間
 
-        public int? DriverId { get; set; }  
-        public string? ReasonType { get; set; }
-        public string? ApplyReason { get; set; }
+        public int? DriverId { get; set; }              // 預計司機外鍵
+        public string? ReasonType { get; set; }         // 申請事由類別
+        public string? ApplyReason { get; set; }        // 申請事由
         [Required]
-        public string? Origin { get; set; }
+        public string? Origin { get; set; }             // 出發地
         [Required]
-        public string? Destination { get; set; }
-        public string? TripType { get; set; }
-        public decimal? SingleDistance { get; set; }
-        public string? SingleDuration { get; set; }
-        public decimal? RoundTripDistance { get; set; }
-        public string? RoundTripDuration { get; set; }
-        public bool isLongTrip { get; set; }
-        public string Status { get; set; } = "待審核";
+        public string? Destination { get; set; }        // 目的地
+        public string? TripType { get; set; }           // 單程/來回
+        public decimal? SingleDistance { get; set; }    // 單程公里數
+        public string? SingleDuration { get; set; }     // 單程車程時間
+        public decimal? RoundTripDistance { get; set; } // 來回公里數
+        public string? RoundTripDuration { get; set; }  // 來回車程時間
+        public bool isLongTrip { get; set; }            // 是否長途
+        public string Status { get; set; } = "待審核";  // 申請單狀態
+        
+        
+        public Applicant? Applicant { get; set; }       // 申請人導覽屬性
 
-        public Applicant? Applicant { get; set; } 
+        public int? ApplicantId { get; set; }           // 申請人外鍵
+        public Driver? Driver { get; set; }             // 司機導覽屬性
 
-        public int? ApplicantId { get; set; }
-        public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>();
-        public Driver? Driver { get; set; }
-        public ICollection<Dispatch>? DispatchOrders { get; set; }
+     
+        public ICollection<CarPassenger> Passengers { get; set; } = new List<CarPassenger>(); // 乘客清單
+        public ICollection<Dispatch>? DispatchOrders { get; set; } = new List<Dispatch>(); // 派車清單
         [NotMapped]
-        public ICollection<DispatchLink> Dispatches { get; set; } = new List<DispatchLink>();
+        public ICollection<DispatchLink> Dispatches { get; set; } = new List<DispatchLink>(); // 派車單連結
 
 
     }

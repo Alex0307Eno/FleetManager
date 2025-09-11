@@ -552,6 +552,7 @@
           
 
             
+           location.reload();
             alert(`已成功審核並派車\n車牌：${data.plateNo ?? '—'}`);
 
             
@@ -562,7 +563,6 @@
            
             pending.value = pending.value.filter(r => r.applyId !== p.applyId);
 
-           
 
           } catch (err) {
             console.error(" approve error:", err);

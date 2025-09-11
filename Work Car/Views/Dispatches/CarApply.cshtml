@@ -607,7 +607,7 @@
                     async function checkCapacity() {
           if (!useStart.value || !useEnd.value) return;
           try {
-            const res = await axios.get("/api/carapplications/max-capacity", {
+            const res = await axios.get("/api/vehicles/max-capacity", {
               params: { from: useStart.value, to: useEnd.value }
             });
             maxCapacity.value = res.data.max || 0;

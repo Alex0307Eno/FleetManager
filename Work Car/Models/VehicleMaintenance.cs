@@ -5,11 +5,11 @@ namespace Cars.Models
     public class VehicleMaintenance
     {
         [Key]
-        public int VehicleMaintenanceId { get; set; }
+        public int VehicleMaintenanceId { get; set; }  // 主鍵
 
         // 車輛
-        public int VehicleId { get; set; }
-        public string? VehiclePlate { get; set; }
+        public int VehicleId { get; set; }              // 車輛外鍵
+        public string? VehiclePlate { get; set; }      // 車牌
 
         // 保養資料
         public DateTime Date { get; set; }            // 日期
@@ -21,6 +21,6 @@ namespace Cars.Models
         public string? Vendor { get; set; }           // 承修廠商
         public string? Note { get; set; }             // 備註
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // 建立時間
     }
 }

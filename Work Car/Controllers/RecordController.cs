@@ -3,9 +3,9 @@ using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 
 namespace Cars.Controllers.Api
 {
@@ -150,15 +150,21 @@ namespace Cars.Controllers.Api
 
             var linkAgg = await _db.DispatchLinks
                 .Where(l => dispatchIds.Contains(l.ParentDispatchId))
-                .GroupBy(l => l.ParentDispatchId)
+                .Join(_db.Dispatches,
+                      l => l.ChildDispatchId,
+                      d => d.DispatchId,
+                      (l, d) => new { l.ParentDispatchId, d.CarApply.PassengerCount })
+                .GroupBy(x => x.ParentDispatchId)
                 .Select(g => new
                 {
                     DispatchId = g.Key,
-                    LinkSeats = g.Sum(x => (int?)x.Seats) ?? 0,
+                    LinkSeats = g.Sum(x => (int?)x.PassengerCount) ?? 0, 
                     LinkCount = g.Count()
                 })
                 .ToListAsync();
+
             _logger.LogDebug("linkAgg count={Count}", linkAgg.Count);
+
 
             var linkDetails = await
                 (from l in _db.DispatchLinks.AsNoTracking()
@@ -178,7 +184,7 @@ namespace Cars.Controllers.Api
                      a.ReasonType,
                      a.ApplyReason,
                      ApplicantName = p.Name,
-                     Seats = l.Seats,
+                     Seats = a.PassengerCount,
                      a.TripType,
                      a.SingleDistance,
                      a.RoundTripDistance,
@@ -220,7 +226,7 @@ namespace Cars.Controllers.Api
 
                 rows.Add(new Record
                 {
-                    Id = x.DispatchId,
+                    DispatchId = x.DispatchId,
                     ApplyId = x.ApplyId,
                     UseStart = minStart,
                     UseEnd = maxEnd,
@@ -252,7 +258,7 @@ namespace Cars.Controllers.Api
                 
                     rows.Add(new Record
                     {
-                        Id = x.DispatchId,
+                        DispatchId = x.DispatchId,
                         ApplyId = c.ApplyId,
                         ChildDispatchId = c.ChildDispatchId,
                         UseStart = c.UseStart,
@@ -411,83 +417,66 @@ namespace Cars.Controllers.Api
 
         #endregion
 
-
+        //共乘功能
 
         #region 派車單併單功能
-        public class MergeLinkDto
-        {
-            public int DispatchId { get; set; }
-            public int? Seats { get; set; }
-        }
+     
 
-        [HttpPost("dispatch/{parentId}/links")]
-        public async Task<IActionResult> AddLink(int parentId, [FromBody] MergeLinkDto dto)
+
+        [HttpPost("{parentId}/links")]
+        public async Task<IActionResult> AddLink(int parentId, [FromBody] int childDispatchId)
         {
-            // 1) 找到母單 + 其車輛容量 + 主申請人數
             var parent = await _db.Dispatches
+                .Include(d => d.Vehicle)
+                .Include(d => d.CarApply)
                 .AsNoTracking()
-                .Where(d => d.DispatchId == parentId)
-                .Select(d => new {
-                    d.DispatchId,
-                    d.VehicleId,
-                    d.ApplyId,
-                    VehicleCapacity = _db.Vehicles
-                        .Where(v => v.VehicleId == d.VehicleId)
-                        .Select(v => (int?)v.Capacity).FirstOrDefault(),
-                    MainSeats = _db.CarApplications
-                        .Where(a => a.ApplyId == d.ApplyId)
-                        .Select(a => a.PassengerCount).FirstOrDefault()
-                })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(d => d.DispatchId == parentId);
 
             if (parent == null) return NotFound("母單不存在");
-            if (parent.VehicleCapacity == null) return BadRequest("母單尚未指派車輛，無法併單");
+            if (parent.Vehicle == null) return BadRequest("母單尚未指派車輛，無法併單");
 
-            // 2) 已併單座位總和（若當初 link.Seats 為 null 就用子申請的 PassengerCount）
+            var capacity = parent.Vehicle.Capacity ?? 0;
+            var mainSeats = parent.CarApply?.PassengerCount ?? 0;
+
             var usedByLinks = await (
                 from l in _db.DispatchLinks
-                join a in _db.CarApplications on l.ChildDispatchId equals a.ApplyId into aa
-                from a in aa.DefaultIfEmpty()
+                join d in _db.Dispatches on l.ChildDispatchId equals d.DispatchId
+                join a in _db.CarApplications on d.ApplyId equals a.ApplyId
                 where l.ParentDispatchId == parentId
-                select (int)(l.Seats)
-            ).SumAsync();
+                select (int?)a.PassengerCount
+            ).SumAsync() ?? 0;
 
-            var capacity = parent.VehicleCapacity.Value;
-            var used = parent.MainSeats + usedByLinks;
-            var remaining = capacity - used;
+            var remaining = capacity - (mainSeats + usedByLinks);
             if (remaining < 0) remaining = 0;
 
-            // 3) 這次想併入幾人：payload seats ?? 子申請本身人數
-            //    （dto.DispatchId 是「子派車單」→ childApplyId）
             var childApp = await (
                 from d in _db.Dispatches
                 join a in _db.CarApplications on d.ApplyId equals a.ApplyId
-                where d.DispatchId == dto.DispatchId
-                select new { a.ApplyId, a.PassengerCount }
+                where d.DispatchId == childDispatchId
+                select new { d.DispatchId, a.ApplyId, a.PassengerCount }
             ).FirstOrDefaultAsync();
 
             if (childApp == null) return BadRequest("子單不存在");
-            var seatsWanted = dto.Seats ?? childApp.PassengerCount;
-            if (seatsWanted <= 0) return BadRequest("座位數必須大於 0");
 
-            // 4) 容量檢查
+            var seatsWanted = childApp.PassengerCount;
             if (seatsWanted > remaining)
             {
                 return BadRequest($"剩餘座位 {remaining}，不足以併入 {seatsWanted} 人");
             }
 
-            // 5) OK → 寫入
             var link = new DispatchLink
             {
                 ParentDispatchId = parentId,
-                ChildDispatchId = childApp.ApplyId, // 你系統的 Child 設計是用 ApplyId
-                Seats = seatsWanted
+                ChildDispatchId = childApp.DispatchId
             };
             _db.DispatchLinks.Add(link);
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "併入成功", remainingAfter = remaining - seatsWanted });
         }
+
+
+
         #endregion
 
         #region 取消併單
@@ -515,28 +504,29 @@ namespace Cars.Controllers.Api
         #endregion
 
         #region 列出併單清單
-
         [HttpGet("{dispatchId}/links")]
         public async Task<IActionResult> ListLinks(int dispatchId)
         {
-            var rows = await _db.DispatchLinks
-                .Where(x => x.ParentDispatchId == dispatchId)
-                .Join(_db.Dispatches,
-                      dl => dl.ChildDispatchId,
-                      d => d.DispatchId,
-                      (dl, d) => new {
-                          d.DispatchId,
-                          d.ApplyId,
-                          d.CarApply.Origin,
-                          d.CarApply.Destination,
-                          d.CarApply.UseStart,
-                          d.CarApply.UseEnd,
-                          dl.Seats
-                      })
-                .ToListAsync();
+            var rows = await (
+                from l in _db.DispatchLinks
+                join d in _db.Dispatches on l.ChildDispatchId equals d.DispatchId
+                join a in _db.CarApplications on d.ApplyId equals a.ApplyId
+                where l.ParentDispatchId == dispatchId
+                select new
+                {
+                    d.DispatchId,
+                    d.ApplyId,
+                    a.Origin,
+                    a.Destination,
+                    a.UseStart,
+                    a.UseEnd,
+                    Seats = a.PassengerCount  
+                }
+            ).ToListAsync();
 
             return Ok(rows);
         }
+
         #endregion
 
         #region 取得可併入的申請單列表
@@ -544,62 +534,72 @@ namespace Cars.Controllers.Api
         [HttpGet("{dispatchId}/available-apps")]
         public async Task<IActionResult> GetAvailableAppsForDispatch(int dispatchId)
         {
-            Console.WriteLine($"[Console] AvailApps host={dispatchId}");
-            _logger.LogInformation("AvailApps host={Host}", dispatchId);
+            var parent = await _db.Dispatches
+                .Include(d => d.Vehicle)
+                .Include(d => d.CarApply)
+                .FirstOrDefaultAsync(d => d.DispatchId == dispatchId);
 
-            var dispatch = await _db.Dispatches.FindAsync(dispatchId);
-            if (dispatch == null)
-            {
-                Console.WriteLine($"[Console] AvailApps: dispatch {dispatchId} not found");
-                _logger.LogWarning("AvailApps: dispatch {Host} not found", dispatchId);
+            if (parent == null)
                 return NotFound("派車單不存在");
-            }
 
-            var mainApp = await _db.Dispatches.FindAsync(dispatch.DispatchId);
-            if (mainApp == null)
-            {
-                Console.WriteLine($"[Console] AvailApps: mainApp not found, applyId={dispatch.DispatchId}");
-                _logger.LogWarning("AvailApps: mainApp not found Host={Host}, ApplyId={ApplyId}", dispatchId, dispatch.ApplyId);
-                return BadRequest("主申請不存在");
-            }
+            var capacity = parent.Vehicle?.Capacity ?? 0;
+            var mainSeats = parent.CarApply?.PassengerCount ?? 0;
 
+            // 已併入子單的人數
+            var usedByLinks = await (
+                from l in _db.DispatchLinks
+                join d in _db.Dispatches on l.ChildDispatchId equals d.DispatchId
+                join a in _db.CarApplications on d.ApplyId equals a.ApplyId
+                where l.ParentDispatchId == dispatchId
+                select (int?)a.PassengerCount
+            ).SumAsync() ?? 0;
+
+            var remaining = capacity - (mainSeats + usedByLinks);
+            if (remaining < 0) remaining = 0;
+
+            // 排除：自己、已併入的、已經是母單的
             var linkedIds = await _db.DispatchLinks
                 .Where(l => l.ParentDispatchId == dispatchId)
                 .Select(l => l.ChildDispatchId)
                 .ToListAsync();
 
-            var excludeIds = new HashSet<int>(linkedIds);
-            excludeIds.Add(dispatch.DispatchId);
+            var motherIds = await _db.DispatchLinks
+                .Select(l => l.ParentDispatchId)
+                .Distinct()
+                .ToListAsync();
 
-            Console.WriteLine($"[Console] AvailApps excludeIds count={excludeIds.Count}");
-            _logger.LogDebug("AvailApps excludeIds={@Ids}", excludeIds);
+            var exclude = new HashSet<int>(linkedIds);
+            exclude.Add(dispatchId);
+            foreach (var m in motherIds) exclude.Add(m);
 
+            var now = DateTime.Now;
+
+            // ✅ 不再用 (a.PassengerCount <= remaining) 過濾
             var apps = await (
-            from d in _db.Dispatches
-            join a in _db.CarApplications on d.ApplyId equals a.ApplyId
-            where
-                (a.Status == "完成審核" ) &&
-                !(a.UseEnd < mainApp.StartTime || a.UseStart > mainApp.EndTime) &&
-                !excludeIds.Contains(d.DispatchId)    
-            orderby a.UseStart
-            select new
-            {
-                d.DispatchId,
-                a.ApplyId,
-                a.Origin,
-                a.Destination,
-                a.UseStart,
-                a.UseEnd,
-                Seats = a.PassengerCount
-            }
-        ).ToListAsync();
+                from d in _db.Dispatches
+                join a in _db.CarApplications on d.ApplyId equals a.ApplyId
+                where a.Status == "完成審核"
+                      && a.UseEnd > now
+                      && !exclude.Contains(d.DispatchId)
+                orderby a.UseStart
+                select new
+                {
+                    d.DispatchId,
+                    a.ApplyId,
+                    a.Origin,
+                    a.Destination,
+                    a.UseStart,
+                    a.UseEnd,
+                    Seats = a.PassengerCount
+                }
+            ).ToListAsync();
 
-
-            Console.WriteLine($"[Console] AvailApps return count={apps.Count}");
-            _logger.LogInformation("AvailApps return {Count} items host={Host}", apps.Count, dispatchId);
-
-            return Ok(apps);
-            #endregion
+            return Ok(new { remainingSeats = remaining, apps });
         }
+
+
+
+
+        #endregion
     }
 }

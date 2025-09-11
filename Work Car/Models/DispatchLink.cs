@@ -6,11 +6,10 @@ namespace Cars.Models
 {
     public class DispatchLink
     {
-        public int ParentDispatchId { get; set; }
-        public int ChildDispatchId { get; set; }
-        public int Seats { get; set; }
-        public Dispatch ParentDispatch { get; set; }
-        public Dispatch ChildDispatch { get; set; }
+        public int ParentDispatchId { get; set; }    // 母單
+        public int ChildDispatchId { get; set; }     // 子單
+        public Dispatch ParentDispatch { get; set; } // 導覽屬性
+        public Dispatch ChildDispatch { get; set; }  // 導覽屬性
 
     }
 }

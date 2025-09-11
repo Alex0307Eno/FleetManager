@@ -290,27 +290,28 @@
                     <label>新增併單</label>
                     <div class="row">
                         <div class="col">
-                            <select v-model.number="newChildDispatchId" class="form-control">
+                            <select v-model.number="newChildDispatchId" class="form-control" :disabled="remainingSeats <= 0">
                                 <option :value="null" disabled>該時段無派車資料</option>
-                                <option v-for="a in filteredDispatchOptions" :key="a.dispatchId" :value="a.dispatchId">
-                                    #{{ a.dispatchId  }}｜{{ a.origin }}→{{ a.destination }}｜{{ rocDate(a.useStart) }}
+                                <option v-for="a in filteredDispatchOptions"
+                                        :key="a.dispatchId"
+                                        :value="a.dispatchId"
+                                        :disabled="a.seats > remainingSeats">
+                                    {{ a.dispatchId }}｜{{ a.text }}
+                                    <span v-if="a.seats > remainingSeats">（人數超過剩餘座位）</span>
                                 </option>
-
                             </select>
-
-                        </div>
-                        <div class="col">
-                            <input v-model.number="newSeats" type="number" min="0" class="form-control" placeholder="座位數（可留空預設帶申請人數）" />
+                            <div class="text-muted mt-1">
+                                剩餘座位：{{ remainingSeats > 0 ? remainingSeats : '已滿' }}
+                            </div>
                         </div>
                         <div class="col-auto">
                             <button class="btn btn-primary"
-                                    :disabled="!currentDispatchId || !newChildDispatchId"
-                                    @@click="addLink()">
+                                    :disabled="remainingSeats <= 0 || !newChildDispatchId"
+                                    @@click="addLink">
                                 併入
                             </button>
                         </div>
                     </div>
-
                 </div>
 
                 <div class="text-end" style="margin-top:12px;">
@@ -385,9 +386,10 @@
               const showMergeModal = ref(false);
               const currentDispatchId = ref(null);
               const mergedApps = ref([]);
-              const newSeats = ref(null);
               const applicantOptions = ref([]);
               const newChildDispatchId = ref(null)
+              const remainingSeats = ref(0);
+
 
               // === 群組收合控制 ===
               const collapsed = ref(new Set());
@@ -430,21 +432,23 @@
               // === 母單下拉選單 ===
               const dispatchOptions = computed(() => {
                 const arr = Array.isArray(shown.value) ? shown.value : [];
-                const mains = arr.filter(r => r && (r.driver || r.plate));
                 const now = Date.now();
                 const uniq = new Map();
-                for (const r of mains) {
+                for (const r of arr) {
                   const id = Number(r?.dispatchId);
                   if (!Number.isFinite(id)) continue;
                   //超過現在時間不顯示
                   if (new Date(r.useStart) < now) continue;
+                  //  沒有車輛就不顯示
+                  if (!r.vehicleId && !r.plate) continue;
                   if (!uniq.has(id)) {
                     uniq.set(id, {
                       id,
                       useStart: r.useStart,
                       useEnd: r.useEnd,
                       route: r.route,
-                      text: `${rocDate(r.useStart)} ${timeSpan(r.useStart, r.useEnd)}｜${r.route || ''}`
+                      seats: r.seats ?? 0,
+                      text: `${rocDate(r.useStart)} ${timeSpan(r.useStart, r.useEnd)}｜${r.route || ''}｜${r.seats ?? 0} 人`
                     });
                   }
                 }
@@ -457,9 +461,30 @@
 
               // === 新增併單下拉清單  ===(子單)
               const filteredDispatchOptions = computed(() => {
-                const mainId = currentMainDispatchId.value;
-                return (applicantOptions.value || []).filter(a => a.dispatchId  !== mainId);
-              });
+                  const mainId = currentMainDispatchId.value;
+                  const now = Date.now();
+                  const rem = Number(remainingSeats.value || 0);
+
+                  return (applicantOptions.value || [])
+                    .filter(a => {
+                      // 1. 不是母單
+                      if (a.dispatchId === mainId) return false;
+                      // 2. 開始時間必須大於現在
+                      if (new Date(a.useStart).getTime() < now) return false;
+                        // 3. 沒剩座位就不顯示
+                      if (rem <= 0) return false; 
+                      //a. 座位數不能超過剩餘座位
+                      if (Number(a.seats || 0) > rem) return false;          
+                      return true;
+                    })
+                    .map(a => ({
+                      ...a,
+
+                      text: `${rocDate(a.useStart)} ${timeSpan(a.useStart, a.useEnd)}｜${a.origin}-${a.destination}｜${a.seats ?? 0} 人`
+                    }));
+                });
+
+
 
               // === 唯一清單 ===
               const uniqueDrivers = computed(() => {
@@ -528,53 +553,44 @@
                 }
               }
 
-              async function loadDispatchOptions() {
-                console.groupCollapsed("🟩 loadDispatchOptions");
-                if (!currentDispatchId.value) {
-                  applicantOptions.value = [];
-                  console.groupEnd();
-                  return;
-                }
-                const url = `/api/dispatch/${currentDispatchId.value}/available-apps`;
-                console.log("GET", url);
-                try {
-                  const res = await axios.get(url);
-                  applicantOptions.value = res.data || [];
-                  console.log("✅ applicantOptions length=", applicantOptions.value.length);
-                  if (DBG && applicantOptions.value.length) console.log("applicantOptions[0]=", applicantOptions.value[0]);
-                  if (!applicantOptions.value.length) {
-                    console.warn("⚠ 候選為空，通常是：狀態非「完成審核/待派車」、時間未重疊、或已被併入。");
-                  }
-                } catch (err) {
-                  console.error("❌ loadDispatchOptions", httpErr(err));
-                  applicantOptions.value = [];
-                } finally {
-                  console.groupEnd();
-                }
-              }
+                      async function loadDispatchOptions() {
+          if (!currentDispatchId.value) {
+            applicantOptions.value = [];
+            remainingSeats.value = 0;
+            return;
+          }
+          const url = `/api/dispatch/${currentDispatchId.value}/available-apps`;
+          try {
+            const res = await axios.get(url);
+            const payload = res.data || {};
+            remainingSeats.value = payload.remainingSeats ?? 0;
 
-              async function addLink() {
-                console.groupCollapsed("🟪 addLink");
-                console.log("currentDispatchId=", currentDispatchId.value, "newChildDispatchId=", newChildDispatchId.value, "newSeats=", newSeats.value);
-                if (!currentDispatchId.value) { console.warn("❎ 未選主派車單"); alert('請先選擇派車單'); console.groupEnd(); return; }
-                if (!newChildDispatchId.value) { console.warn("❎ 未選子派車單"); alert('請選擇申請單'); console.groupEnd(); return; }
+            const list = payload.apps ?? [];
+            applicantOptions.value = list.map(a => ({
+              dispatchId: a.dispatchId,
+              applyId: a.applyId,
+              origin: a.origin,
+              destination: a.destination,
+              useStart: a.useStart,
+              useEnd: a.useEnd,
+              seats: a.seats,
+              text: `${rocDate(a.useStart)} ${timeSpan(a.useStart, a.useEnd)}｜${a.origin || ''}-${a.destination || ''}｜${a.seats ?? 0} 人`
+            }));
+          } catch (err) {
+            applicantOptions.value = [];
+            remainingSeats.value = 0;
+          }
+        }
 
-                const url = `/api/dispatch/${currentDispatchId.value}/links`;
-                const payload = { dispatchId: newChildDispatchId.value, seats: newSeats.value || null };
-                console.log("POST", url, "\nbody=", payload);
-                try {
-                  await axios.post(url, payload);
-                  console.log("✅ addLink OK");
-                  await Promise.all([loadLinks(), loadDispatchOptions(), reload()]);
-                  newChildDispatchId.value = null;
-                  newSeats.value = null;
-                } catch (err) {
-                  console.error("❌ addLink", httpErr(err));
-                  alert(err?.response?.data ?? "併單失敗");
-                } finally {
-                  console.groupEnd();
-                }
-              }
+
+
+        async function addLink() {
+          if (!currentDispatchId.value || !newChildDispatchId.value) { alert('請先選好母單與子單'); return; }
+          const url = `/api/dispatch/${currentDispatchId.value}/links`;
+          await axios.post(url, newChildDispatchId.value, { headers: { 'Content-Type': 'application/json' } });
+          await Promise.all([loadLinks(), loadDispatchOptions(), reload()]);
+          newChildDispatchId.value = null;
+        }
 
               async function removeLink(dispatchId, applyId) {
                 console.groupCollapsed("🟪 removeLink");
@@ -670,7 +686,7 @@
 
                   const from = isoLocal(app.useStart ?? r.useStart);
                   const to = isoLocal(app.useEnd ?? r.useEnd);
-                  const cap = Number(app.passengerCount ?? r.seats ?? 0);
+                  const cap = Number(app.passengerCount ?? r.seats );
 
                   const [driversRes, vehiclesRes] = await Promise.all([
                     axios.get(`/api/drivers/available`, { params: { from, to } }),
@@ -860,8 +876,8 @@
                 viewing, editing, currentDriver, currentVehicle,
                 selectedDriverId, selectedVehicleId, availDrivers, availVehicles,
                 // 併單
-                showMergeModal, currentDispatchId, mergedApps, newChildDispatchId, newSeats,
-                applicantOptions, currentMainDispatchId, filteredDispatchOptions,hasChildren,
+                showMergeModal, currentDispatchId, mergedApps, newChildDispatchId, 
+                applicantOptions, currentMainDispatchId, filteredDispatchOptions,hasChildren,remainingSeats,
                 // 方法
                 openMergeFor, reload, viewRow, closeView, editRow, confirmEdit, cancelEdit,
                 removeRow, openMergeModal, loadLinks, addLink, removeLink, exportCsv

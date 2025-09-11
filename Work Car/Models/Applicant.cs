@@ -1,18 +1,21 @@
-﻿namespace Cars.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Cars.Models
 {
     public class Applicant
     {
-        public int ApplicantId { get; set; }   // PK
-        public string Name { get; set; }
-        public DateTime? Birth { get; set; }
-        public string Dept { get; set; }
-        public string Ext { get; set; }
-        public string Email { get; set; }
+        [Key]
+        public int ApplicantId { get; set; }    // 主鍵
+        public string Name { get; set; }        // 姓名
+        public DateTime? Birth { get; set; }    // 生日
+        public string Dept { get; set; }        // 部門
+        public string Ext { get; set; }         // 分機
+        public string Email { get; set; }       // 電子郵件
 
-        public int? UserId { get; set; }       // 對應 Users
-        public User User { get; set; }
+        public int? UserId { get; set; }        // 外鍵
+        public User User { get; set; }          // 導覽屬性
 
         //  對應多筆申請單
-        public ICollection<CarApplication> CarApplications { get; set; }
+        public ICollection<CarApplication> CarApplications { get; set; } // 導覽屬性
     }
 }

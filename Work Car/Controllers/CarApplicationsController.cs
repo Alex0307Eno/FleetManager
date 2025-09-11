@@ -147,7 +147,7 @@ namespace Cars.Controllers
                 isLongTrip = model.isLongTrip ? 1 : 0
             });
         }
-        [HttpGet("max-capacity")]
+        [HttpGet("/api/vehicles/max-capacity")]
         public async Task<IActionResult> GetMaxCapacity([FromQuery] DateTime from, [FromQuery] DateTime to)
         {
             if (from == default || to == default || from >= to)
@@ -362,16 +362,16 @@ namespace Cars.Controllers
                     origin = a.Origin,
                     destination = a.Destination,
 
-                    tripType = a.TripType,            // "single" / "round"
-                    singleDistance = a.SingleDistance,      // e.g. "153.5 公里"
-                    roundTripDistance = a.RoundTripDistance,   // e.g. "306.9 公里"
+                    tripType = a.TripType,            
+                    singleDistance = a.SingleDistance,      
+                    roundTripDistance = a.RoundTripDistance,  
 
                     status = a.Status,
                     reasonType = a.ReasonType,
                     applyReason = a.ApplyReason
                 }
             )
-            .OrderByDescending(x => x.useStart)
+            .OrderByDescending(x => x.applyId)
             .ToListAsync();
 
             return Ok(list);
@@ -690,7 +690,6 @@ namespace Cars.Controllers
             // 1) 找此申請單對應、未派車的派工
             var dispatch = await _context.Dispatches
             .Where(d => d.ApplyId == applyId
-            && d.DispatchStatus != "已取消"
             && d.DriverId != null)                 
             .OrderByDescending(d => d.DispatchId)
             .FirstOrDefaultAsync();
