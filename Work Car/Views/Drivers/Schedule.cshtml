@@ -21,10 +21,11 @@
                 <div>民國 {{ rocYear }} 年 {{ month }} 月</div>
                 <button class="btn" @@click="next">＞</button>
 
-                <!-- 每月 / 每週 分段切換 -->
+                <!-- 每月 / 每週 / 每日 分段切換 -->
                 <div class="seg" style="margin-left:12px;">
                     <button class="seg-btn" :class="{active: viewMode==='month'}" @@click="viewMode='month'">每月</button>
                     <button class="seg-btn" :class="{active: viewMode==='week'}" @@click="viewMode='week'">每週</button>
+                    <button class="seg-btn" :class="{active: viewMode==='day'}" @@click="viewMode='day'">每日</button>
                 </div>
                 <div class="toolbar" style="margin-left:auto; display:flex; gap:6px;">
                     <button class="btn btn-warning" @@click="openAgentModal">代理人</button>
@@ -82,89 +83,152 @@
 
                         <!-- 平日才顯示排班 pill（週一=1 ... 週五=5）-->
                         <template v-if="cell.isWeekday">
-                            <div class="pill pill-dark">早・午：{{ getDriverNameByDateShift(cell.jsDate,'AM') }}</div>
-                            <div class="pill">午・晚：{{ getDriverNameByDateShift(cell.jsDate,'PM') }}</div>
-                            <div class="help">● 長差第一順位：{{ getDriverNameByDateShift(cell.jsDate,'G3') }}</div>
+                            <div v-for="(txt,i) in linesFor(cell.jsDate)" :key="i"
+                                 :class="i===2 ? 'help' : 'pill'">
+                                {{ txt.text }}
+                            </div>
                         </template>
+
 
                     </div>
                 </div>
             </div>
 
             <!-- 週檢視：只排 Mon–Fri -->
-            <div class="card-bd" v-else>
-                <table class="table">
+            <div class="card-bd" v-else-if="viewMode==='week'">
+                <table class="table week-grid">
                     <thead>
                         <tr>
-                            <th style="width:80px">時段</th>
-                            <th v-for="(d,i) in weekDays" :key="i">
+                            <th style="width:80px">時間</th>
+                            <th v-for="(d,i) in weekDays" :key="i" :class="{ today: isSameDay(d.jsDate, today) }">
                                 {{ d.label }}<div class="help mono">{{ d.date }}</div>
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- 早午 -->
+                        <!-- 08:00（早・午） -->
+                        <tr>
+                            <th>08:00</th>
+                            <td v-for="(d,i) in weekDays" :key="'am'+i">
+                                <div class="slot slot-dark">
+                                    {{ (linesFor(d.jsDate)[0] || {}).text }}
+                                    <span class="mono cnt">{{ getDisp(d.jsDate,'morning').length }}</span>
+                                </div>
+                                <div v-for="u in getDisp(d.jsDate,'morning')" :key="u.id" class="dotline">
+                                    ● {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- 11:30~13:00（同步顯示 早・午 / 午・晚 標籤 + 午休派工） -->
+                        <tr>
+                            <th>11:30~13:00</th>
+                            <td v-for="(d,i) in weekDays" :key="'noon'+i">
+                                <div class="slot">
+                                    {{ (linesFor(d.jsDate)[0] || {}).text }}
+                                    <span class="mono cnt">{{ getDisp(d.jsDate,'noon').length }}</span>
+                                </div>
+                                <div class="slot">
+                                    {{ (linesFor(d.jsDate)[1] || {}).text }}
+                                </div>
+                                <div v-for="u in getDisp(d.jsDate,'noon')" :key="u.id" class="dotline">
+                                    ● {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                </div>
+                                <div v-for="u in getDisp(d.jsDate,'afternoon')" :key="u.id" class="dotline">
+                                    ● {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- 17:00（午・晚）＋ 下午派工（13:00–16:59）＋ 長差順位；>=17:00 不顯示 -->
+                        <tr>
+                            <th>17:00~</th>
+                            <td v-for="(d,i) in weekDays" :key="'pm'+i">
+                                
+                                <div class="slot slot-dark">
+                                    {{ (linesFor(d.jsDate)[1] || {}).text }}
+                                    <span class="mono cnt">{{ getDisp(d.jsDate,'afternoon').length }}</span>
+                                </div>
+                                
+                                
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- 每日檢視 -->
+            <div class="card-bd day-view" v-else-if="viewMode==='day'">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="width:80px">時段</th>
+                            <th class="today">
+                                {{ today.getMonth()+1 }}/{{ today.getDate() }}
+                                <span class="help mono">{{ ['日','一','二','三','四','五','六'][today.getDay()] }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         <tr>
                             <th>早・午</th>
-                            <td v-for="(d,i) in weekDays" :key="'am'+i">
+                            <td>
                                 <div class="pill pill-dark">
-                                    早・午：{{ getDriverNameByDateShift(d.jsDate,'AM') }}
+                                    A：{{ getDriverNameByDateShift(today,'AM') }}
+                                </div>
+                                <div v-for="u in dayDispatches.filter(x => x.shift==='AM')" :key="u.id" class="help">
+                                    🚗 {{ hhmm(u.start) }}{{ u.driverName || '—' }}
                                 </div>
                             </td>
                         </tr>
-                        <!-- 午晚 -->
+
                         <tr>
                             <th>午・晚</th>
-                            <td v-for="(d,i) in weekDays" :key="'pm'+i">
+                            <td>
                                 <div class="pill">
-                                    午・晚：{{ getDriverNameByDateShift(d.jsDate,'PM') }}
+                                    B：{{ getDriverNameByDateShift(today,'PM') }}
+                                </div>
+                                <div v-for="u in dayDispatches.filter(x => x.shift==='PM')" :key="u.id" class="help">
+                                    🚗 {{ hhmm(u.start) }}{{ u.driverName || '—' }}
                                 </div>
                             </td>
                         </tr>
 
-                        <!-- 一般(1) -->
                         <tr>
                             <th>一般(1)</th>
-                            <td v-for="(d,i) in weekDays" :key="'g1'+i">
-                                <div class="pill">
-                                    值勤：{{ getDriverNameByDateShift(d.jsDate,'G1') }}
-                                </div>
-                                <div class="help">
-                                    ● 長差第一順位：{{ getDriverNameByDateShift(d.jsDate,'G3') }}
+                            <td>
+                                <div class="pill">C：{{ getDriverNameByDateShift(today,'G1') }}</div>
+                                <div v-for="u in dayDispatches.filter(x => x.shift==='G1')" :key="u.id" class="help">
+                                    🚗 {{ hhmm(u.start) }}{{ u.driverName || '—' }}
                                 </div>
                             </td>
                         </tr>
 
-                        <!-- 一般(2) -->
                         <tr>
                             <th>一般(2)</th>
-                            <td v-for="(d,i) in weekDays" :key="'g2'+i">
-                                <div class="pill">
-                                    值勤：{{ getDriverNameByDateShift(d.jsDate,'G2') }}
-                                </div>
-                                <div class="help">
-                                    ● 長差第一順位：{{ getDriverNameByDateShift(d.jsDate,'G3') }}
+                            <td>
+                                <div class="pill">D：{{ getDriverNameByDateShift(today,'G2') }}</div>
+                                <div v-for="u in dayDispatches.filter(x => x.shift==='G2')" :key="u.id" class="help">
+                                    🚗 {{ hhmm(u.start) }}{{ u.driverName || '—' }}
                                 </div>
                             </td>
                         </tr>
 
-                        <!-- 一般(3) -->
                         <tr>
                             <th>一般(3)</th>
-                            <td v-for="(d,i) in weekDays" :key="'g3'+i">
-                                <div class="pill">
-                                    值勤：{{ getDriverNameByDateShift(d.jsDate,'G3') }}
-                                </div>
-                                <div class="help">
-                                    ● 長差第一順位：{{ getDriverNameByDateShift(d.jsDate,'G3') }}
+                            <td>
+                                <div class="pill">E：{{ getDriverNameByDateShift(today,'G3') }}</div>
+                                <div v-for="u in dayDispatches.filter(x => x.shift==='G3')" :key="u.id" class="help">
+                                    🚗 {{ hhmm(u.start) }}{{ u.driverName || '—' }}
                                 </div>
                             </td>
                         </tr>
                     </tbody>
-
                 </table>
             </div>
+
         </section>
+
+
 
         <!-- 右：小月曆 + 班次安排 -->
         <aside class="stack">
@@ -182,9 +246,9 @@
             <div class="card">
                 <div class="card-hd">班次安排</div>
                 <div class="card-bd">
-                    <select v-model="selectedWeek" class="week-select">
-                        <option v-for="(w,idx) in weeksOfMonth" :key="idx" :value="idx">
-                            {{ month }} 月 第 {{ idx+1 }} 週
+                    <select v-model="selectedOption" class="week-select">
+                        <option v-for="opt in optionList" :key="opt.value" :value="opt.value">
+                            {{ opt.label }}
                         </option>
                     </select>
 
@@ -209,7 +273,12 @@
 
 
                     <div style="text-align:right; margin-top:10px;">
-                        <button class="btn btn-primary">確定</button>
+                        <button class="btn btn-primary"
+                                :disabled="isConfirmDisabled"
+                                :title="isConfirmDisabled ? '請切換到「日」視圖再確認' : '確認送出'"
+                                @@click="applyAssignments">
+                            確認
+                        </button>
                     </div>
                 </div>
             </div>
@@ -218,7 +287,7 @@
 </div>
 
 <script>
-    const { createApp, ref, reactive, computed, onMounted } = Vue;
+    const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
     createApp({
       setup() {
@@ -230,13 +299,94 @@
         const schedules = ref([]); // 班表清單
         const agentModalOpen = ref(false);
         const agents = ref([]);
+        const viewMode = ref('month');
+        const selectedOption = ref(null);
+        const dayDispatches = ref([]); //日派工用車資料
+        const weekDispatches = ref({}); //週派工用車資料
+        const isConfirmDisabled = computed(() => ['week','month'].includes(viewMode.value));
+        const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+        // 固定代號 → 姓名
+        const NAME_OF = { A: '邱OO', B: '黃OO', C: '王OO', D: '吳OO', E: '林OO' };
+       // 長差第一順位對應
+        const LONG_TRIP_ORDER = {
+          1: 'E - 林OO',   // 週一
+          2: 'B - 黃OO',   // 週二
+          3: 'D - 吳OO',   // 週三
+          4: 'A - 邱OO',   // 週四
+          5: 'C - 王OO'    // 週五
+        };
+
+          function linesFor(dateStr) {
+      const d = new Date(dateStr);
+      const wd = d.getDay(); // 0=Sun,1=Mon,...,6=Sat
+
+      switch (wd) {
+        case 1: // 週一
+          return [
+            { type:'am', text:`A - ${NAME_OF.A}（早、午）` },
+            { type:'pm', text:`B - ${NAME_OF.B}（午、晚）` },
+            { type:'long', text:`長差第一順位：${LONG_TRIP_ORDER[1]}` }
+          ];
+        case 2: // 週二
+          return [
+            { type:'am', text:`C - ${NAME_OF.C}（早、午）` },
+            { type:'pm', text:`D - ${NAME_OF.D}（午、晚）` },
+            { type:'long', text:`長差第一順位：${LONG_TRIP_ORDER[2]}` }
+          ];
+        case 3: // 週三
+          return [
+            { type:'am', text:`E - ${NAME_OF.E}（早、午）` },
+            { type:'pm', text:`A - ${NAME_OF.A}（午、晚）` },
+            { type:'long', text:`長差第一順位：${LONG_TRIP_ORDER[3]}` }
+          ];
+        case 4: // 週四
+          return [
+            { type:'am', text:`B - ${NAME_OF.B}（早、午）` },
+            { type:'pm', text:`C - ${NAME_OF.C}（午、晚）` },
+            { type:'long', text:`長差第一順位：${LONG_TRIP_ORDER[4]}` }
+          ];
+        case 5: // 週五
+          return [
+            { type:'am', text:`D - ${NAME_OF.D}（早、午）` },
+            { type:'pm', text:`E - ${NAME_OF.E}（午、晚）` },
+            { type:'long', text:`長差第一順位：${LONG_TRIP_ORDER[5]}` }
+          ];
+        default: // 六日
+          return [];
+      }
+    }
+                 // 週檢視
+       const weeksOfMonth = computed(() => {
+          const res = [];
+          const year = yearAD.value;
+          const m = month.value - 1;
+          let d = new Date(year, m, 1);
+          const dow = (d.getDay() + 6) % 7; // 以週一為起點
+          d.setDate(d.getDate() - dow);
+
+          while (true) {
+            const start = startOfDay(d);
+            const fri = new Date(start); fri.setDate(fri.getDate() + 4);
+            const end = endOfDay(fri); // 週五的 23:59:59.999
+
+            if (start.getMonth() === m || end.getMonth() === m) {
+              res.push([start, end]);
+            }
+            d.setDate(d.getDate() + 7);
+            if (d.getMonth() > m && d.getDate() >= 7) break;
+          }
+          return res;
+        });
+        // 班次對應
         const assign = reactive({
-           A: null,
-           B: null,
-           C: null,
-           D: null,
-           E: null
+              A: { driverId: 1, shifts: [] },
+              B: { driverId: 2, shifts: [] },
+              C: { driverId: 3, shifts: [] },
+              D: { driverId: 4, shifts: [] },
+              E: { driverId: 5, shifts: [] }
          });
+
         const shiftMap = {
            AM: "A",
            PM: "B",
@@ -244,6 +394,8 @@
            G2: "D",
            G3: "E"
     };
+
+
 
          function initTodayAssign() {
       const todayStr = new Date().toISOString().slice(0,10); // yyyy-MM-dd
@@ -256,13 +408,224 @@
         }
       });
     }
-        const allCandidates = computed(() => {
-      // 把駕駛和代理人合併，並加上 role 區分
+        // 月/週/日 切換用的上一個 / 下一個
+           function prev() {
+      if (viewMode.value === 'month') {
+        month.value = month.value > 1 ? month.value - 1 : 12;
+        loadSchedules();
+      } else if (viewMode.value === 'week') {
+        const cur = Number(weekIndex.value);
+        if (cur > 0) {
+          selectedOption.value = cur - 1;
+        } else {
+          month.value = month.value > 1 ? month.value - 1 : 12;
+          loadSchedules();
+          nextTick(() => { selectedOption.value = weeksOfMonth.value.length - 1; });
+        }
+      } else if (viewMode.value === 'day') {
+        // 往前一天，並處理跨月同步
+        today.setDate(today.getDate() - 1);
+        month.value = today.getMonth() + 1;
+        selectedOption.value = today.getDate();
+        loadSchedules();
+      }
+    }
+
+    function next() {
+      if (viewMode.value === 'month') {
+        month.value = month.value < 12 ? month.value + 1 : 1;
+        loadSchedules();
+      } else if (viewMode.value === 'week') {
+        const cur = Number(weekIndex.value);
+        const last = weeksOfMonth.value.length - 1;
+        if (cur < last) {
+          selectedOption.value = cur + 1;
+        } else {
+          month.value = month.value < 12 ? month.value + 1 : 1;
+          loadSchedules();
+          nextTick(() => { selectedOption.value = 0; });
+        }
+      } else if (viewMode.value === 'day') {
+        today.setDate(today.getDate() + 1);
+        month.value = today.getMonth() + 1;
+        selectedOption.value = today.getDate();
+        loadSchedules();
+      }
+    }
+        // 僅平日
+    const isWeekdayDate = (d) => {
+      const dow = d.getDay();
+      return dow >= 1 && dow <= 5;
+    };
+
+    // 依當前檢視 & 下拉選擇，算出要套用的日期清單
+    function buildTargetDates() {
+      const y = yearAD.value;
+
+      if (viewMode.value === 'month') {
+        const m = Number(selectedOption.value || month.value);
+        const dim = new Date(y, m, 0).getDate();
+        const dates = [];
+        for (let d = 1; d <= dim; d++) {
+          const dt = new Date(y, m - 1, d);
+          if (isWeekdayDate(dt)) dates.push(dt);
+        }
+        return dates;
+      }
+
+      if (viewMode.value === 'week') {
+        const idx = Number(selectedOption.value ?? 0);
+        const w = weeksOfMonth.value[idx];
+        if (!w) return [];
+        const dates = [];
+        let d = new Date(w[0]); // 週一
+        for (let i = 0; i < 5; i++) {
+          dates.push(new Date(d));
+          d.setDate(d.getDate() + 1);
+        }
+        return dates;
+      }
+
+      // day
+      const dd = Number(selectedOption.value || today.getDate());
+      const dt = new Date(y, month.value - 1, dd);
+      return isWeekdayDate(dt) ? [dt] : []; // 假日就不送
+    }
+
+    // 將 A~E 轉成後端要的 AM/PM/G1/G2/G3
+        const toDriverId = (v) => {
+      if (v == null) return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+        // 日期轉 yyyy-MM-dd
+        function toYMD(d){
+      const pad = n => String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+                const hhmm = (dt) => {
+      const x = new Date(dt);
+      const h = String(x.getHours()).padStart(2,'0');
+      const m = String(x.getMinutes()).padStart(2,'0');
+      return `${h}:${m}`;
+    };
+    const minuteOfDay = (dt) => {
+      const x = new Date(dt);
+      return x.getHours()*60 + x.getMinutes();
+    };
+
+    async function applyAssignments() {
+      const dates = buildTargetDates();
+      if (!dates.length) {
+        alert('沒有可套用的日期（可能是週末/假日）');
+        return;
+      }
+
+      const payload = { 
+        dates: dates.map(d => toYMD(d)),
+        assign: {
+            A: toDriverId(assign.A),
+            B: toDriverId(assign.B),
+            C: toDriverId(assign.C),
+            D: toDriverId(assign.D),
+            E: toDriverId(assign.E),
+        }
+      };
+    console.log('[BulkSet] viewMode =', viewMode.value);
+    console.log('[BulkSet] selectedOption =', selectedOption?.value ?? selectedOption);
+    console.log('[BulkSet] month =', month.value, 'yearAD =', yearAD.value);
+    console.log('[BulkSet] dates =', payload.dates);           // 會列出要套用到哪些日期
+    console.log('[BulkSet] assign(A..E raw) =', JSON.parse(JSON.stringify(assign)));
+    console.log('[BulkSet] payload =', payload);
+
+     try {
+      const res = await axios.post('/Drivers/Schedule/BulkSet', payload);
+      console.log('[BulkSet] success, changes =', res.data);
+
+      if (res.data && res.data.length > 0) {
+        const msg = res.data.map(c =>
+          `${c.date} [${c.shift}] ${c.oldDriver ?? '—'} → ${c.newDriver ?? '—'}`
+        ).join('\n');
+
+        alert("已修改班表：\n" + msg);
+      } else {
+        alert("沒有任何變更");
+      }
+
+      await loadSchedules();
+    } catch (err) {
+      const status = err?.response?.status;
+      const data   = err?.response?.data;
+      console.error('[BulkSet] failed:', status, data, err);
+      alert(`批次套用失敗：${status ?? ''} ${data ?? ''}`);
+    }
+
+
+};
+        // 找出某一天屬於本月的第幾週（以週一~週五為一週，weeksOfMonth 已經這樣切）
+    const findWeekIndexOf = (d) => {
+      const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const w = weeksOfMonth.value;
+      for (let i = 0; i < w.length; i++) {
+        if (t0 >= w[i][0].getTime() && t0 <= w[i][1].getTime()) return i;
+      }
+      return 0;
+    };
+
+        // 下拉選項
+    const optionList = computed(() => {
+      if (viewMode.value === 'month') {
+        return Array.from({ length: 12 }, (_, i) => ({
+          value: i + 1,
+          label: ` ${i + 1} 月`
+        }));
+      }
+      if (viewMode.value === 'week') {
+        return weeksOfMonth.value.map((_, idx) => ({
+          value: idx,
+          label: ` ${month.value} 月 第 ${idx + 1} 週`
+        }));
+      }
+      if (viewMode.value === 'day') {
+        return Array.from({ length: daysInMonth.value }, (_, i) => ({
+          value: i + 1,
+          label: ` ${month.value} / ${i + 1} `
+        }));
+      }
+      return [];
+    });
+
+        // 目前週的 index（只有在週檢視時才會用到）
+    const weekIndex = computed(() => {
+      if (viewMode.value !== 'week') return -1;
+      const n = Number(selectedOption.value);
+      return Number.isInteger(n) ? n : findWeekIndexOf(today);
+    });
+
+    // 週檢視要畫的五天（Mon–Fri）
+    const weekDays = computed(() => {
+      const w = weeksOfMonth.value[weekIndex.value];
+      if (!w) return [];
+      const days = [];
+      let d = new Date(w[0]);             // 週一
+      for (let i = 0; i < 5; i++) {
+        days.push({
+          label: ['週一','週二','週三','週四','週五'][i],
+          date: `${d.getMonth() + 1}/${d.getDate()}`,
+          jsDate: new Date(d)
+        });
+        d.setDate(d.getDate() + 1);
+      }
+      return days;
+    });
+
+           const allCandidates = computed(() => {
       return [
         ...(drivers.value || []).map(d => ({ id: d.driverId, name: d.driverName, role: "駕駛" })),
-        ...(agents.value  || []).map(a => ({ id: "A-" + a.id, name: a.name, role: "代理人" })) // 加前綴避免 id 撞到
+        ...(agents.value  || []).map(a => ({ id: a.driverId, name: a.name, role: "代理人" }))
       ];
     });
+
 
 
         // 從 DB 撈代理人
@@ -286,6 +649,40 @@
         console.error("讀取駕駛失敗:", err);
       }
     }
+    //代理人資料
+        async function loadAgents() {
+      const res = await axios.get('/Agents/profiles');
+      agents.value = res.data || [];
+    }
+
+
+        // 防呆的日期相等判斷
+        const isSameDay = (a, b) => {
+      const da = new Date(a);
+      const db = new Date(b);
+      return (
+        da.getFullYear() === db.getFullYear() &&
+        da.getMonth() === db.getMonth() &&
+        da.getDate() === db.getDate()
+      );
+    };
+    
+
+    // 根據今天自動選到正確週次
+    function setTodayWeek() {
+      const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+      const w = weeksOfMonth.value;
+      for (let i = 0; i < w.length; i++) {
+        if (today0 >= w[i][0].getTime() && today0 <= w[i][1].getTime()) {
+          selectedOption.value = i;   // 每週模式時使用
+          return;
+        }
+      }
+    }
+
+
+  
+
     //班表資料
     async function loadSchedules() {
       try {
@@ -318,6 +715,68 @@
       return drv ? drv.driverName : '—';
     }
 
+        // 讀某一天的已核准用車清單
+       async function loadDayDispatches() {
+      try {
+        const res = await axios.get('/Drivers/Schedule/DayDispatches', {
+          params: { date: today.toISOString().slice(0,10) }
+        });
+        dayDispatches.value = res.data;
+      } catch (err) {
+        console.error("讀取當日派車失敗:", err);
+      }
+    }
+
+        // 依日期與區段取當天的派工清單
+    function getDisp(jsDate, bucket){
+      const key = toYMD(jsDate);
+      const list = weekDispatches.value[key] || [];
+      switch(bucket){
+        case 'morning':   // < 11:30
+          return list.filter(u => minuteOfDay(u.start) < 690);
+        case 'noon':      // 11:30 ~ 12:59
+          return list.filter(u => {
+            const m = minuteOfDay(u.start);
+            return m >= 690 && m < 780;
+          });
+        case 'afternoon': // 13:00 ~ 16:59
+          return list.filter(u => {
+            const m = minuteOfDay(u.start);
+            return m >= 780 && m < 1020;
+          });
+        case 'evening':   // >= 17:00
+          return list.filter(u => minuteOfDay(u.start) >= 1020);
+        default:
+          return list;
+      }
+    }
+
+    // 讀取目前週一到週五的派工
+    async function loadWeekDispatches(){
+      const days = weekDays.value || [];
+      if (!days.length) return;
+
+      const reqs = days.map(d => {
+        const date = toYMD(d.jsDate);
+        return axios.get('/Drivers/Schedule/DayDispatches', { params: { date } })
+          .then(r => ({ date, rows: r.data || [] }))
+          .catch(() => ({ date, rows: [] }));
+      });
+
+      const all = await Promise.all(reqs);
+      const map = {};
+      for (const it of all) map[it.date] = it.rows;
+      weekDispatches.value = map;
+    }
+
+    // 週天數變動或切到「每週」就撈資料
+    watch(weekDays, () => {
+      if (viewMode.value === 'week') loadWeekDispatches();
+    }, { immediate: true });
+
+    watch(viewMode, (m) => {
+      if (m === 'week') loadWeekDispatches();
+    });
 
 
 
@@ -357,7 +816,7 @@
         arr.push({
           d,
           jsDate,                 
-          isToday: isToday(d),
+          isToday: isSameDay(jsDate, today),
           isWeekday: dow >= 1 && dow <= 5
         });
       }
@@ -370,125 +829,36 @@
       return arr;
     });
 
-
-        // 週檢視
-        const weeksOfMonth = computed(() => {
-          const res = [];
-          const year = yearAD.value;
-          const m = month.value - 1;
-          let d = new Date(year, m, 1);
-          const dow = (d.getDay() + 6) % 7;
-          d.setDate(d.getDate() - dow);
-
-          while (true) {
-            const start = new Date(d);
-            const end = new Date(d); end.setDate(d.getDate() + 4);
-            if (start.getMonth() === m || end.getMonth() === m) {
-              res.push([start, end]);
-            }
-            d.setDate(d.getDate() + 7);
-            if (d.getMonth() > m && d.getDate() >= 7) break;
-          }
-          return res;
-        });
-
-        const selectedWeek = ref(0);
-        (() => {
-          const w = weeksOfMonth.value;
-          for (let i = 0; i < w.length; i++) {
-            if (today >= w[i][0] && today <= w[i][1]) {
-              selectedWeek.value = i; break;
-            }
-          }
-        })();
-
-        const weekDays = computed(() => {
-          const w = weeksOfMonth.value[selectedWeek.value];
-          if (!w) return [];
-          const days = [];
-          let d = new Date(w[0]);
-          for (let i = 0; i < 5; i++) {
-            days.push({
-              label: ['週一','週二','週三','週四','週五'][i],
-              date: `${d.getMonth() + 1}/${d.getDate()}`,
-              jsDate: new Date(d)
-            });
-            d.setDate(d.getDate() + 1);
-          }
-          return days;
-        });
-
-        // 月/週切換
-        const viewMode = ref('month');
-        function prev() {
-          if (viewMode.value === 'month') {
-            month.value = month.value > 1 ? month.value - 1 : 12;
-          } else {
-            if (selectedWeek.value > 0) {
-              selectedWeek.value--;
-            } else {
-              month.value = month.value > 1 ? month.value - 1 : 12;
-              Vue.nextTick(() => {
-                selectedWeek.value = weeksOfMonth.value.length - 1;
-              });
-            }
-          }
-          loadSchedules();
-        }
-        function next() {
-          if (viewMode.value === 'month') {
-            month.value = month.value < 12 ? month.value + 1 : 1;
-          } else {
-            if (selectedWeek.value < weeksOfMonth.value.length - 1) {
-              selectedWeek.value++;
-            } else {
-              month.value = month.value < 12 ? month.value + 1 : 1;
-              Vue.nextTick(() => {
-                selectedWeek.value = 0;
-              });
-            }
-          }
-          loadSchedules();
-        }
+        
+       
 
         // 匯出 CSV (保持不變)
-            const exportCSV = () => {
-      // 小工具
+    const exportCSV = () => {
       const pad = n => String(n).padStart(2, '0');
       const dowName = i => ['週日','週一','週二','週三','週四','週五','週六'][i];
       const Q = s => `"${String(s ?? '').replaceAll('"','""')}"`;
-
-      // 要輸出的欄位
       const headers = ['日期','星期','早・午','午・晚','一般(1)','一般(2)','一般(3)','長差第一順位'];
 
-      // 依檢視模式決定匯出的日期清單
-      let dates = [];
+      // 根據檢視模式組日期清單
+      const dates = [];
       if (viewMode.value === 'month') {
-        const y = yearAD.value;
-        const m = month.value;
-        const daysInThisMonth = new Date(y, m, 0).getDate();
-        for (let d = 1; d <= daysInThisMonth; d++) {
-          dates.push(new Date(y, m - 1, d));
-        }
-      } else {
-        const w = weeksOfMonth.value[selectedWeek.value];
-        if (!w) {
-          alert('目前沒有可匯出的週次');
-          return;
-        }
-        let d = new Date(w[0]); // 週一
-        for (let i = 0; i < 5; i++) {
-          dates.push(new Date(d));
-          d.setDate(d.getDate() + 1);
-        }
+        const y = yearAD.value, m = month.value;
+        const dim = new Date(y, m, 0).getDate();
+        for (let d = 1; d <= dim; d++) dates.push(new Date(y, m - 1, d));
+      } else if (viewMode.value === 'week') {
+        const w = weeksOfMonth.value[weekIndex.value];
+        if (!w) { alert('目前沒有可匯出的週次'); return; }
+        let d = new Date(w[0]);
+        for (let i = 0; i < 5; i++) { dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
+      } else if (viewMode.value === 'day') {
+        dates.push(new Date(yearAD.value, month.value - 1, Number(selectedOption.value)));
       }
 
       // 只輸出平日
       const rows = [];
       for (const dt of dates) {
         const dow = dt.getDay();
-        if (dow < 1 || dow > 5) continue; // 只要週一～週五
-
+        if (dow < 1 || dow > 5) continue;
         rows.push({
           date: `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`,
           dow: dowName(dow),
@@ -497,31 +867,22 @@
           g1:   getDriverNameByDateShift(dt,'G1'),
           g2:   getDriverNameByDateShift(dt,'G2'),
           g3:   getDriverNameByDateShift(dt,'G3'),
-          long: getDriverNameByDateShift(dt,'G3') // 長差 = G3
+          long: getDriverNameByDateShift(dt,'G3'),
         });
       }
+      if (!rows.length) { alert('目前沒有可匯出的資料'); return; }
 
-      if (!rows.length) {
-        alert('目前沒有可匯出的資料');
-        return;
-      }
-
-      // 轉 CSV
-      const lines = rows.map(r => [
-        r.date, r.dow, r.am, r.pm, r.g1, r.g2, r.g3, r.long
-      ].map(Q).join(','));
-
+      const lines = rows.map(r => [r.date,r.dow,r.am,r.pm,r.g1,r.g2,r.g3,r.long].map(Q).join(','));
       const bom = '\uFEFF';
       const csv = [headers.join(','), ...lines].join('\r\n');
       const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
 
-      // 檔名
       const fileName = (() => {
         const yRoc = rocYear;
         const mStr = pad(month.value);
-        return viewMode.value === 'month'
-          ? `排班表_民國${yRoc}年${mStr}月.csv`
-          : `排班表_民國${yRoc}年${mStr}月_第${selectedWeek.value+1}週.csv`;
+        if (viewMode.value === 'month') return `排班表_民國${yRoc}年${mStr}月.csv`;
+        if (viewMode.value === 'week')  return `排班表_民國${yRoc}年${mStr}月_第${Number(weekIndex.value)+1}週.csv`;
+        return `排班表_民國${yRoc}年${mStr}月_${selectedOption.value}日.csv`;
       })();
 
       if (window.navigator && window.navigator.msSaveOrOpenBlob) {
@@ -529,33 +890,116 @@
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
       }
     };
+            function syncSelection() {
+      if (viewMode.value === 'month') {
+        selectedOption.value = month.value;          // 當月
+      } else if (viewMode.value === 'week') {
+        selectedOption.value = findWeekIndexOf(today); // 今天所在週
+      } else if (viewMode.value === 'day') {
+        selectedOption.value = today.getDate();      // 今天
+      }
+    }
 
 
-        onMounted(() => {
-          loadDrivers();
-          loadSchedules().then(() => {
+      onMounted(async () => {
+        await loadDrivers();
+        await loadAgents();
+        await loadSchedules();
+        await loadDayDispatches();
+
         initTodayAssign();
+
+        await nextTick();
+        syncSelection();
+
+         if (viewMode.value === 'month') {
+          selectedOption.value = month.value;
+        } else if (viewMode.value === 'week') {
+          const todayTime = today.getTime();
+          const idx = weeksOfMonth.value.findIndex(([s, e]) =>
+            todayTime >= s.getTime() && todayTime <= e.getTime()
+          );
+          selectedOption.value = idx !== -1 ? idx : 0;
+        } else if (viewMode.value === 'day') {
+          selectedOption.value = today.getDate();
+        }
+         
         });
+            // 切換檢視 → 重新帶入正確的預設
+    watch(viewMode, () => {
+      syncSelection();
     });
 
-           return {
+    // 換月/重算週/當月天數變動 → 重新帶入
+    watch([month, weeksOfMonth, daysInMonth], () => {
+      syncSelection();
+    });
+         watch(selectedOption, (val) => {
+      if (viewMode.value === 'month') {
+        const m = Number(val);
+        if (m >= 1 && m <= 12) {
+          month.value = m;
+          loadSchedules();
+        }
+      } else if (viewMode.value === 'week') {
+        // 週直接用選到的 index，weekDays 會自動重算
+        // 不需額外處理
+      } else if (viewMode.value === 'day') {
+        // 不要重新指派 today（它是 const），請用 setFullYear 變更
+        today.setFullYear(yearAD.value, month.value - 1, Number(val));
+        loadSchedules();
+      }
+    });
+
+        watch(assign, (newVal, oldVal) => {
+      // 取出所有已選的駕駛（排除 null 與代理人）
+      const chosenDrivers = Object.values(newVal).filter(id => {
+        if (id == null) return false;
+        return typeof id === "number";
+      });
+
+      // 檢查是否有重複的駕駛
+      const seen = new Set();
+      for (const key of ["A","B","C","D","E"]) {
+        const id = newVal[key];
+        if (id == null) continue;
+        if (typeof id !== "number") continue; // 代理人不檢查
+
+        if (seen.has(id)) {
+          // 重複了 → 自動改成一個未被使用的駕駛
+          const available = drivers.value
+            .map(d => d.driverId)
+            .filter(did => !chosenDrivers.includes(did)); // 找沒被選過的
+
+          if (available.length > 0) {
+            assign[key] = available[0];  // 塞第一個可用的
+          } else {
+            assign[key] = null; // 沒人可用就清空
+          }
+        } else {
+          seen.add(id);
+        }
+      }
+    }, { deep: true });
+
+
+
+
+    return {
       // === 基本年月與檢視狀態 ===
-      rocYear, month,yearAD,viewMode, 
+      today, rocYear, month,yearAD,selectedOption,optionList, weeksOfMonth,weekIndex,isSameDay, setTodayWeek,viewMode,toYMD,
       // === 代理人相關 ===
       agentModalOpen,agents,openAgentModal, 
       // === 駕駛與班表資料 ===
-      drivers,schedules,loadSchedules, getDriverNameByDateShift,assign,allCandidates,
-      // === 月曆/週曆輔助 ===
-      daysInMonth,firstWeekday,isToday,monthGrid, weeksOfMonth,selectedWeek, weekDays,      
-      // === 工具方法 ===
+       drivers,schedules,loadSchedules, getDriverNameByDateShift,assign,allCandidates,isConfirmDisabled,dayDispatches,
+          // === 月曆/週曆輔助 ===
+           daysInMonth,firstWeekday,isToday,monthGrid, weekDays,applyAssignments,hhmm,loadDayDispatches,getDisp,loadWeekDispatches,linesFor,
+          // === 工具方法 ===
       getDriverName, prev, next, exportCSV 
     };
 

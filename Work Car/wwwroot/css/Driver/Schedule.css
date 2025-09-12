@@ -49,6 +49,46 @@
     color: #111
 }
 
+.day-block {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pill {
+    background: #4b5563;
+    color: #fff;
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.week-grid .slot {
+    background: #f3f3f3;
+    border-radius: 4px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.week-grid .slot-dark {
+    background: #555;
+    color: #fff;
+}
+
+.week-grid .dotline {
+    padding: 2px 2px 2px 0;
+    white-space: nowrap;
+}
+
+.week-grid .cnt {
+    margin-left: 6px;
+    opacity: .8;
+}
+
 /* ===== Modal 樣式 ===== */
 .modal-mask {
     position: fixed;
@@ -358,4 +398,30 @@ select {
 .week-select {
     width: 100%
 }
+
+.day-hd.today span {
+    color: blue;
+    font-weight: bold;
+}
+
+.mini-cell.today {
+    color: blue;
+    font-weight: bold;
+}
+/* 週檢視表頭：今天 */
+.table th.today {
+    color: blue;
+    font-weight: 700;
+}
+
+.table > :not(:last-child) > :last-child > * {
+    border-bottom-color: black;
+}
+/* 每日檢視置中 */
+.day-view th,
+.day-view td {
+    text-align: center;
+    vertical-align: middle; /* 上下置中 */
+}
+
 

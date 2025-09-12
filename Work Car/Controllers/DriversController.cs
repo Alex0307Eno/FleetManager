@@ -45,6 +45,193 @@ namespace Cars.Controllers
         }
         #endregion
 
+        #region 更新班表
+
+        // DTO
+        public class BulkSetDto
+        {
+            public List<DateTime> Dates { get; set; } = new();  // 要套用的日期清單（日期即可）
+            public PersonAssign Assign { get; set; } = new();    // A~E 對應 AM/PM/G1/G2/G3
+        }
+        public class PersonAssign
+        {
+            public int? A { get; set; }  // 人
+            public int? B { get; set; }
+            public int? C { get; set; }
+            public int? D { get; set; }
+            public int? E { get; set; }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Schedule/BulkSet")]
+        public async Task<IActionResult> BulkSet([FromBody] BulkSetDto dto)
+        {
+            if (dto == null || dto.Dates == null || dto.Dates.Count == 0)
+                return BadRequest("沒有日期");
+
+            var map = new Dictionary<string, int?>
+            {
+                ["AM"] = dto.Assign.A,  // A 對應 AM
+                ["PM"] = dto.Assign.B,  // B 對應 PM
+                ["G1"] = dto.Assign.C,  // C 對應 G1
+                ["G2"] = dto.Assign.D,  // D 對應 G2
+                ["G3"] = dto.Assign.E   // E 對應 G3
+            };
+
+            // 取出所有 DriverId（允許重複，用於檢查是否重複）
+            var driverIds = map.Values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
+
+            // === 檢查是否重複 ===
+            var duplicates = driverIds
+                .GroupBy(id => id)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicates.Any())
+            {
+                return BadRequest("同一天不能指定同一位駕駛到多個班別：" + string.Join(",", duplicates));
+            }
+
+            // === 驗證是否存在於 Drivers 表 ===
+            if (driverIds.Count > 0)
+            {
+                var valid = await _db.Drivers
+                    .Where(d => driverIds.Contains(d.DriverId))
+                    .Select(d => d.DriverId)
+                    .ToListAsync();
+
+                var invalid = driverIds.Except(valid).ToList();
+                if (invalid.Any())
+                    return BadRequest("含無效 DriverId：" + string.Join(",", invalid));
+            }
+
+            var changes = new List<object>();
+
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                foreach (var d0 in dto.Dates.Select(x => x.Date).Distinct())
+                {
+                    foreach (var kv in map)
+                    {
+                        var shift = kv.Key;
+                        var driverId = kv.Value;
+
+                        var existing = await _db.Schedules
+                            .FirstOrDefaultAsync(s => s.WorkDate.Date == d0 && s.Shift == shift);
+                        // 先撈一張 DriverId → DriverName 的字典
+                        var driverDict = await _db.Drivers
+                            .AsNoTracking()
+                            .ToDictionaryAsync(d => d.DriverId, d => d.DriverName);
+                        if (driverId.HasValue)
+                        {
+                            if (existing != null)
+                            {
+                                if (existing.DriverId != driverId.Value)
+                                {
+                                    // 更新
+                                    changes.Add(new
+                                    {
+                                        Date = d0.ToString("yyyy-MM-dd"),
+                                        Shift = shift,
+                                        OldDriver = existing != null && driverDict.ContainsKey(existing.DriverId)
+                                        ? driverDict[existing.DriverId] : null,
+                                        NewDriver = driverId.HasValue && driverDict.ContainsKey(driverId.Value)
+                                        ? driverDict[driverId.Value] : null,
+                                        Action = "Update"
+                                    });
+
+
+                                    existing.DriverId = driverId.Value;
+                                    existing.IsPresent = true;
+                                    _db.Schedules.Update(existing);
+                                }
+                            }
+                            else
+                            {
+                                // 新增
+                                _db.Schedules.Add(new Schedule
+                                {
+                                    WorkDate = d0,
+                                    Shift = shift,
+                                    DriverId = driverId.Value,
+                                    IsPresent = true
+                                });
+
+                                changes.Add(new
+                                {
+                                    Date = d0.ToString("yyyy-MM-dd"),
+                                    Shift = shift,
+                                    OldDriver = (int?)null,
+                                    NewDriver = driverId.Value,
+                                    Action = "Insert"
+                                });
+                            }
+                        }
+                        else
+                        {
+                            if (existing != null)
+                            {
+                                _db.Schedules.Remove(existing);
+
+                                changes.Add(new
+                                {
+                                    Date = d0.ToString("yyyy-MM-dd"),
+                                    Shift = shift,
+                                    OldDriver = existing.DriverId,
+                                    NewDriver = (int?)null,
+                                    Action = "Delete"
+                                });
+                            }
+                        }
+                    }
+                }
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                // 把變更回傳給前端
+                return Json(changes);
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+
+        }
+
+        #endregion
+
+        #region 寫入派工至班表
+        // 取得某一天已核准的用車（派工）清單
+        [HttpGet("Schedule/DayDispatches")]
+        public async Task<IActionResult> DayDispatches(DateTime date)
+        {
+            var start = date.Date;
+            var end = start.AddDays(1);
+
+            var list = await _db.Dispatches
+                .Include(d => d.Driver)
+                .Where(d => d.StartTime >= start && d.StartTime < end)
+                .OrderBy(d => d.StartTime)
+                .Select(d => new
+                {
+                    id = d.DispatchId,
+                    driverId = d.DriverId,
+                    driverName = d.Driver != null ? d.Driver.DriverName : null,
+                    start = d.StartTime,
+                    end = d.EndTime,
+                    shift = d.StartTime.Value.Hour < 12 ? "AM" : "PM" // 先簡單切早午
+                                                                
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        #endregion
 
 
         #region 司機基本資料與出勤狀況
@@ -118,52 +305,52 @@ namespace Cars.Controllers
                         d.PrincipalDriverId == dto.DriverId &&
                         d.StartDate.Date <= today && today <= d.EndDate.Date);
 
-                if (!dto.IsPresent)
-                {
-                    // 3) 自動挑選可用的「代理司機」（回傳的是 Drivers.DriverId）
-                    var agentDriverId = await PickAutoAgent(dto.DriverId, sched.Shift, today);
-                    if (agentDriverId == 0)
-                        return StatusCode(409, "沒有可用的代理人");
-                    if (agentDriverId == dto.DriverId)
-                        return StatusCode(409, "代理人不可與本人相同");
+                //if (!dto.IsPresent)
+                //{
+                //    // 3) 自動挑選可用的「代理司機」（回傳的是 Drivers.DriverId）
+                //    var agentDriverId = await PickAutoAgent(dto.DriverId, sched.Shift, today);
+                //    if (agentDriverId == 0)
+                //        return StatusCode(409, "沒有可用的代理人");
+                //    if (agentDriverId == dto.DriverId)
+                //        return StatusCode(409, "代理人不可與本人相同");
 
-                    var isAgent = await _db.Drivers
-                     .Where(x => x.DriverId == agentDriverId)
-                     .Select(x => x.IsAgent)
-                     .FirstOrDefaultAsync();
+                //    var isAgent = await _db.Drivers
+                //     .Where(x => x.DriverId == agentDriverId)
+                //     .Select(x => x.IsAgent)
+                //     .FirstOrDefaultAsync();
 
-                    if (!isAgent)
-                        return StatusCode(409, "所選代理人不是代理人員（IsAgent=false）");
+                //    if (!isAgent)
+                //        return StatusCode(409, "所選代理人不是代理人員（IsAgent=false）");
 
 
-                    // 4) Upsert 今天的代理關係（⚠️ 寫入 AgentDriverId）
-                    if (existing == null)
-                    {
-                        _db.DriverDelegations.Add(new DriverDelegation
-                        {
+                //    // 4) Upsert 今天的代理關係（⚠️ 寫入 AgentDriverId）
+                //    if (existing == null)
+                //    {
+                //        _db.DriverDelegations.Add(new DriverDelegation
+                //        {
                             
-                            PrincipalDriverId = dto.DriverId,
-                            AgentDriverId = agentDriverId,                   
-                            StartDate = today,
-                            EndDate = today,
-                            Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason
-                        });
-                    }
-                    else
-                    {
-                        existing.AgentDriverId = agentDriverId;               
-                        existing.Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason;
-                        existing.StartDate = today;
-                        existing.EndDate = today;
-                        _db.DriverDelegations.Update(existing);
-                    }
-                }
-                else
-                {
-                    // 5) 取消請假 → 移除當天代理（若你允許跨天可改成只縮短日期）
-                    if (existing != null)
-                        _db.DriverDelegations.Remove(existing);
-                }
+                //            PrincipalDriverId = dto.DriverId,
+                //            AgentDriverId = agentDriverId,                   
+                //            StartDate = today,
+                //            EndDate = today,
+                //            Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason
+                //        });
+                //    }
+                //    else
+                //    {
+                //        existing.AgentDriverId = agentDriverId;               
+                //        existing.Reason = string.IsNullOrWhiteSpace(dto.Reason) ? "系統自動指派" : dto.Reason;
+                //        existing.StartDate = today;
+                //        existing.EndDate = today;
+                //        _db.DriverDelegations.Update(existing);
+                //    }
+                //}
+                //else
+                //{
+                //    // 5) 取消請假 → 移除當天代理（若你允許跨天可改成只縮短日期）
+                //    if (existing != null)
+                //        _db.DriverDelegations.Remove(existing);
+                //}
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
@@ -178,7 +365,7 @@ namespace Cars.Controllers
         #endregion
 
 
-        #region 自動指派代理人(暫)
+        #region 自動指派代理人(暫不使用)
         //自動指派代理人
         private async Task<int> PickAutoAgent(int principalDriverId, string shift, DateTime today)
         {
