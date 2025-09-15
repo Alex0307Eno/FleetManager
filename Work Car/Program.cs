@@ -45,6 +45,12 @@ namespace Cars
                 options.LogoutPath = "/Auth/Logout"; // 登出路徑
             });
 
+            // JSON 序列化設定
+            builder.Services.AddControllers().AddJsonOptions(o =>
+            {
+                o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            });
+
             builder.Services.AddAuthorization();
             var app = builder.Build();
 
@@ -74,6 +80,7 @@ namespace Cars
                     "img-src 'self' data: https://*.google.com https://*.ggpht.com https://*.googleapis.com https://*.gstatic.com; " +
 
                     "object-src 'none';";
+                    app.UseDeveloperExceptionPage();
 
                     await next();
                 });

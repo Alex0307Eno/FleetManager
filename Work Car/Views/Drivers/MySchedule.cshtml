@@ -8,10 +8,7 @@
 <div id="app" class="wrap" v-cloak>
     <div class="topbar">
         <h1>我的值勤班表</h1>
-        <div class="seg">
-            <button class="seg-btn" :class="{active: viewMode==='month'}" @@click="viewMode='month'">每月</button>
-            <button class="seg-btn" :class="{active: viewMode==='week'}" @@click="viewMode='week'">每週</button>
-        </div>
+        
     </div>
 
     <div class="grid">
@@ -19,9 +16,12 @@
         <section class="card">
             <div class="card-hd" style="gap:10px; align-items:center;">
                 <button class="btn" @@click="gotoPrev">＜</button>
-                <div>民國 {{ rocYear }} 年 {{ month }} 月</div>
+                <div>{{ headerText }}</div>
                 <button class="btn" @@click="gotoNext">＞</button>
-                <div style="margin-left:auto" class="help">（只顯示您本人的班表）</div>
+                <div class="seg">
+                    <button class="seg-btn" :class="{active: viewMode==='month'}" @@click="viewMode='month'">每月</button>
+                    <button class="seg-btn" :class="{active: viewMode==='week'}" @@click="viewMode='week'">每週</button>
+                </div>
             </div>
 
             <!-- 月視圖 -->
@@ -37,9 +37,14 @@
                         </div>
 
                         <template v-if="cell.d">
-                            <div class="pill pill-dark" v-for="ev in dayEvents(cell.dateKey)" :key="ev.id">
-                                {{ shiftLabel(ev.title) }}
-                            </div>
+                            <span class="pill pill-dark"
+                                  v-for="ev in dayEvents(cell.dateKey)"
+                                  :key="ev.id"
+                                  style="display:inline-block; margin-right:4px;"
+                                  v-html="ev.title">
+                            </span>
+
+
                             <div v-if="!dayEvents(cell.dateKey).length" class="blank"></div>
                         </template>
                     </div>
@@ -62,9 +67,14 @@
                         <tr>
                             <th>班次</th>
                             <td v-for="(d,i) in weekDays" :key="'w'+i">
-                                <div v-for="ev in dayEvents(d.key)" :key="ev.id" class="pill">
-                                    {{ shiftLabel(ev.title) }}
-                                </div>
+                                <span v-for="ev in dayEvents(d.key)"
+                                      :key="ev.id"
+                                      class="pill"
+                                      style="display:inline-block; margin-right:4px;"
+                                      v-html="ev.title">
+                                </span>
+
+
                                 <div v-if="!dayEvents(d.key).length" class="help">—</div>
                             </td>
                         </tr>
@@ -95,7 +105,7 @@
                 <div class="card-bd">
                     <div class="help">本月各班別日期：</div>
                     <div v-for="(dates,code) in monthShiftGroups" :key="code" style="margin:6px 0;">
-                        <b>{{ shiftLabel(code) }}</b>：
+                        <b v-html="code"></b>：
                         <span v-if="dates.length">{{ dates.join('、') }}</span>
                         <span v-else class="help">（無）</span>
                     </div>
@@ -108,60 +118,47 @@
 
 
 
-
 <script>
-    const { createApp, ref, reactive, computed, watch } = Vue;
+const { createApp, ref, reactive, computed, watch } = Vue;
 
-    createApp({
-      setup(){
-        const today = new Date();
-        const anchor = ref(new Date(today));
-        const year   = computed(()=> anchor.value.getFullYear());
-        const month  = computed(()=> anchor.value.getMonth()+1);
-        const viewMode = ref('month');
+createApp({
+  setup(){
+    const today   = new Date();
+    const anchor  = ref(new Date(today));     // 目前的「錨點」日期
+    const year    = computed(()=> anchor.value.getFullYear());
+    const month   = computed(()=> anchor.value.getMonth()+1);
+    const viewMode = ref('month');
 
-        // 解析後端回來的 events，轉成以 yyyy-MM-dd 為 key 的 map
-        const eventsMap = reactive({}); // { '2025-06-03': [ {id,title,start,end,...} ] }
+    // 事件快取：{ 'yyyy-MM-dd': [events...] }
+    const eventsMap = reactive({});
 
-        function keyOf(d){
-          const mm = String(month.value).padStart(2,'0');
-          const dd = String(d).padStart(2,'0');
-          return `${year.value}-${mm}-${dd}`;
-        }
-        function dateKey(date){
-          const dt = new Date(date);
-          const mm = String(dt.getMonth()+1).padStart(2,'0');
-          const dd = String(dt.getDate()).padStart(2,'0');
-          return `${dt.getFullYear()}-${mm}-${dd}`;
-        }
+    // ---- 工具 ----
+    const pad2 = n => String(n).padStart(2,'0');
+    const ymdKeyFromDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 
-        async function fetchMonth(){
-        // 依 anchor 對應的年/月抓：start=該月1號, end=次月1號（半開）
-          const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), 1);
-          const end   = new Date(anchor.value.getFullYear(), anchor.value.getMonth()+1, 1);
-          const params = {
-            start: start.toISOString(),
-            end:   end.toISOString()
-          };
-          const res = await axios.get('/Drivers/MySchedule/Events', { params });
+    function keyOf(day){
+      return `${year.value}-${pad2(month.value)}-${pad2(day)}`;
+    }
+    function dateKey(date){
+      const dt = new Date(date);
+      return ymdKeyFromDate(dt);
+    }
 
-          // 轉成 map
-          Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
-          (res.data || []).forEach(ev=>{
-            const k = dateKey(ev.start);
-            (eventsMap[k] ||= []).push(ev);
-          });
-        }
-        //每周班表切換
-  function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-x.getDay()); return x; }
-        async function fetchWeek(){
-      const s = startOfWeek(anchor.value);
-      const e = new Date(s);
-      e.setDate(s.getDate()+7); // 半開區間 [s, e)
-      const params = { start: s.toISOString(), end: e.toISOString() };
-      const res = await axios.get('/Drivers/MySchedule/Events', { params });
+    // ★ 以「週一」為一週的起點
+    function mondayOfWeek(dLike){
+      const d = new Date(dLike);
+      d.setHours(0,0,0,0);
+      const dow = d.getDay();              // 0=Sun,1=Mon,...6=Sat
+      const delta = (dow + 6) % 7;         // 週一→0, 週二→1, ... 週日→6
+      d.setDate(d.getDate() - delta);
+      return d;
+    }
 
-      // 跟 fetchMonth 一樣，先清空再塞
+    // ---- 抓資料：月 / 週 ----
+    async function fetchMonth(){
+      const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), 1);
+      const end   = new Date(anchor.value.getFullYear(), anchor.value.getMonth()+1, 1);
+      const res = await axios.get('/Drivers/MySchedule/Events', { params: { start: start.toISOString(), end: end.toISOString() } });
       Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
       (res.data || []).forEach(ev=>{
         const k = dateKey(ev.start);
@@ -169,75 +166,80 @@
       });
     }
 
+    async function fetchWeek(){
+      const s = mondayOfWeek(anchor.value);  // ★用「週一」
+      const e = new Date(s); e.setDate(s.getDate()+7);   // 半開 [s, e)
+      const res = await axios.get('/Drivers/MySchedule/Events', { params: { start: s.toISOString(), end: e.toISOString() } });
+      Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
+      (res.data || []).forEach(ev=>{
+        const k = dateKey(ev.start);
+        (eventsMap[k] ||= []).push(ev);
+      });
+    }
 
+    // ====== 月曆計算 ======
+    const rocYear       = computed(()=> year.value - 1911);
+    const daysInMonth   = computed(()=> new Date(year.value, month.value, 0).getDate());
+    const firstOfMonth  = computed(()=> new Date(year.value, month.value-1, 1));
+    const firstWeekday  = computed(()=> firstOfMonth.value.getDay()); // 0..6 (Sun..Sat)
+    const isToday       = d => (year.value===today.getFullYear() && month.value===today.getMonth()+1 && d===today.getDate());
 
-        // ====== 月曆計算 ======
-        const rocYear = computed(()=> year.value - 1911);
-        const daysInMonth = computed(()=> new Date(year.value, month.value, 0).getDate());
-        const firstOfMonth = computed(()=> new Date(year.value, month.value-1, 1));
-         // 週日=0, 週一=1, ..., 週六=6
-        const firstWeekday = computed(()=> firstOfMonth.value.getDay());
-        const isToday = d => (year.value===today.getFullYear() && month.value===today.getMonth()+1 && d===today.getDate());
+    const monthGrid = computed(()=>{
+      const arr=[];
+      const startDay = firstOfMonth.value.getDay();
+      for(let i=0;i<startDay;i++) arr.push({d:'',isToday:false,dateKey:''});
+                                  for(let d=1; d<=daysInMonth.value; d++){
+        arr.push({ d, isToday:isToday(d), dateKey: keyOf(d) });
+      }
+      while(arr.length<42) arr.push({d:'',isToday:false,dateKey:''});
+      return arr;
+    });
 
-        const monthGrid = computed(()=>{
-          const arr=[];
-          const startDay = firstOfMonth.value.getDay(); // 0..6
-          for(let i=0;i<startDay;i++) arr.push({d:'',isToday:false,dateKey:''});
-          for(let d=1; d<=daysInMonth.value; d++){
-            arr.push({
-              d, isToday:isToday(d),
-              dateKey: keyOf(d)
-            });
-          }
-          while(arr.length<42) arr.push({d:'',isToday:false,dateKey:''});
-          return arr;
+    function dayEvents(k) {
+      const d = new Date(k);
+      const dow = d.getDay(); // 0=週日, 6=週六
+      if (dow === 0 || dow === 6) {
+        // 週六、週日永遠沒有班表
+        return [];
+      }
+      return eventsMap[k] || [];
+    }
+
+    // ====== 週視圖（週一～週日）======
+    const weekDays = computed(()=>{
+      const mon = mondayOfWeek(anchor.value);   // ★週一
+      const days=[];
+      for(let i=0;i<7;i++){
+        const d=new Date(mon); d.setDate(mon.getDate()+i);
+        days.push({
+          key: ymdKeyFromDate(d),
+              label: ['週日','週一','週二','週三','週四','週五','週六'][i],
+          date: `${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`
         });
+      }
+      return days;
+    });
 
-        function dayEvents(k){
-          return eventsMap[k] || [];
-        }
-
-        // 週視圖（包含今天的那週，Mon–Sun）
-        const weekDays = computed(()=>{
-          // 找出本月含今天的那週（以 Mon 起始）
-          const d0 = new Date(anchor.value);
-          const dow = d0.getDay();
-          d0.setDate(d0.getDate()-dow);
-          const days=[];
-          for(let i=0;i<7;i++){
-            const d=new Date(d0); d.setDate(d0.getDate()+i);
-            const mm = String(d.getMonth()+1).padStart(2,'0');
-            const dd = String(d.getDate()).padStart(2,'0');
-            days.push({
-              key:`${d.getFullYear()}-${mm}-${dd}`,
-              label:['週日','週一','週二','週三','週四','週五','週六'][i],
-              date:`${mm}/${dd}`
-            });
-          }
-          return days;
+    // ====== 右側班次摘要（原樣）======
+    const monthShiftGroups = computed(()=>{
+      const groups = {};
+      for(let d=1; d<=daysInMonth.value; d++){
+        const k = keyOf(d);
+        (eventsMap[k]||[]).forEach(ev=>{
+          const code = ev.title || '班次';
+          (groups[code] ||= []).push(`${pad2(month.value)}/${pad2(d)}`);
         });
+      }
+      return groups;
+    });
 
-        // 右側班次摘要：把本月所有事件依班別分組，列出日期（MM/DD）
-        const monthShiftGroups = computed(()=>{
-          const groups = {};
-          for(let d=1; d<=daysInMonth.value; d++){
-            const k = keyOf(d);
-            (eventsMap[k]||[]).forEach(ev=>{
-              const code = ev.title || '班次';
-              (groups[code] ||= []).push(`${String(month.value).padStart(2,'0')}/${String(d).padStart(2,'0')}`);
-            });
-          }
-          return groups;
-        });
+    function shiftLabel(code){
+      const m = { AM:'早・午', PM:'午・晚', G1:'一般(1)', G2:'一般(2)', G3:'一般(3)' };
+      return m[code?.toUpperCase?.()] || code || '班次';
+    }
 
-        function shiftLabel(code){
-          const m = { AM:'早・午', PM:'午・晚', G1:'一般(1)', G2:'一般(2)', G3:'一般(3)' };
-          return m[code?.toUpperCase?.()] || code || '班次';
-        }
-
-    
-
-           async function gotoPrev(){
+    // ====== 導航（上一頁／下一頁）======
+    async function gotoPrev(){
       if (viewMode.value === 'week'){
         anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate()-7);
         await fetchWeek();
@@ -255,39 +257,42 @@
         await fetchMonth();
       }
     }
-       watch(viewMode, async (m)=>{
-        if (m === 'week') {
-          await fetchWeek();
-        } else {
-          await fetchMonth();
-        }
-      });
-        // 初次載入
-        fetchMonth();
 
-     return {
-      //狀態 & 畫面設定
-      rocYear,
-      year,
-      month,
-      viewMode,
+    // ====== 標題文字（月／週）======
+    const monthText = computed(()=> `民國 ${rocYear.value} 年 ${month.value} 月`);
+    const weekRangeText = computed(()=>{
+      const mon = mondayOfWeek(anchor.value);
+      const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+      const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+      return `${fmt(mon)} - ${fmt(sun)}`;
+    });
+    const headerText = computed(()=>{
+      return viewMode.value === 'week' ? weekRangeText.value : monthText.value;
+    });
 
-      //計算用屬性 / 工具
-      firstWeekday,
-      daysInMonth,
-      isToday,
-      monthGrid,
-      weekDays,
-      monthShiftGroups,
-      dayEvents,
-      keyOf,
-      shiftLabel,
+    // 視圖切換時抓對應資料
+    watch(viewMode, async (m)=>{
+      if (m === 'week') await fetchWeek();
+      else await fetchMonth();
+    });
 
-      //操作方法
-      gotoPrev,
-      gotoNext
+    // 初次載入：抓月資料
+    fetchMonth();
+
+    return {
+      // 狀態
+      rocYear, year, month, viewMode,
+
+      // 標題
+      headerText,
+
+      // 計算/工具
+      firstWeekday, daysInMonth, isToday, monthGrid, weekDays,
+      monthShiftGroups, dayEvents, keyOf, shiftLabel,
+
+      // 導航
+      gotoPrev, gotoNext
     };
-
-      }
-    }).mount('#app');
+  }
+}).mount('#app');
 </script>

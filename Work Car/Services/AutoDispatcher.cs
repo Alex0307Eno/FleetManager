@@ -158,19 +158,29 @@ namespace Cars.Services
 
 
                 // === 3) 建立最終可用班表（缺勤 → 代理頂上），代理人無固定班表：動態建立「臨時代理班表」 ===
-                var replaced = new List<Cars.Models.Schedule>(); // 代理頂替（優先）
-                var normal = new List<Cars.Models.Schedule>(); // 一般到班
+                
 
                 var driverNames = await _db.Drivers
                     .ToDictionaryAsync(d => d.DriverId, d => d.DriverName);
+
+                // 小工具：容忍 null 的 DriverId
+                string GetName(int? id) =>
+                    (id.HasValue && driverNames.TryGetValue(id.Value, out var nm))
+                        ? nm
+                        : (id.HasValue ? $"ID={id.Value}" : "—");
+
+                // 分類：代理/一般；注意 DriverId 可能為 null
+                var replaced = new List<Cars.Models.Schedule>();
+                var normal = new List<Cars.Models.Schedule>();
+
                 foreach (var s in daySchedules)
                 {
-                    string drvName = driverNames.ContainsKey(s.DriverId) ? driverNames[s.DriverId] : $"ID={s.DriverId}";
+                    string drvName = driverNames.ContainsKey(s.DriverId.Value) ? driverNames[s.DriverId.Value] : $"ID={s.DriverId}";
 
                     if (!s.IsPresent)
                     {
                         // 有代理設定 → 動態建立臨時代理班表（同日同班別）
-                        if (delegMap.TryGetValue(s.DriverId, out var agentDriverId) && agentDriverId != s.DriverId)
+                        if (delegMap.TryGetValue(s.DriverId.Value, out var agentDriverId) && agentDriverId != s.DriverId)
                         {
                             string agentName = driverNames.ContainsKey(agentDriverId) ? driverNames[agentDriverId] : $"ID={agentDriverId}";
 
@@ -202,7 +212,7 @@ namespace Cars.Services
 
                 // 去重：若同一代理人在清單中同時出現（自己原班 + 臨時頂替），保留較前者（通常是臨時頂替）
                 var seen = new HashSet<int>();
-                finalSchedules = finalSchedules.Where(s => seen.Add(s.DriverId)).ToList();
+                finalSchedules = finalSchedules.Where(s => seen.Add(s.DriverId.Value)).ToList();
 
 
                 // === 4) 選擇一位司機（依 chain 順序，排除衝突/長差休息） ===
@@ -320,7 +330,7 @@ namespace Cars.Services
                 var dispatch = new Cars.Models.Dispatch
                 {
                     ApplyId = carApplyId,
-                    DriverId = schedule.DriverId,         // 可能是代理人的 DriverId ★
+                    DriverId = schedule.DriverId,         
                     VehicleId = chosenVehicleId,
                     StartTime = localStart,
                     EndTime = localEnd,

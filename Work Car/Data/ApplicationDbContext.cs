@@ -1,5 +1,4 @@
 ﻿using Cars.Models;
-using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Data
@@ -31,6 +30,9 @@ namespace Cars.Data
 
         public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
         public DbSet<DispatchLink> DispatchLinks { get; set; }
+        public DbSet<DriverLineAssignment> DriverLineAssignments { get; set; }
+        public DbSet<ResolvedSchedule> ResolvedSchedules { get; set; } // 對應 View
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,6 +52,30 @@ namespace Cars.Data
                 .WithMany(d => d.ParentLinks)
                 .HasForeignKey(dl => dl.ChildDispatchId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ResolvedSchedule>()
+       .ToView("v_ScheduleResolved")
+       .HasNoKey(); // 沒主鍵的 View 一定要這樣設
+
+            modelBuilder.Entity<DispatchOrder>()
+                .ToView("v_DispatchOrders")
+                .HasNoKey();
+
+            // ==== Schedules：唯一鍵與長度 ====
+            modelBuilder.Entity<Schedule>(e =>
+            {
+                e.HasIndex(s => new { s.WorkDate, s.Shift }).IsUnique(); // 一天每個班別唯一
+                e.Property(s => s.Shift).HasMaxLength(10).IsRequired();
+                e.Property(s => s.LineCode).HasMaxLength(1).IsRequired(); // A~E
+            });
+
+            // ==== DriverLineAssignment：欄位與檢查 ====
+            modelBuilder.Entity<DriverLineAssignment>(e =>
+            {
+                e.Property(x => x.LineCode).HasMaxLength(1).IsRequired();
+                e.HasCheckConstraint("CK_AssignmentDate", "(EndDate IS NULL OR EndDate >= StartDate)");
+            });
+
         }
 
 
