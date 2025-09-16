@@ -1,0 +1,94 @@
+﻿@model Cars.Models.Driver
+
+<div asp-validation-summary="All" class="text-danger"></div>
+
+<div class="mb-3">
+    <label class="form-label">姓名</label>
+    <input asp-for="DriverName" class="form-control" />
+    <span asp-validation-for="DriverName" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">身分證</label>
+    <input asp-for="NationalId" class="form-control" />
+    <span asp-validation-for="NationalId" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">生日</label>
+    <input asp-for="BirthDate" type="date" class="form-control" />
+    <span asp-validation-for="BirthDate" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">戶籍地址</label>
+    <input asp-for="HouseholdAddress" class="form-control" />
+    <span asp-validation-for="HouseholdAddress" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">聯絡地址</label>
+    <input asp-for="ContactAddress" class="form-control" />
+    <span asp-validation-for="ContactAddress" class="text-danger"></span>
+    <div class="form-check mt-2">
+        <input type="checkbox" class="form-check-input" id="sameAddress" />
+        <label class="form-check-label" for="sameAddress">同戶籍地址</label>
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">市話</label>
+    <input asp-for="Phone" class="form-control" />
+    <span asp-validation-for="Phone" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">手機</label>
+    <input asp-for="Mobile" class="form-control" />
+    <span asp-validation-for="Mobile" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">緊急聯絡人</label>
+    <input asp-for="EmergencyContactName" class="form-control" />
+    <span asp-validation-for="EmergencyContactName" class="text-danger"></span>
+</div>
+
+<partial name="_ValidationScriptsPartial" />
+
+<script>
+    (function () {
+      // 用 Razor 生成實際 id（避免有前綴時抓不到）
+      const idHousehold = "@Html.IdFor(m => m.HouseholdAddress)";
+      const idContact   = "@Html.IdFor(m => m.ContactAddress)";
+
+      const household = document.getElementById(idHousehold);
+      const contact   = document.getElementById(idContact);
+      const chk       = document.getElementById("sameAddress");
+
+      if (!household || !contact || !chk) return;
+
+      // 載入時：若聯絡地址空白或與戶籍地址相同，預設勾選並同步
+      const initSame = (contact.value.trim() === "" || contact.value === household.value);
+      if (initSame) {
+        chk.checked = true;
+        contact.value = household.value;
+        contact.readOnly = true;
+      }
+
+      chk.addEventListener("change", function () {
+        if (chk.checked) {
+          contact.value = household.value;
+          contact.readOnly = true;
+        } else {
+          contact.readOnly = false;
+        }
+      });
+
+      household.addEventListener("input", function () {
+        if (chk.checked) {
+          contact.value = household.value;
+        }
+      });
+    })();
+</script>

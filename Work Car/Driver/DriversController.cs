@@ -30,10 +30,6 @@ namespace Cars.driver
         {
             return View();
         }
-        [Authorize]
-        public IActionResult Agent()
-        {
-            return View();
-        }
+        
     }
 }

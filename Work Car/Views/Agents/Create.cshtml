@@ -1,0 +1,16 @@
+﻿@model Cars.Models.Driver
+@{
+    ViewData["Title"] = "新增代理人";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<form asp-action="Create" method="post">
+    @Html.AntiForgeryToken()
+    <partial name="_AgentForm" model="Model" />
+
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">新增</button>
+        <a asp-action="Index" class="btn btn-secondary">取消</a>
+    </div>
+</form>

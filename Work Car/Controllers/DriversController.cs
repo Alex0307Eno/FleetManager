@@ -619,7 +619,7 @@ namespace Cars.Controllers
                 select new
                 {
                     id = s.ScheduleId,
-                    title = d.DriverName + "<br>" +
+                    title = d.DriverName + 
                             (s.Shift == "AM" ? "早・午" :
                              s.Shift == "PM" ? "午・晚" :
                              s.Shift == "G1" ? "一般(1)" :
@@ -662,5 +662,7 @@ namespace Cars.Controllers
             public bool HasTodaySchedule { get; set; } // 今天是否有排班
         }
         #endregion
+
+
     }
 }

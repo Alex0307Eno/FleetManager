@@ -134,7 +134,7 @@
                                     </div>
 
                                     <!-- 11:30 slot：午、晚 -->
-                                    <div v-if="h === 11" class="slot slot-dark">
+                                    <div v-if="h === 12" class="slot slot-dark">
                                         <div class="slot-time">11:30~13:00</div>
                                         <div class="slot-title">{{ (linesFor(d.jsDate)[1] || {}).text }}</div>
                                         <span class="cnt">{{ getDisp(d.jsDate,'noon').length }}</span>
@@ -909,7 +909,6 @@
     })
 
 
-    // --- 切換視圖模式 ---
     // 切換視圖模式：日 -> 用週API
     watch(viewMode, async (m) => {
       if (m === 'month') {
@@ -998,6 +997,118 @@
           }
         }, { deep: true });
 
+
+                  function downloadCSV(csv, filename) {
+      // 加上 BOM 避免 Excel 亂碼
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportMonthCSV() {
+      let csv = "日期,班別,線別,駕駛\n";
+      (schedules.value || []).forEach(s => {
+        const dt = new Date(s.workDate ?? s.WorkDate);
+        const date = dt.toISOString().slice(0, 10);
+        const shift = s.shift ?? s.Shift;
+        const line  = s.lineCode ?? s.LineCode;
+        const name  = s.driverName ?? s.DriverName ?? "—";
+        csv += `${date},${shift},${line},${name}\n`;
+      });
+      downloadCSV(csv, "Schedule-Month.csv");
+    }
+
+    function exportWeekCSV() {
+      let csv = "日期,時間,駕駛\n";
+      const days = weekDays.value || [];
+      days.forEach(d => {
+        const key = toYMD(d.jsDate);
+        const rows = weekDispatches.value[key] || [];
+        rows.forEach(r => {
+          csv += `${d.date},${hhmm(r.start)},${r.driverName || '—'}\n`;
+        });
+      });
+      downloadCSV(csv, "Schedule-Week.csv");
+    }
+
+    function exportDayCSV() {
+      let csv = "日期,時間,駕駛\n";
+      const key = toYMD(current.value);
+      (dayRows.value || []).forEach(r => {
+        csv += `${key},${hhmm(r.start)},${r.driverName || '—'}\n`;
+      });
+      downloadCSV(csv, "Schedule-Day.csv");
+    }
+
+    // 匯出入口
+    function exportCSV() {
+  let csv = "日期,時段,線別,駕駛,額外派工\n";
+
+  if (viewMode.value === "month") {
+    // 月檢視：列整月的班表
+    (schedules.value || []).forEach(s => {
+      const dt = new Date(s.workDate ?? s.WorkDate);
+      const date = dt.toISOString().slice(0, 10);
+      const shift = s.shift ?? s.Shift;
+      const line  = s.lineCode ?? s.LineCode;
+      const name  = s.driverName ?? s.DriverName ?? "—";
+      csv += `${date},${shift},${line},${name},\n`;
+    });
+
+    downloadCSV(csv, "Schedule-Month.csv");
+
+  } else if (viewMode.value === "week") {
+    // 週檢視：每天 AM/PM/長差 + 點狀派工
+    const days = weekDays.value || [];
+    days.forEach(d => {
+      const dateStr = toYMD(d.jsDate);
+      const lines = linesFor(d.jsDate);
+
+      // 固定三個班表
+      lines.forEach(l => {
+        if (!l.text) return;
+        const [lineCode, driver] = l.text.split(" - ");
+        csv += `${dateStr},${l.type},${lineCode || ''},${driver || ''},\n`;
+      });
+
+      // 點狀派工
+      const rows = weekDispatches.value[dateStr] || [];
+      rows.forEach(r => {
+        csv += `${dateStr},派工,,${r.driverName || '—'},${hhmm(r.start)}\n`;
+      });
+    });
+
+    downloadCSV(csv, "Schedule-Week.csv");
+
+  } else if (viewMode.value === "day") {
+    // 日檢視：當天 AM/PM/長差 + 派工
+    const dateStr = toYMD(current.value);
+    const lines = linesFor(current.value);
+
+    lines.forEach(l => {
+      if (!l.text) return;
+      const [lineCode, driver] = l.text.split(" - ");
+      csv += `${dateStr},${l.type},${lineCode || ''},${driver || ''},\n`;
+    });
+
+    (dayRows.value || []).forEach(r => {
+      csv += `${dateStr},派工,,${r.driverName || '—'},${hhmm(r.start)}\n`;
+    });
+
+    downloadCSV(csv, "Schedule-Day.csv");
+  }
+}
+
+
+
+
+
         // 初始載入
     onMounted(async () => {
       await loadDrivers()
@@ -1046,7 +1157,7 @@
           // right panel
           assign, allCandidates, applyAssignments,
           // helpers
-          isSameDay
+          isSameDay,exportCSV
         };
       }
     }).mount('#app');

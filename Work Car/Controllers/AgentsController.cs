@@ -1,7 +1,9 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -89,6 +91,70 @@ namespace Cars.Controllers
             });
 
             return Json(result);
+        }
+        #endregion
+
+
+
+
+        #region 新增代理人
+
+
+        public IActionResult Create()
+        {
+            return View(new Driver { IsAgent = true });
+        }
+
+        [HttpPost]
+        [Route("Create")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(Driver agent)
+        {
+            if (ModelState.IsValid)
+            {
+                agent.IsAgent = true;
+                _db.Add(agent);
+                await _db.SaveChangesAsync();
+                return RedirectToAction("Index");
+            }
+            return View(agent);
+        }
+        #endregion
+
+        #region 編輯代理人
+
+        [HttpGet("Edit/{id:int}")]
+
+        public async Task<IActionResult> Edit(int id)
+        {
+            var agent = await _db.Drivers.FirstOrDefaultAsync(d => d.DriverId == id && d.IsAgent == true);
+            if (agent == null) return NotFound();
+            return View(agent);
+        }
+
+        [HttpPost]
+        [HttpPost("Edit/{id:int}")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, Driver agent)
+        {
+            if (id != agent.DriverId) return BadRequest();
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    agent.IsAgent = true;
+                    _db.Update(agent);
+                    await _db.SaveChangesAsync();
+                    return RedirectToAction("Index");
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!_db.Drivers.Any(e => e.DriverId == id)) return NotFound();
+                    throw;
+                }
+            }
+            return View(agent);
         }
         #endregion
 

@@ -75,7 +75,6 @@
                                 </span>
 
 
-                                <div v-if="!dayEvents(d.key).length" class="help">—</div>
                             </td>
                         </tr>
                     </tbody>
@@ -207,10 +206,11 @@ createApp({
 
     // ====== 週視圖（週一～週日）======
     const weekDays = computed(()=>{
-      const mon = mondayOfWeek(anchor.value);   // ★週一
+      const mon = mondayOfWeek(anchor.value);
+      const sun = new Date(mon); sun.setDate(mon.getDate() - 1);
       const days=[];
       for(let i=0;i<7;i++){
-        const d=new Date(mon); d.setDate(mon.getDate()+i);
+            const d=new Date(mon); d.setDate(sun.getDate()+i);
         days.push({
           key: ymdKeyFromDate(d),
               label: ['週日','週一','週二','週三','週四','週五','週六'][i],

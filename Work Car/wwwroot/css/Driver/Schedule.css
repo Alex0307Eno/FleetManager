@@ -129,22 +129,24 @@
         padding: 8px 10px;
     }
 
-    /* ===== 抬頭條 slot-dark ===== */
+   
+
+
     .week-grid td .slot-dark {
-        display: block; /* 或用 flex，但允許換行 */
+        display: flex;
+        flex-direction: row; /* ⬅️ 橫排 */
+        align-items: center; /* 垂直置中 */
+        justify-content: flex-start; /* 靠左，或 center 置中 */
         background: #6b7280;
         color: #fff;
-        border-radius: 2px;
-        padding: 6px 8px 6px 4px;
-        margin-bottom: 6px;
-        white-space: normal; /* ✅ 可以換行 */
-        overflow: visible; /* ✅ 不裁切 */
-        text-overflow: clip; /* ✅ 不要省略號 */
-        font-weight: 600;
-        line-height: 1.4;
+        gap: 6px; /* 每個間距 */
+        padding: 2px 4px;
+        white-space: nowrap; /* 不換行 */
+        overflow: hidden; /* 超出隱藏 */
+        text-overflow: ellipsis;
+        font-size: 12px; /* 字體縮小避免爆格 */
+        line-height: 1.2;
     }
-
-
 
 
     
@@ -522,3 +524,35 @@ select {
         white-space: nowrap; /* 不允許換行 */
         display: inline-block; /* 保證整段在同一行 */
     }
+/* 月曆：班次 pill 一律橫向排成一行 */
+.month-grid .day {
+    display: flex;
+    flex-direction: column; /* 日期號碼和事件分上下 */
+}
+
+.month-grid .day-hd {
+    margin-bottom: 4px; /* 日期號碼和班次之間留點距離 */
+}
+
+/* pill 容器：橫向排列 */
+.month-grid .events {
+    display: flex;
+    flex-direction: row; /* 橫排 */
+    flex-wrap: nowrap; /* 不換行 */
+    gap: 4px;
+    overflow: hidden; /* 超出格子就隱藏 */
+}
+
+/* 單個 pill：縮小字體、避免撐爆 */
+.month-grid .pill {
+    flex: 0 0 auto;
+    font-size: 11px; /* 比週曆更小一點 */
+    white-space: nowrap; /* 不換行 */
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding: 2px 4px; /* 小一點，才能塞更多 */
+    margin: 0;
+}
+.week-grid tbody tr {
+    height: 80px; /* 每一格高度統一 */
+}

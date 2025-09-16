@@ -100,18 +100,21 @@
 .month-grid {
     display: grid;
     grid-template-columns: repeat(7,1fr);
-    grid-auto-rows: 110px;
-    gap: 6px
+    grid-auto-rows: 140px;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border)
 }
 
-.day {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-    padding: 4px 8px;
-    display: flex;
-    flex-direction: column
-}
+    .month-grid .day {
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        background: #fff;
+        padding: 4px 6px;
+        display: flex;
+        flex-direction: column
+    }
 
 .day-hd {
     display: flex;
@@ -129,7 +132,7 @@
     gap: 6px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 4px 8px;
+    padding: 4px 0px;
     background: #f1f5f9;
     margin: 2px 0;
     font-size: 13px;
@@ -176,6 +179,7 @@
 
 .table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0
 }
@@ -192,12 +196,136 @@
         }
 
     .table thead th {
-        background: #fafbff;
-        text-align: center
+        text-align: center;
+        background: #fafbff
     }
 
 .mono {
     font-variant-numeric: tabular-nums
 }
+
+/* 週視圖：置中 + 單行排列 + 橫向捲動 */
+.table.week tbody td {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 6px;
+    vertical-align: middle
+}
+
+/* 同一天：單行橫排，不換行，不突出格子 */
+.table.week td {
+    overflow: hidden;
+}
+/* 保證不會突出整格 */
+.table.week .chip-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap; /* 不換行 */
+    justify-content: center; /* 想靠左改 flex-start */
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    overflow: hidden; /* 不產生個別卷軸 */
+}
+
+.table.week .pill {
+    margin: 0 4px; /* ⬅️ 左右 4px，取消上下 2px */
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+
+
+    .table.week .chip-row.empty {
+        justify-content: center
+    }
+
+
+/* 週視圖內的「—」 */
+.table.week .help {
+    display: inline-block
+}
+
+/* 月視圖：Google Calendar 風格 */
+.month-grid .day-hd {
+    justify-content: flex-start
+}
+
+    .month-grid .day-hd span {
+        font-size: 14px;
+        line-height: 24px
+    }
+
+    .month-grid .day-hd.today span {
+        background: #2563eb;
+        color: #fff;
+        border-radius: 999px;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center
+    }
+/* 月視圖的事件長條 */
+.month-grid .pill {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 8px;
+    padding: 4px 8px;
+    border: 0;
+    background: #4b5563;
+    color: #fff;
+    border-radius: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
+
+.month-grid .pill-dark {
+    background: #4b5563;
+    color: #fff;
+    border: 0
+}
+/* 月視圖：小圓點（可選） */
+.month-grid .event-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: #475569
+}
+
+    .month-grid .event-dot::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #cbd5e1
+    }
+/* 月視圖空白佔位 */
+.month-grid .blank {
+    height: 0
+}
+/* === Week table：一格內橫排、單行、不換行 === */
+.table tbody td {
+    /* 讓 <td> 變橫向容器 */
+    flex-wrap: nowrap; /* 不換行 */
+    justify-content: center; /* 想靠左就改 flex-start */
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap; /* 單行 */
+    overflow: hidden; /* 不凸出格子；想能左右捲，改成 overflow-x:auto */
+}
+
+    /* 覆蓋全域與 inline 的 margin，避免看起來像直排 */
+    .table tbody td .pill {
+        flex: 0 0 auto; /* 不被壓縮成 0 */
+        white-space: nowrap; /* 文字單行 */
+        margin: 0 8px 0 0 !important; /* 只留右邊距，清掉上下邊距與 inline 的 margin-right */
+        /* 可選：字再小一點，避免擠爆 */
+        font-size: 12px;
+    }
 
 
