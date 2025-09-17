@@ -33,6 +33,7 @@ namespace Cars.Data
         public DbSet<DriverLineAssignment> DriverLineAssignments { get; set; }
         public DbSet<ResolvedSchedule> ResolvedSchedules { get; set; } // 對應 View
 
+        public DbSet<LineUser> LineUsers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -99,7 +99,7 @@ namespace Cars.Controllers
 
         #region 新增代理人
 
-
+        [HttpGet]
         public IActionResult Create()
         {
             return View(new Driver { IsAgent = true });

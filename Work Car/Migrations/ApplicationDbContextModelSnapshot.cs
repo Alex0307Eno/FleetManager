@@ -209,33 +209,19 @@ namespace Cars.Migrations
                     b.ToTable("Dispatches");
                 });
 
-            modelBuilder.Entity("Cars.Models.DispatchApplication", b =>
+            modelBuilder.Entity("Cars.Models.DispatchLink", b =>
                 {
-                    b.Property<int>("DispatchId")
-                        .ValueGeneratedOnAdd()
+                    b.Property<int>("ParentDispatchId")
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DispatchId"));
-
-                    b.Property<int>("ApplicationApplyId")
+                    b.Property<int>("ChildDispatchId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ApplyId")
-                        .HasColumnType("int");
+                    b.HasKey("ParentDispatchId", "ChildDispatchId");
 
-                    b.Property<int>("DispatchId1")
-                        .HasColumnType("int");
+                    b.HasIndex("ChildDispatchId");
 
-                    b.Property<int>("Seats")
-                        .HasColumnType("int");
-
-                    b.HasKey("DispatchId");
-
-                    b.HasIndex("ApplicationApplyId");
-
-                    b.HasIndex("DispatchId1");
-
-                    b.ToTable("DispatchApplications");
+                    b.ToTable("DispatchLinks");
                 });
 
             modelBuilder.Entity("Cars.Models.DispatchOrder", b =>
@@ -294,7 +280,9 @@ namespace Cars.Migrations
                     b.Property<int?>("VehicleId")
                         .HasColumnType("int");
 
-                    b.ToTable("v_DispatchOrders");
+                    b.ToTable((string)null);
+
+                    b.ToView("v_DispatchOrders", (string)null);
                 });
 
             modelBuilder.Entity("Cars.Models.Driver", b =>
@@ -305,17 +293,20 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DriverId"));
 
-                    b.Property<DateTime?>("BirthDate")
+                    b.Property<DateTime>("BirthDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ContactAddress")
+                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("DriverName")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("EmergencyContactName")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -331,10 +322,12 @@ namespace Cars.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("Mobile")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("NationalId")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
@@ -391,6 +384,36 @@ namespace Cars.Migrations
                     b.HasIndex("PrincipalDriverId");
 
                     b.ToTable("DriverDelegations");
+                });
+
+            modelBuilder.Entity("Cars.Models.DriverLineAssignment", b =>
+                {
+                    b.Property<int>("AssignmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AssignmentId"));
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LineCode")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("AssignmentId");
+
+                    b.ToTable("DriverLineAssignments", t =>
+                        {
+                            t.HasCheckConstraint("CK_AssignmentDate", "(EndDate IS NULL OR EndDate >= StartDate)");
+                        });
                 });
 
             modelBuilder.Entity("Cars.Models.FavoriteLocation", b =>
@@ -474,6 +497,27 @@ namespace Cars.Migrations
                     b.ToTable("FuelFillUps");
                 });
 
+            modelBuilder.Entity("Cars.Models.ResolvedSchedule", b =>
+                {
+                    b.Property<string>("DriverName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LineCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Shifts")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("WorkDate")
+                        .HasColumnType("datetime2");
+
+                    b.ToTable((string)null);
+
+                    b.ToView("v_ScheduleResolved", (string)null);
+                });
+
             modelBuilder.Entity("Cars.Models.Schedule", b =>
                 {
                     b.Property<int>("ScheduleId")
@@ -482,14 +526,21 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ScheduleId"));
 
-                    b.Property<int>("DriverId")
+                    b.Property<int?>("DriverId")
                         .HasColumnType("int");
 
                     b.Property<bool>("IsPresent")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LineCode")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
                     b.Property<string>("Shift")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<DateTime>("WorkDate")
                         .HasColumnType("datetime2");
@@ -497,6 +548,9 @@ namespace Cars.Migrations
                     b.HasKey("ScheduleId");
 
                     b.HasIndex("DriverId");
+
+                    b.HasIndex("WorkDate", "Shift")
+                        .IsUnique();
 
                     b.ToTable("Schedules");
                 });
@@ -787,6 +841,33 @@ namespace Cars.Migrations
                     b.ToTable("VehicleViolations");
                 });
 
+            modelBuilder.Entity("LineBotService.Models.LineUser", b =>
+                {
+                    b.Property<string>("LineUserId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("RelatedId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("LineUserId");
+
+                    b.ToTable("LineUsers");
+                });
+
             modelBuilder.Entity("Cars.Models.Applicant", b =>
                 {
                     b.HasOne("Cars.Models.User", "User")
@@ -851,23 +932,23 @@ namespace Cars.Migrations
                     b.Navigation("Vehicle");
                 });
 
-            modelBuilder.Entity("Cars.Models.DispatchApplication", b =>
+            modelBuilder.Entity("Cars.Models.DispatchLink", b =>
                 {
-                    b.HasOne("Cars.Models.CarApplication", "Application")
-                        .WithMany("DispatchLinks")
-                        .HasForeignKey("ApplicationApplyId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("Cars.Models.Dispatch", "ChildDispatch")
+                        .WithMany("ParentLinks")
+                        .HasForeignKey("ChildDispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Cars.Models.Dispatch", "Dispatch")
-                        .WithMany("Applications")
-                        .HasForeignKey("DispatchId1")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("Cars.Models.Dispatch", "ParentDispatch")
+                        .WithMany("ChildLinks")
+                        .HasForeignKey("ParentDispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Application");
+                    b.Navigation("ChildDispatch");
 
-                    b.Navigation("Dispatch");
+                    b.Navigation("ParentDispatch");
                 });
 
             modelBuilder.Entity("Cars.Models.DriverDelegation", b =>
@@ -893,9 +974,7 @@ namespace Cars.Migrations
                 {
                     b.HasOne("Cars.Models.Driver", "Driver")
                         .WithMany()
-                        .HasForeignKey("DriverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("DriverId");
 
                     b.Navigation("Driver");
                 });
@@ -929,8 +1008,6 @@ namespace Cars.Migrations
 
             modelBuilder.Entity("Cars.Models.CarApplication", b =>
                 {
-                    b.Navigation("DispatchLinks");
-
                     b.Navigation("DispatchOrders");
 
                     b.Navigation("Passengers");
@@ -938,7 +1015,9 @@ namespace Cars.Migrations
 
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
-                    b.Navigation("Applications");
+                    b.Navigation("ChildLinks");
+
+                    b.Navigation("ParentLinks");
                 });
 
             modelBuilder.Entity("Cars.Models.Driver", b =>
