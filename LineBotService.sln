@@ -5,7 +5,7 @@ VisualStudioVersion = 17.14.36401.2
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineBotService", "LineBotService\LineBotService\LineBotService.csproj", "{8FE30894-A3EF-4692-95DC-7C9C70895943}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cars", "Cars\Cars.csproj", "{4EC73912-B439-A011-EDC8-8BD347750960}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cars", "LineBotService\LineBotService\Cars.csproj", "{C394C252-D133-BA97-EF66-C74A3F0C890A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,15 +17,15 @@ Global
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C394C252-D133-BA97-EF66-C74A3F0C890A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C394C252-D133-BA97-EF66-C74A3F0C890A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C394C252-D133-BA97-EF66-C74A3F0C890A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C394C252-D133-BA97-EF66-C74A3F0C890A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {E35F0584-C71E-4170-87A1-01D7AC57F587}
+		SolutionGuid = {7184EBDE-6301-4FE0-A0E7-2C00A0B3F271}
 	EndGlobalSection
 EndGlobal
