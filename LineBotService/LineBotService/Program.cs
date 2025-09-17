@@ -1,6 +1,7 @@
 
-using LineBotDemo.Services;
 using Cars.Data;
+using Cars.Models;
+using LineBotDemo.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineBotService
@@ -16,6 +17,9 @@ namespace LineBotService
             builder.Services.AddScoped<LineUserService>();
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.Configure<GoogleMapsSettings>(
+            builder.Configuration.GetSection("GoogleMaps"));
+
 
             builder.Services.AddControllers().AddJsonOptions(opt =>
             {
@@ -24,6 +28,7 @@ namespace LineBotService
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            builder.Services.AddHttpClient();
 
             var app = builder.Build();
 

@@ -361,5 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/Work Car/appsettings.Development.json
-/Work Car/appsettings.json
+/Cars/appsettings.Development.json
+/Cars/appsettings.json

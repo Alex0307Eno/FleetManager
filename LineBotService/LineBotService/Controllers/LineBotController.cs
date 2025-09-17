@@ -1,243 +1,643 @@
-﻿    using Cars.Data;
-    using Cars.Models;
-    using isRock.LineBot;
-    using Microsoft.AspNetCore.Mvc;
+﻿using Cars.Data;
+using Cars.Models;
+using DocumentFormat.OpenXml.ExtendedProperties;
+using isRock.LIFF;
+using isRock.LineBot;
+using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
+using System.Collections.Concurrent;
 
-    namespace LineBotDemo.Controllers
+namespace LineBotDemo.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class LineBotController : ControllerBase
     {
-        [Route("api/[controller]")]
-        [ApiController]
-        public class LineBotController : ControllerBase
+        private readonly string _token;
+        private readonly ApplicationDbContext _db;
+        private readonly string _baseUrl;
+
+
+        public LineBotController(IConfiguration config, ApplicationDbContext db)
         {
-            private readonly string channelAccessToken;
-            private readonly ApplicationDbContext _db;
+            _token = config["LineBot:ChannelAccessToken"];
+            _baseUrl = config["AppBaseUrl"];
+            _db = db;
+        }
 
-            private const string adminUserId = "UxxxxAdmin";   // ⚠️ 改成實際管理員 userId
-            private const string driverUserId = "UxxxxDriver"; // ⚠️ 改成實際駕駛 userId
+        // ===== 使用者流程暫存（依 userId 分別保存） =====
+        private class BookingState
+        {
+            public string? ReserveTime { get; set; }
+            public string? Reason { get; set; }
+            public string? PassengerCount { get; set; }
+            public string? Origin { get; set; }
 
-            private static string Reason = "";
-            private static string PassengerCount = "";
-            private static string Destination = "";
+            public string? Destination { get; set; }
 
-            public LineBotController(IConfiguration config, ApplicationDbContext db)
+            // 給管理員指派流程用
+            public int? SelectedDriverId { get; set; }
+            public string? SelectedDriverName { get; set; }
+        }
+        private static readonly ConcurrentDictionary<string, BookingState> _flow = new();
+
+        // 把「申請單 ApplyId 對應 申請人 LINE userId」暫存起來，方便審核後通知申請人
+        private static readonly ConcurrentDictionary<int, string> _applyToApplicant = new();
+
+        // === QuickReply（一定要是 JSON 陣列） ===
+        private const string Step1JsonArray = @"
+[
+  {
+    ""type"": ""text"",
+    ""text"": ""請選擇預約的時間"",
+    ""quickReply"": {
+      ""items"": [
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""即時預約"", ""text"": ""即時預約"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""預訂時間"", ""text"": ""預訂時間"" } }
+      ]
+    }
+  }
+]";
+        private const string Step3JsonArray = @"
+[
+  {
+    ""type"": ""text"",
+    ""text"": ""請選擇乘客人數"",
+    ""quickReply"": {
+      ""items"": [
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""1人"", ""text"": ""1人"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""2人"", ""text"": ""2人"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""3人"", ""text"": ""3人"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""4人"", ""text"": ""4人"" } }
+      ]
+    }
+  }
+]";
+
+        [HttpPost]
+        public async Task<IActionResult> Post()
+        {
+            string body;
+            using (var reader = new StreamReader(Request.Body))
+                body = await reader.ReadToEndAsync();
+
+            var bot = new Bot(_token);
+            var events = isRock.LineBot.Utility.Parsing(body);
+
+            foreach (var ev in events.events)
             {
-                channelAccessToken = config["LineBot:ChannelAccessToken"];
-                _db = db;
-            }
+                var replyToken = ev.replyToken;
+                var uid = ev.source.userId ?? "anon";
 
-            [HttpPost]
-            public async Task<IActionResult> Post()
-            {
-                string body;
-                using (var reader = new StreamReader(Request.Body))
+                // ================= POSTBACK 事件 =================
+                if (ev.type == "postback")
                 {
-                    body = await reader.ReadToEndAsync();
-                }
+                    var data = ev.postback?.data ?? "";
 
-                var bot = new Bot(channelAccessToken);
-                var events = Utility.Parsing(body);
-
-                foreach (var ev in events.events)
-                {
-                    if (ev.type != "message") continue;
-
-                    var replyToken = ev.replyToken;
-                    var userMessage = ev.message.text;
-                    var userId = ev.source.userId; // 申請人 LINE userId
-
-                    // === Step 1: 預約流程 ===
-                    if (userMessage.Contains("預約車輛"))
+                    // 解析 postback data
+                    var kv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var pair in data.Split('&', StringSplitOptions.RemoveEmptyEntries))
                     {
-                        Reason = PassengerCount = Destination = "";
-                        bot.ReplyMessage(replyToken, "請輸入用車事由");
+                        var parts = pair.Split('=', 2);
+                        var k = Uri.UnescapeDataString(parts[0]);
+                        var v = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : "";
+                        kv[k] = v;
                     }
-                    // Step 2: 事由
-                    else if (Reason == "" && userMessage != "確認")
-                    {
-                        Reason = userMessage;
-                        bot.ReplyMessage(replyToken, "請輸入乘客人數");
-                    }
-                    // Step 3: 人數
-                    else if (PassengerCount == "" && int.TryParse(userMessage.Replace("人", ""), out _))
-                    {
-                        PassengerCount = userMessage;
-                        bot.ReplyMessage(replyToken, "請輸入前往地點");
-                    }
-                    // Step 4: 地點
-                    else if (Destination == "")
-                    {
-                        Destination = userMessage;
 
-                        // === 綁定或新增申請人 ===
-                        var lineUser = _db.LineUsers.FirstOrDefault(x => x.LineUserId == userId);
-                        if (lineUser == null)
+                    // ========== 指派駕駛 ==========
+                    if (kv.TryGetValue("action", out var action) && action == "assignDriver")
+                    {
+                        int.TryParse(kv.GetValueOrDefault("applyId"), out var applyId);
+                        int.TryParse(kv.GetValueOrDefault("driverId"), out var driverId);
+                        var driverName = kv.GetValueOrDefault("driverName");
+
+                        var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                        if (app == null)
                         {
-                            lineUser = new LineUser
-                            {
-                                LineUserId = userId,
-                                DisplayName = "未知使用者",
-                                Role = "申請人",
-                                CreatedAt = DateTime.Now
-                            };
-                            _db.LineUsers.Add(lineUser);
-                            _db.SaveChanges();
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
+                            continue;
                         }
 
-                        // === 建立申請單 ===
+                        var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                        state.SelectedDriverId = driverId;
+                        state.SelectedDriverName = driverName;
+                        // 先回覆「已選駕駛」
+                        bot.ReplyMessage(replyToken, $"✅ 已選擇駕駛：{driverName}");
+                        // 再推送選車卡片
+                        var carBubble = BuildCarSelectBubble(applyId, _db);
+                        bot.PushMessageWithJSON(uid, $"[{carBubble}]");
+                        continue;
+                    }
+
+                    // ========== 指派車輛 ==========
+                    if (kv.TryGetValue("action", out action) && action == "assignVehicle")
+                    {
+                        int.TryParse(kv.GetValueOrDefault("applyId"), out var applyId);
+                        int.TryParse(kv.GetValueOrDefault("vehicleId"), out var vehicleId);
+                        var plateNo = kv.GetValueOrDefault("plateNo");
+
+                        if (!_flow.TryGetValue(uid, out var driverState))
+                        {
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到駕駛資訊，請重新操作");
+                            continue;
+                        }
+
+                        var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                        if (app == null)
+                        {
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到對應申請單");
+                            continue;
+                        }
+                        // 找出那張「待指派」的派車單
+                        var dispatch = _db.Dispatches
+                            .OrderByDescending(d => d.DispatchId)
+                            .FirstOrDefault(d => d.ApplyId == applyId);
+
+                        if (dispatch == null)
+                        {
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到對應的派車單");
+                            return Ok();
+                        }
+
+
+                        // 更新派車單
+                        dispatch.DriverId = driverState.SelectedDriverId ?? 0;
+                        dispatch.VehicleId = vehicleId;
+                        dispatch.DispatchStatus = "已派車";
+                        dispatch.StartTime = DateTime.Now;
+                        dispatch.EndTime = app.UseEnd;
+
+                        // === 呼叫 Distance API 算距離 ===
+                        double km = 0, minutes = 0;
+                        try
+                        {
+                            using var client = new HttpClient();
+                            var url = $"{_baseUrl}/api/distance?origin={Uri.EscapeDataString(app.Origin ?? "公司")}&destination={Uri.EscapeDataString(app.Destination ?? "")}";
+                            var res = await client.GetStringAsync(url);
+                            var json = JObject.Parse(res);
+
+                            km = json["distanceKm"]?.Value<double>() ?? 0;
+                            minutes = json["durationMin"]?.Value<double>() ?? 0;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("⚠️ Distance API 失敗: " + ex.Message);
+                        }
+
+                        dispatch.IsLongTrip = km > 30;
+
+                        // 同步更新 CarApplication
+                        app.DriverId = driverState.SelectedDriverId;   // 選到的駕駛
+                        app.VehicleId = vehicleId;                     // 選到的車輛
+                        app.isLongTrip = (app.SingleDistance ?? 0) > 30;
+                        app.Status = "完成審核";
+                        _db.SaveChanges();
+                        // 先回覆「已選車輛」
+                        bot.ReplyMessage(replyToken, $"✅ 已選擇車輛：{plateNo}");
+
+                        // 再推送完成審核卡片
+                        var doneBubble = BuildDoneBubble(driverState.SelectedDriverName, plateNo);
+                        bot.PushMessageWithJSON(uid, $"[{doneBubble}]");
+
+                        if (_applyToApplicant.TryGetValue(app.ApplyId, out var applicantUid))
+                            bot.PushMessageWithJSON(applicantUid, $"[{doneBubble}]");
+
+                        // 通知駕駛
+                        string driverLineId = "Uc91f19345d05c8ff500d4c02ef71e913";
+                        if (!string.IsNullOrEmpty(driverLineId))
+                        {
+                            var notice = BuildDriverDispatchBubble(app, driverState.SelectedDriverName, plateNo, km, minutes);
+                            bot.PushMessageWithJSON(driverLineId, $"[{notice}]");
+                        }
+
+                        _flow.TryRemove(uid, out _); // 清掉暫存
+                        continue;
+                    }
+                }
+
+                // ================= MESSAGE 事件 =================
+                if (ev.type == "message")
+                {
+                    var msg = (ev.message.text ?? "").Trim();
+                    var state = _flow.GetOrAdd(uid, _ => new BookingState());
+
+                    // Step 1: 開始預約
+                    if (msg.Contains("預約車輛"))
+                    {
+                        _flow[uid] = new BookingState(); // reset
+                        bot.ReplyMessageWithJSON(replyToken, Step1JsonArray);
+                        continue;
+                    }
+
+                    // Step 2: 預約時間
+                    if (string.IsNullOrEmpty(state.ReserveTime) && (msg == "即時預約" || msg == "預訂時間"))
+                    {
+                        state.ReserveTime = msg;
+                        bot.ReplyMessage(replyToken, "請輸入用車事由");
+                        continue;
+                    }
+
+                    // Step 3: 用車事由
+                    if (!string.IsNullOrEmpty(state.ReserveTime) &&
+                        string.IsNullOrEmpty(state.Reason) &&
+                        !msg.EndsWith("人") && msg != "確認" && msg != "取消")
+                    {
+                        state.Reason = msg;
+                        bot.ReplyMessageWithJSON(replyToken, Step3JsonArray);
+                        continue;
+                    }
+
+                    // Step 4: 人數
+                    if (!string.IsNullOrEmpty(state.Reason) &&
+                        string.IsNullOrEmpty(state.PassengerCount) &&
+                        msg.EndsWith("人"))
+                    {
+                        state.PassengerCount = msg;
+                        bot.ReplyMessage(replyToken, "請輸入出發地點");
+                        continue;
+                    }
+
+                    // Step 5: 出發地
+                    if (!string.IsNullOrEmpty(state.PassengerCount) &&
+                        string.IsNullOrEmpty(state.Origin) &&
+                        msg != "確認" && msg != "取消")
+                    {
+                        state.Origin = msg;
+                        bot.ReplyMessage(replyToken, "請輸入前往地點");
+                        continue;
+                    }
+
+                    // Step 6: 目的地
+                    if (!string.IsNullOrEmpty(state.Origin) &&
+                        string.IsNullOrEmpty(state.Destination) &&
+                        msg != "確認" && msg != "取消")
+                    {
+                        state.Destination = msg;
+
+                        // 確認卡片
+                        string confirmBubble = $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""申請派車資訊"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""spacing"": ""md"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""申請派車資訊"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 預約時間：{state.ReserveTime}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 用車事由：{state.Reason}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{state.PassengerCount}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 出發地點：{state.Origin}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{state.Destination}"" }}
+      ]
+    }},
+    ""footer"": {{
+      ""type"": ""box"",
+      ""layout"": ""horizontal"",
+      ""contents"": [
+        {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" }} }},
+        {{ ""type"": ""button"", ""style"": ""primary"", ""action"": {{ ""type"": ""message"", ""label"": ""確認"", ""text"": ""確認"" }} }}
+      ]
+    }}
+  }}
+}}";
+                        bot.ReplyMessageWithJSON(replyToken, $"[{confirmBubble}]");
+                        continue;
+                    }
+
+                    // Step 7: 取消
+                    if (msg == "取消")
+                    {
+                        bot.ReplyMessage(replyToken, "❌ 已取消派車申請。");
+                        _flow.TryRemove(uid, out _);
+                        continue;
+                    }
+
+                    // Step 8: 確認 → 存DB & 通知管理員
+                    if (msg == "確認")
+                    { // 先呼叫 Distance API 算距離與時間
+                        double km = 0, minutes = 0;
+                        try
+                        {
+                            using var client = new HttpClient();
+                            var url = $"{_baseUrl}/api/distance?origin={Uri.EscapeDataString(state.Origin ?? "公司")}&destination={Uri.EscapeDataString(state.Destination ?? "")}";
+                            var res = await client.GetStringAsync(url);
+
+                            Console.WriteLine("?? Response: " + res);
+
+                            var json = JObject.Parse(res);
+
+                            // 直接取出 distanceKm 和 durationMin
+                            km = json["distanceKm"]?.Value<double>() ?? 0;
+                            minutes = json["durationMin"]?.Value<double>() ?? 0;
+
+                            Console.WriteLine($"?? API 回傳距離: {km} 公里, 時間: {minutes} 分鐘");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("⚠️ Distance API 失敗: " + ex.Message);
+                        }
+
+
+                        // 建立申請單 (先存 DB)
+                        var start = DateTime.Now;
                         var app = new CarApplication
                         {
-                            ApplyFor = lineUser.DisplayName,
-                            ApplicantId = lineUser.RelatedId, // 可選（如果已經綁定 Applicant）
-                            ApplyReason = Reason,
-                            PassengerCount = int.Parse(PassengerCount.Replace("人", "")),
-                            Origin = "森林規劃科",
-                            Destination = Destination,
-                            UseStart = DateTime.Now,
-                            UseEnd = DateTime.Now.AddHours(2),
-                            Status = "待審核"
+                            ApplyFor = "申請人",
+                            VehicleType = "汽車",
+                            PurposeType = "公務車(不可選車)",
+                            ReasonType = "公務用",
+                            PassengerCount = int.TryParse(state.PassengerCount?.Replace("人", ""), out var n) ? n : 1,
+                            ApplyReason = state.Reason ?? string.Empty,
+                            Origin = state.Origin ?? "公司",
+                            Destination = state.Destination ?? "",
+                            UseStart = start,
+                            UseEnd = start.AddMinutes(minutes),
+                            ApplicantId = 1,
+                            Status = "待審核",
+
+                            // 這邊直接存距離 & 時間
+                            SingleDistance = (decimal)km,
+                            SingleDuration = $"{minutes:F0} 分鐘",
+                            RoundTripDistance = (decimal)(km * 2),
+                            RoundTripDuration = $"{minutes * 2:F0} 分鐘",
+                            isLongTrip = km > 30
                         };
                         _db.CarApplications.Add(app);
                         _db.SaveChanges();
 
-                        // === 通知管理員 ===
-                        string adminFlex = GetAdminFlexJson(app);
-                        bot.PushMessageWithJSON(adminUserId, adminFlex);
-
-                        bot.ReplyMessage(replyToken, "✅ 已送出申請，等待管理員審核");
-                    }
-                    // === Step 5: 管理員審核 ===
-                    else if (userMessage == "同意申請")
-                    {
-                        string driverFlex = GetDriverSelectFlexJson();
-                        bot.ReplyMessageWithJSON(replyToken, driverFlex);
-                    }
-                    else if (userMessage == "拒絕申請")
-                    {
-                        var app = _db.CarApplications
-                                     .OrderByDescending(a => a.ApplyId)
-                                     .FirstOrDefault(a => a.Status == "待審核");
-
-                        if (app != null)
+                        var dispatch = new Dispatch
                         {
-                            app.Status = "已拒絕";
-                            _db.SaveChanges();
+                            ApplyId = app.ApplyId,
+                            DispatchStatus = "待指派",
+                            CreatedAt = DateTime.Now,
+                            IsLongTrip = km > 30
+                        };
+                        _db.Dispatches.Add(dispatch);
+                        _db.SaveChanges();
 
-                            // 找出申請人
-                            var lineUser = _db.LineUsers.FirstOrDefault(u => u.RelatedId == app.ApplicantId);
-                            if (lineUser != null)
-                            {
-                                bot.PushMessage(lineUser.LineUserId,
-                                    $"❌ 您的派車申請已被拒絕\n" +
-                                    $"事由：{app.ApplyReason}\n" +
-                                    $"地點：{app.Destination}");
-                            }
+                        _applyToApplicant[app.ApplyId] = uid;
 
-                            bot.ReplyMessage(replyToken, "✅ 已拒絕該派車申請");
-                        }
+                        // 推播給管理員
+                        var adminIds = _db.LineUsers?.Where(x => x.Role == "Admin").Select(x => x.LineUserId).ToList() ?? new List<string>();
+                        var adminFlex = BuildAdminFlexBubble(app);
+                        foreach (var aid in adminIds)
+                            bot.PushMessageWithJSON(aid, $"[{adminFlex}]");
+
+                        bot.ReplyMessage(replyToken, "✅ 已送出派車申請，等待審核。");
+                        _flow.TryRemove(uid, out _);
+                        continue;
                     }
-                    // === Step 6: 指派駕駛 ===
-                    else if (userMessage.StartsWith("指派駕駛:"))
+                    // ================= 管理員審核 =================
+                    if (msg.StartsWith("同意申請"))
                     {
-                        string driverName = userMessage.Replace("指派駕駛:", "");
-                        string doneFlex = GetDoneFlexJson(driverName, "0000");
-
-                        bot.ReplyMessageWithJSON(replyToken, doneFlex);
-
-                        // 找最新的申請人
-                        var app = _db.CarApplications
-                                     .OrderByDescending(a => a.ApplyId)
-                                     .FirstOrDefault(a => a.Status == "待審核");
-
-                        if (app != null)
+                        if (!TryParseId(msg, out var applyId))
                         {
-                            app.Status = "已派車";
-                            _db.SaveChanges();
-
-                            // 找申請人
-                            var lineUser = _db.LineUsers.FirstOrDefault(u => u.RelatedId == app.ApplicantId);
-                            if (lineUser != null)
-                            {
-                                bot.PushMessageWithJSON(lineUser.LineUserId, doneFlex);
-                            }
-
-                            // 通知駕駛
-                            bot.PushMessageWithJSON(driverUserId, doneFlex);
+                            bot.ReplyMessage(replyToken, "❗ 指令格式錯誤");
+                            continue;
                         }
+
+                        var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                        if (app == null)
+                        {
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
+                            continue;
+                        }
+
+                        // 顯示「選擇駕駛人」卡片
+                        var selectDriverBubble = BuildDriverSelectBubble(applyId, _db);
+                        bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
+                        continue;
                     }
-                    else
+
+                    if (msg.StartsWith("拒絕申請"))
                     {
-                        bot.ReplyMessage(replyToken, $"你剛剛說：{userMessage}");
+                        if (!TryParseId(msg, out var applyId))
+                        {
+                            bot.ReplyMessage(replyToken, "❗ 指令格式錯誤");
+                            continue;
+                        }
+
+                        var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                        if (app == null)
+                        {
+                            bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
+                            continue;
+                        }
+
+                        app.Status = "已拒絕";
+                        _db.SaveChanges();
+
+                        // 通知申請人
+                        if (_applyToApplicant.TryGetValue(applyId, out var applicantUid))
+                        {
+                            bot.PushMessage(applicantUid,
+                                $"❌ 您的派車申請已被拒絕\n事由：{app.ApplyReason}\n地點：{app.Destination}");
+                        }
+
+                        bot.ReplyMessage(replyToken, "✅ 已拒絕該申請。");
+                        continue;
                     }
+
+                    // 其它訊息：回聲
+                    bot.ReplyMessage(replyToken, $"你剛剛說：{msg}");
                 }
-
-                return Ok();
             }
 
-            // 管理員審核卡片
-            private string GetAdminFlexJson(CarApplication app) => $@"
-            {{
-              ""type"": ""flex"",
-              ""altText"": ""派車申請審核"",
-              ""contents"": {{
-                ""type"": ""bubble"",
-                ""body"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""contents"": [
-                    {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }}
-                  ]
-                }},
-                ""footer"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""horizontal"",
-                  ""contents"": [
-                    {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""拒絕"", ""text"": ""拒絕申請"" }} }},
-                    {{ ""type"": ""button"", ""style"": ""primary"", ""action"": {{ ""type"": ""message"", ""label"": ""同意"", ""text"": ""同意申請"" }} }}
-                  ]
-                }}
-              }}
-            }}";
+            return Ok();
+        }
 
-            // 選駕駛人
-            private string GetDriverSelectFlexJson() => @"
-            {
-              ""type"": ""flex"",
-              ""altText"": ""選擇駕駛人"",
-              ""contents"": {
-                ""type"": ""bubble"",
-                ""body"": {
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""contents"": [
-                    { ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" },
-                    { ""type"": ""button"", ""action"": { ""type"": ""message"", ""label"": ""王ＯＯ"", ""text"": ""指派駕駛:王ＯＯ"" }},
-                    { ""type"": ""button"", ""action"": { ""type"": ""message"", ""label"": ""吳ＸＸ"", ""text"": ""指派駕駛:吳ＸＸ"" }}
-                  ]
-                }
-              }
-            }";
+        // ====== 產 JSON（都是「單一 bubble」，外層呼叫時會包成 [ ... ]）======
+        private static string BuildAdminFlexBubble(CarApplication app) => $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""派車申請"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},        
+        {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }}
+      ]
+    }},
+    ""footer"": {{
+      ""type"": ""box"",
+      ""layout"": ""horizontal"",
+      ""contents"": [
+        {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""拒絕"", ""text"": ""拒絕申請 {app.ApplyId}"" }} }},
+        {{ ""type"": ""button"", ""style"": ""primary"",   ""action"": {{ ""type"": ""message"", ""label"": ""同意"", ""text"": ""同意申請 {app.ApplyId}"" }} }}
+      ]
+    }}
+  }}
+}}";
+        //選擇司機卡片
+        private static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
+        {
+            var drivers = db.Drivers
+                .Select(d => new { d.DriverId, d.DriverName })
+                .Take(5)
+                .ToList();
 
-            // 完成通知
-            private string GetDoneFlexJson(string driver, string carNo) => $@"
-            {{
-              ""type"": ""flex"",
-              ""altText"": ""已安排駕駛人員"",
-              ""contents"": {{
-                ""type"": ""bubble"",
-                ""body"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""contents"": [
-                    {{ ""type"": ""text"", ""text"": ""已安排駕駛人員"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driver}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 使用車輛：{carNo}"" }}
-                  ]
-                }}
-              }}
-            }}";
+            var btns = string.Join(",\n        ", drivers.Select(d =>
+                $@"{{
+            ""type"": ""button"",
+            ""action"": {{
+                ""type"": ""postback"",
+                ""label"": ""{d.DriverName}"",
+                ""data"": ""action=assignDriver&applyId={applyId}&driverId={d.DriverId}&driverName={d.DriverName}""
+            }}
+        }}"));
+
+            return $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""選擇駕駛人"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {btns}
+      ]
+    }}
+  }}
+}}";
+        }
+        //選擇車輛卡片
+        private static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
+        {
+            var cars = db.Vehicles
+                .Select(v => new { v.VehicleId, v.PlateNo })
+                .Take(5)
+                .ToList();
+
+            var btns = string.Join(",\n        ", cars.Select(c =>
+                $@"{{
+            ""type"": ""button"",
+            ""action"": {{
+                ""type"": ""postback"",
+                ""label"": ""{c.PlateNo}"",
+                ""data"": ""action=assignVehicle&applyId={applyId}&vehicleId={c.VehicleId}&plateNo={c.PlateNo}""
+            }}
+        }}"));
+
+            return $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""選擇車輛"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {btns}
+      ]
+    }}
+  }}
+}}";
+        }
+
+
+        private static string BuildDoneBubble(string driverName, string carNo) => $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""已安排駕駛人員"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""已安排駕駛人員"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 使用車輛：{carNo}"" }}
+      ]
+    }}
+  }}
+}}";
+        
+        // 駕駛人—派車通知
+        private static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes) => $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""派車通知"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""🚗 派車通知"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 任務單號：{app.ApplyId}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 預約時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor ?? "未知"}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 車輛：{carNo}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 距離：約 {km:F1} 公里"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 車程：約 {minutes:F0} 分鐘"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 上車地點：{app.Origin ?? "公司"}"" }},
+        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }},
+        {{ ""type"": ""separator"", ""margin"": ""md"" }},
+        {{ ""type"": ""text"", ""text"": ""請即刻前往指定地點，若有其他問題請撥02-12345678，謝謝!"",
+           ""wrap"": true, ""size"": ""sm"", ""color"": ""#555555"", ""margin"": ""md"" }}
+      ]
+    }}
+  }}
+}}";
+
+        // 駕駛—開始行程確認
+        private static string BuildStartedBubble(Dispatch d) => $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""行程已開始"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"", ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""行程已開始"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""出發時間：{DateTime.Now:HH:mm}"" }}
+      ]
+    }}
+  }}
+}}";
+
+        // 駕駛—完成行程確認
+        private static string BuildFinishedBubble(Dispatch d) => $@"
+{{
+  ""type"": ""flex"",
+  ""altText"": ""行程已完成"",
+  ""contents"": {{
+    ""type"": ""bubble"",
+    ""body"": {{
+      ""type"": ""box"", ""layout"": ""vertical"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""行程已完成"", ""weight"": ""bold"", ""size"": ""lg"" }},
+        {{ ""type"": ""text"", ""text"": ""結束時間：{DateTime.Now:HH:mm}"" }}
+      ]
+    }}
+  }}
+}}";
+
+        private static bool TryParseId(string msg, out int id)
+        {
+            id = 0;
+            var parts = msg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2 && int.TryParse(parts[^1], out id);
         }
     }
+}

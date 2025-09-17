@@ -719,17 +719,10 @@
             alert('請輸入出發地與目的地'); return;
           }
 
-          // 從 RouteStops 取站點 → 組成 waypoints（優先 lat,lng；其次 address）
-          const stops = (window.RouteStops ? window.RouteStops.get() : []);
-          const waypoints = (stops || [])
-            .map(s => (s && (s.lat != null && s.lng != null))
-              ? `${s.lat},${s.lng}`
-              : (s && s.address ? s.address : null))
-            .filter(Boolean)
-            .join('|');
+         
 
           try {
-            const url = `/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}`;
+            const url = `/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`;
             const res = await fetch(url);
             const data = await res.json();
 

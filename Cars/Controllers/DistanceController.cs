@@ -2,12 +2,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace Cars.Controllers
 {
-    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class DistanceController : ControllerBase
@@ -40,8 +40,25 @@ namespace Cars.Controllers
             if (!res.IsSuccessStatusCode)
                 return BadRequest(new { error = "Google Distance Matrix 失敗", details = body });
 
-            return Content(body, "application/json");
+            // 解析 JSON
+            var json = Newtonsoft.Json.Linq.JObject.Parse(body);
+            var elem = json["rows"]?[0]?["elements"]?[0];
+
+            if (elem?["status"]?.ToString() != "OK")
+                return BadRequest(new { error = "查無路線" });
+
+            double km = elem["distance"]?["value"]?.Value<double>() / 1000 ?? 0;
+            double minutes = elem["duration"]?["value"]?.Value<double>() / 60 ?? 0;
+
+            return Ok(new
+            {
+                origin,
+                destination,
+                distanceKm = km,
+                durationMin = minutes
+            });
         }
         #endregion
+
     }
 }
