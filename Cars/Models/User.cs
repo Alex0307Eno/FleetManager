@@ -8,6 +8,8 @@ namespace Cars.Models
         [Key]
         public int UserId { get; set; }                           // 主鍵
 
+        public string ? LineUserId { get; set; }                  // LINE userId (U 開頭)，可為 null
+
         [Required, StringLength(50)]
         public string Account { get; set; } = string.Empty;       // 帳號
 

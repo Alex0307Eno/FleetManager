@@ -3,6 +3,7 @@ using Cars.Models;
 using DocumentFormat.OpenXml.ExtendedProperties;
 using isRock.LIFF;
 using isRock.LineBot;
+using LineBotDemo.Services;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
@@ -16,15 +17,16 @@ namespace LineBotDemo.Controllers
         private readonly string _token;
         private readonly ApplicationDbContext _db;
         private readonly string _baseUrl;
+        private readonly RichMenuService _richMenuService;
 
-
-        public LineBotController(IConfiguration config, ApplicationDbContext db)
+        public LineBotController(IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService)
         {
             _token = config["LineBot:ChannelAccessToken"];
             _baseUrl = config["AppBaseUrl"];
             _db = db;
+            _richMenuService = richMenuService;
         }
-
+        #region 暫存方法
         // ===== 使用者流程暫存（依 userId 分別保存） =====
         private class BookingState
         {
@@ -34,17 +36,22 @@ namespace LineBotDemo.Controllers
             public string? Origin { get; set; }
 
             public string? Destination { get; set; }
+            public string? TripType { get; set; }   // 單程 or 來回
+
 
             // 給管理員指派流程用
             public int? SelectedDriverId { get; set; }
             public string? SelectedDriverName { get; set; }
         }
+        // 對話進度暫存
         private static readonly ConcurrentDictionary<string, BookingState> _flow = new();
 
         // 把「申請單 ApplyId 對應 申請人 LINE userId」暫存起來，方便審核後通知申請人
         private static readonly ConcurrentDictionary<int, string> _applyToApplicant = new();
+        #endregion
 
-        // === QuickReply（一定要是 JSON 陣列） ===
+        #region 對話工具
+        // Step 1: 即時預約 or 預訂時間
         private const string Step1JsonArray = @"
 [
   {
@@ -58,6 +65,30 @@ namespace LineBotDemo.Controllers
     }
   }
 ]";
+        // 8:00~17:00，每小時一格 + 手動輸入
+        private const string Step2TimeJsonArray = @"
+[
+  {
+    ""type"": ""text"",
+    ""text"": ""請選擇出發時間（或點『手動輸入』）"",
+    ""quickReply"": {
+      ""items"": [
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""08:00"", ""text"": ""08:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""09:00"", ""text"": ""09:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""10:00"", ""text"": ""10:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""11:00"", ""text"": ""11:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""12:00"", ""text"": ""12:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""13:00"", ""text"": ""13:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""14:00"", ""text"": ""14:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""15:00"", ""text"": ""15:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""16:00"", ""text"": ""16:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""17:00"", ""text"": ""17:00"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""手動輸入"", ""text"": ""手動輸入"" } }
+      ]
+    }
+  }
+]";
+        // 1~4人
         private const string Step3JsonArray = @"
 [
   {
@@ -73,10 +104,27 @@ namespace LineBotDemo.Controllers
     }
   }
 ]";
+        // 單程 or 來回
+        private const string Step6bTripJsonArray = @"
+[
+  {
+    ""type"": ""text"",
+    ""text"": ""請選擇行程類型"",
+    ""quickReply"": {
+      ""items"": [
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""單程"", ""text"": ""單程"" } },
+        { ""type"": ""action"", ""action"": { ""type"": ""message"", ""label"": ""來回"", ""text"": ""來回"" } }
+      ]
+    }
+  }
+]";
+        #endregion
 
+        #region 主流程
         [HttpPost]
         public async Task<IActionResult> Post()
         {
+
             string body;
             using (var reader = new StreamReader(Request.Body))
                 body = await reader.ReadToEndAsync();
@@ -86,9 +134,97 @@ namespace LineBotDemo.Controllers
 
             foreach (var ev in events.events)
             {
+
                 var replyToken = ev.replyToken;
                 var uid = ev.source.userId ?? "anon";
+                // === 確保 LineUser 與 User 存在 & 同步 DisplayName ===
+                try
+                {
+                    // 特殊事件：加入好友
+                    // ================= FOLLOW 事件 =================
+                    if (ev.type == "follow")
+                    {
+                        var userId = ev.source.userId;
+                        if (!string.IsNullOrEmpty(userId))
+                        {
+                            // 查詢使用者角色（先看 Users 表）
+                            var role = _db.Users
+                                .Where(u => u.LineUserId == userId)
+                                .Select(u => u.Role)
+                                .FirstOrDefault();
 
+                            // 如果沒有，嘗試從 LineUsers 表查
+                            if (string.IsNullOrEmpty(role))
+                            {
+                                 role = _db.Users
+                                        .Where(u => u.LineUserId == userId)
+                                        .Select(u => u.Role)
+                                        .FirstOrDefault();
+                            }
+
+                            // 沒有角色 → 預設 Applicant
+                            if (string.IsNullOrEmpty(role))
+                            {
+                                role = "Applicant";
+                            }
+
+                            // 綁定對應角色的 RichMenu
+                            await _richMenuService.BindUserToRoleAsync(userId, role);
+
+                            bot.ReplyMessage(replyToken, $"👋 歡迎加入！已為您設定 {role} 選單。");
+                        }
+                        continue;
+                    }
+
+                    var profile = isRock.LineBot.Utility.GetUserInfo(uid, _token);
+                    var lineDisplayName = profile.displayName ?? "未命名";
+
+
+                    // 1. 確保 LineUsers
+                    var lineUser = _db.LineUsers.FirstOrDefault(x => x.LineUserId == uid);
+                    if (lineUser == null)
+                    {
+                        lineUser = new LineUser
+                        {
+                            LineUserId = uid,
+                            DisplayName = lineDisplayName,
+                            CreatedAt = DateTime.Now
+                        };
+                        _db.LineUsers.Add(lineUser);
+                        _db.SaveChanges();
+                    }
+                    else
+                    {
+                        lineUser.DisplayName = lineDisplayName;
+                        _db.SaveChanges();
+                    }
+
+                    // 2. 確保 Users
+                    var user = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
+                    if (user == null)
+                    {
+                        user = new User
+                        {
+                            Account = uid, 
+                            PasswordHash = "",
+                            DisplayName = lineDisplayName,
+                            Role = "Applicant",
+                            IsActive = true,
+                            CreatedAt = DateTime.Now,
+                            LineUserId = uid
+                        };
+                        _db.Users.Add(user);
+                    }
+                    else
+                    {
+                        user.DisplayName = lineDisplayName; // 同步最新名字
+                    }
+                    _db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("⚠️ 建立 LineUser/User 失敗: " + ex.Message);
+                }
                 // ================= POSTBACK 事件 =================
                 if (ev.type == "postback")
                 {
@@ -218,8 +354,16 @@ namespace LineBotDemo.Controllers
                 // ================= MESSAGE 事件 =================
                 if (ev.type == "message")
                 {
+
                     var msg = (ev.message.text ?? "").Trim();
                     var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                    // 全域訊息安全檢查
+                    if (!IsValidUserText(msg) || ContainsSqlMeta(msg))
+                    {
+                        bot.ReplyMessage(replyToken, "輸入格式不正確，請重新輸入。");
+                        continue;
+                    }
+
 
                     // Step 1: 開始預約
                     if (msg.Contains("預約車輛"))
@@ -232,10 +376,60 @@ namespace LineBotDemo.Controllers
                     // Step 2: 預約時間
                     if (string.IsNullOrEmpty(state.ReserveTime) && (msg == "即時預約" || msg == "預訂時間"))
                     {
-                        state.ReserveTime = msg;
-                        bot.ReplyMessage(replyToken, "請輸入用車事由");
+                        if (msg == "即時預約")
+                        {
+                            state.ReserveTime = "即時預約";
+                            bot.ReplyMessage(replyToken, "請輸入用車事由");
+                        }
+                        else // 預訂時間 → 顯示時間選單
+                        {
+                            bot.ReplyMessageWithJSON(replyToken, Step2TimeJsonArray);
+                        }
                         continue;
                     }
+
+                    // 使用者點了「手動輸入」
+                    if (string.IsNullOrEmpty(state.ReserveTime) && msg == "手動輸入")
+                    {
+                        bot.ReplyMessage(replyToken, "請輸入時間，格式：HH:mm 或 yyyy/MM/dd HH:mm（例：09:30 或 2025/09/18 09:30）");
+                        continue;
+                    }
+
+                    // 使用者選了時間（08:00~17:00），或手動輸入了時間字串
+                    if (string.IsNullOrEmpty(state.ReserveTime))
+                    {
+                        // 簡單判斷：HH:mm（08:00~17:59 都算）、或 yyyy/MM/dd HH:mm
+                        DateTime parsed;
+                        bool ok = false;
+
+                        // HH:mm
+                        if (System.Text.RegularExpressions.Regex.IsMatch(msg, @"^\d{2}:\d{2}$"))
+                        {
+                            // 以今天日期 + 使用者時分
+                            var today = DateTime.Today;
+                            var parts = msg.Split(':');
+                            int hh, mm;
+                            if (int.TryParse(parts[0], out hh) && int.TryParse(parts[1], out mm))
+                            {
+                                parsed = new DateTime(today.Year, today.Month, today.Day, hh, mm, 0);
+                                ok = true;
+                            }
+                            else parsed = DateTime.Now;
+                        }
+                        // yyyy/MM/dd HH:mm
+                        else if (DateTime.TryParse(msg, out parsed))
+                        {
+                            ok = true;
+                        }
+
+                        if (ok)
+                        {
+                            state.ReserveTime = parsed.ToString("yyyy/MM/dd HH:mm");
+                            bot.ReplyMessage(replyToken, "請輸入用車事由");
+                            continue;
+                        }
+                    }
+
 
                     // Step 3: 用車事由
                     if (!string.IsNullOrEmpty(state.ReserveTime) &&
@@ -273,8 +467,23 @@ namespace LineBotDemo.Controllers
                         msg != "確認" && msg != "取消")
                     {
                         state.Destination = msg;
+                        bot.ReplyMessageWithJSON(replyToken, Step6bTripJsonArray);
+                        continue;
+
+                    }
+                    // Step 6b: 單程/來回
+                    if (!string.IsNullOrEmpty(state.Destination) &&
+                        string.IsNullOrEmpty(state.TripType) &&
+                        (msg == "單程" || msg == "來回"))
+                    {
+                        state.TripType = (msg == "單程") ? "single" : "round";
 
                         // 確認卡片
+                        var safeReserveTime = Safe(state.ReserveTime);
+                        var safeReason = Safe(state.Reason);
+                        var safePax = Safe(state.PassengerCount);
+                        var safeOrigin = Safe(state.Origin);
+                        var safeDest = Safe(state.Destination);
                         string confirmBubble = $@"
 {{
   ""type"": ""flex"",
@@ -340,10 +549,32 @@ namespace LineBotDemo.Controllers
                         {
                             Console.WriteLine("⚠️ Distance API 失敗: " + ex.Message);
                         }
+                        // 把 UseStart 決定好：優先用使用者選/輸入，否則用現在
+                        DateTime start;
+                        if (!string.IsNullOrEmpty(state.ReserveTime))
+                        {
+                            DateTime tmp;
+                            if (DateTime.TryParse(state.ReserveTime, out tmp))
+                                start = tmp;
+                            else
+                            {
+                                // 若是只有 HH:mm（被你上面格式化成完整字串就不會來這裡；這裡是保險）
+                                var today = DateTime.Today;
+                                start = new DateTime(today.Year, today.Month, today.Day, 8, 0, 0);
+                            }
+                        }
+                        else
+                        {
+                            start = DateTime.Now;
+                        }
 
+                        // minutes 是 Google API 回來的「單程」分鐘數
+                        double effectiveMinutes = minutes;
 
+                        // 如果是 round 行程，就乘 2
+                        if (state.TripType == "round")
+                            effectiveMinutes = minutes * 2;
                         // 建立申請單 (先存 DB)
-                        var start = DateTime.Now;
                         var app = new CarApplication
                         {
                             ApplyFor = "申請人",
@@ -355,15 +586,16 @@ namespace LineBotDemo.Controllers
                             Origin = state.Origin ?? "公司",
                             Destination = state.Destination ?? "",
                             UseStart = start,
-                            UseEnd = start.AddMinutes(minutes),
+                            UseEnd = start.AddMinutes(effectiveMinutes),
+                            TripType = state.TripType ?? "single",
                             ApplicantId = 1,
                             Status = "待審核",
 
                             // 這邊直接存距離 & 時間
                             SingleDistance = (decimal)km,
-                            SingleDuration = $"{minutes:F0} 分鐘",
+                            SingleDuration = ToHourMinuteString(minutes),
                             RoundTripDistance = (decimal)(km * 2),
-                            RoundTripDuration = $"{minutes * 2:F0} 分鐘",
+                            RoundTripDuration = ToHourMinuteString(minutes * 2),
                             isLongTrip = km > 30
                         };
                         _db.CarApplications.Add(app);
@@ -382,8 +614,10 @@ namespace LineBotDemo.Controllers
                         _applyToApplicant[app.ApplyId] = uid;
 
                         // 推播給管理員
-                        var adminIds = _db.LineUsers?.Where(x => x.Role == "Admin").Select(x => x.LineUserId).ToList() ?? new List<string>();
-                        var adminFlex = BuildAdminFlexBubble(app);
+                        var adminIds = _db.Users
+                            .Where(u => u.Role == "Admin" && u.LineUserId != null && u.LineUserId != "")
+                            .Select(u => u.LineUserId)
+                            .ToList(); var adminFlex = BuildAdminFlexBubble(app);
                         foreach (var aid in adminIds)
                             bot.PushMessageWithJSON(aid, $"[{adminFlex}]");
 
@@ -449,8 +683,11 @@ namespace LineBotDemo.Controllers
 
             return Ok();
         }
+        #endregion
+       
+        #region 通知
 
-        // ====== 產 JSON（都是「單一 bubble」，外層呼叫時會包成 [ ... ]）======
+        //申請人通知卡片
         private static string BuildAdminFlexBubble(CarApplication app) => $@"
 {{
   ""type"": ""flex"",
@@ -482,10 +719,24 @@ namespace LineBotDemo.Controllers
         //選擇司機卡片
         private static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
         {
+            var now = DateTime.Now;
+
             var drivers = db.Drivers
+                .Where(d =>!d.IsAgent &&
+                    //沒有正在出勤
+                    !db.Dispatches.Any(dis =>
+                        dis.DriverId == d.DriverId &&
+                        dis.DispatchStatus == "已派車" &&
+                        dis.StartTime <= now &&
+                        dis.EndTime >= now)
+
+                  
+                       
+                )
                 .Select(d => new { d.DriverId, d.DriverName })
                 .Take(5)
                 .ToList();
+
 
             var btns = string.Join(",\n        ", drivers.Select(d =>
                 $@"{{
@@ -517,7 +768,16 @@ namespace LineBotDemo.Controllers
         //選擇車輛卡片
         private static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
         {
+            var now = DateTime.Now;
+
+            // 過濾掉正在使用中的車輛
             var cars = db.Vehicles
+                .Where(v => v.Status == "可用"&&
+                !db.Dispatches.Any(dis =>
+                    dis.VehicleId == v.VehicleId &&
+                    dis.DispatchStatus == "已派車" &&
+                    dis.StartTime <= now &&
+                    dis.EndTime >= now))
                 .Select(v => new { v.VehicleId, v.PlateNo })
                 .Take(5)
                 .ToList();
@@ -550,7 +810,7 @@ namespace LineBotDemo.Controllers
 }}";
         }
 
-
+        //通知申請人已安排駕駛人員
         private static string BuildDoneBubble(string driverName, string carNo) => $@"
 {{
   ""type"": ""flex"",
@@ -568,9 +828,22 @@ namespace LineBotDemo.Controllers
     }}
   }}
 }}";
-        
-        // 駕駛人—派車通知
-        private static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes) => $@"
+
+        // 駕駛—派車通知
+        private static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes)
+        {
+            // 根據行程類型決定顯示距離/時間
+            bool isRound = app.TripType == "round";
+
+            double showKm = isRound ? km * 2 : km;
+            double showMinutes = isRound ? minutes * 2 : minutes;
+
+            string distanceText = $"■ 距離：約 {showKm:F1} 公里";
+            string durationText = $"■ 車程：約 {ToHourMinuteString(showMinutes)}";
+            var safeApplyFor = Safe(app.ApplyFor);
+            var safeOrigin = Safe(app.Origin);
+            var safeDest = Safe(app.Destination);
+            return $@"
 {{
   ""type"": ""flex"",
   ""altText"": ""派車通知"",
@@ -586,8 +859,8 @@ namespace LineBotDemo.Controllers
         {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor ?? "未知"}"" }},
         {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
         {{ ""type"": ""text"", ""text"": ""■ 車輛：{carNo}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 距離：約 {km:F1} 公里"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 車程：約 {minutes:F0} 分鐘"" }},
+        {{ ""type"": ""text"", ""text"": ""{distanceText}"" }},
+        {{ ""type"": ""text"", ""text"": ""{durationText}"" }},
         {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
         {{ ""type"": ""text"", ""text"": ""■ 上車地點：{app.Origin ?? "公司"}"" }},
         {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }},
@@ -598,7 +871,7 @@ namespace LineBotDemo.Controllers
     }}
   }}
 }}";
-
+        }
         // 駕駛—開始行程確認
         private static string BuildStartedBubble(Dispatch d) => $@"
 {{
@@ -632,12 +905,76 @@ namespace LineBotDemo.Controllers
     }}
   }}
 }}";
+        #endregion
 
+        #region 轉換工具
+        // 解析申請單 ID
         private static bool TryParseId(string msg, out int id)
         {
             id = 0;
             var parts = msg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             return parts.Length >= 2 && int.TryParse(parts[^1], out id);
         }
+        // 公里轉文字
+        private static string ToHourMinuteString(double minutes)
+        {
+            int totalMinutes = (int)Math.Round(minutes);
+            int hours = totalMinutes / 60;
+            int mins = totalMinutes % 60;
+
+            if (hours > 0)
+                return $"{hours} 小時 {mins} 分鐘";
+            else
+                return $"{mins} 分鐘";
+        }
+        #endregion
+
+        #region 避免惡意攻擊
+        // 允許的文字（白名單）＋長度限制
+        private static bool IsValidUserText(string s, int maxLen = 300)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            if (s.Length > maxLen) return false;
+            // 中文、英文、數字、常見標點與空白
+            var regex = new System.Text.RegularExpressions.Regex(@"^[\u4e00-\u9fff\w\-\.,:\/\s()]{1,}$");
+            return regex.IsMatch(s);
+        }
+
+        // 粗略攔截疑似 SQL 關鍵片段（第二道防線：記錄/阻擋）
+        private static bool ContainsSqlMeta(string s)
+        {
+            var suspicious = new[] { "--", ";--", "/*", "*/", ";", " xp_", " drop ", " truncate ", " insert ", " delete ", " update ", " exec ", " sp_" };
+            var lower = s.ToLowerInvariant();
+            return suspicious.Any(p => lower.Contains(p));
+        }
+
+        // 安全輸出到 JSON 文字（避免把使用者輸入直接插入 Flex JSON）
+        private static string Safe(string? raw)
+        {
+            // 轉為安全 JSON 字面值再去除最外層引號 → 適合放到 text 欄位
+            var json = Newtonsoft.Json.JsonConvert.ToString(raw ?? "");
+            return json.Length >= 2 ? json.Substring(1, json.Length - 2) : "";
+        }
+
+        // 時間字串解析（接受 HH:mm 或 yyyy/MM/dd HH:mm）
+        private static bool TryParseUserTime(string input, out DateTime result)
+        {
+            result = DateTime.MinValue;
+            if (System.Text.RegularExpressions.Regex.IsMatch(input, @"^\d{2}:\d{2}$"))
+            {
+                var parts = input.Split(':');
+                if (int.TryParse(parts[0], out var hh) && int.TryParse(parts[1], out var mm) &&
+                    hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59)
+                {
+                    var today = DateTime.Today;
+                    result = new DateTime(today.Year, today.Month, today.Day, hh, mm, 0);
+                    return true;
+                }
+                return false;
+            }
+            return DateTime.TryParse(input, out result);
+        }
+        #endregion
+
     }
 }

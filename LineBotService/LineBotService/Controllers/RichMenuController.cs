@@ -1,6 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Cars.Data;
+using DocumentFormat.OpenXml.Drawing.Charts;
+using isRock.LineBot;
+using isRock.LineBot.RichMenu;
 using LineBotDemo.Services;
+using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace LineBotDemo.Controllers
 {
@@ -10,12 +16,14 @@ namespace LineBotDemo.Controllers
     {
         private readonly IConfiguration _config;
         private readonly RichMenuService _service;
+        private readonly ApplicationDbContext _db;
 
 
-        public RichMenuController(IConfiguration config, RichMenuService service) 
+        public RichMenuController(IConfiguration config, RichMenuService service, ApplicationDbContext db) 
         {
             _config = config;
             _service = service;
+            _db = db;
         }
 
         /// <summary>
@@ -55,33 +63,33 @@ namespace LineBotDemo.Controllers
               ""name"": ""AdminMenu"",
               ""chatBarText"": ""查看功能選單"",
               ""areas"": [
-                {
-                  ""bounds"": { ""x"": 0, ""y"": 0, ""width"": 833, ""height"": 843 },
-                  ""action"": { ""type"": ""message"", ""text"": ""預約車輛"" }
-                },
-                {
-                  ""bounds"": { ""x"": 833, ""y"": 0, ""width"": 833, ""height"": 843 },
-                  ""action"": { ""type"": ""message"", ""text"": ""我的行程"" }
-                },
-                {
-                  ""bounds"": { ""x"": 1666, ""y"": 0, ""width"": 833, ""height"": 843 },
-                  ""action"": { ""type"": ""message"", ""text"": ""待審核"" }
-                }
-              ]
+              {
+                ""bounds"": { ""x"": 0,    ""y"": 0, ""width"": 833, ""height"": 843 },
+                ""action"": { ""type"": ""message"", ""text"": ""預約車輛"" }
+                        },
+              {
+                 ""bounds"": { ""x"": 833,  ""y"": 0, ""width"": 834, ""height"": 843 },
+                ""action"": { ""type"": ""message"", ""text"": ""我的行程"" }
+                        },
+              {
+                 ""bounds"": { ""x"": 1667, ""y"": 0, ""width"": 833, ""height"": 843 },
+                ""action"": { ""type"": ""message"", ""text"": ""待審核"" }
+                        }
+            ]
             }";
             return Ok(await _service.CreateRichMenuAsync(json));
         }
 
         /// <summary>
-        /// 建立申請人選單 (UserMenu)
+        /// 建立申請人選單 (ApplicantMenu)
         /// </summary>
-        [HttpPost("create-user")]
-        public async Task<IActionResult> CreateUserMenu()
+        [HttpPost("create-applicant")]
+        public async Task<IActionResult> CreateApplicantMenu()
         {
             string json = @"{
               ""size"": { ""width"": 2500, ""height"": 843 },
               ""selected"": false,
-              ""name"": ""UserMenu"",
+              ""name"": ""ApplicantMenu"",
               ""chatBarText"": ""查看功能選單"",
               ""areas"": [
                 {
@@ -112,8 +120,8 @@ namespace LineBotDemo.Controllers
 
 
             var response = await client.GetAsync("https://api.line.me/v2/bot/richmenu/list");
-            var result = await response.Content.ReadAsStringAsync();
-            return Ok(result);
+            var json = await response.Content.ReadAsStringAsync();
+            return Content(json, "application/json");
         }
 
         /// <summary>
@@ -124,5 +132,106 @@ namespace LineBotDemo.Controllers
         {
             return Ok(await _service.BindToUserAsync(userId, richMenuId));
         }
+
+        [HttpGet("id-by-role/{role}")]
+        public IActionResult GetIdByRole(string role)
+        {
+            var id = _service.GetRichMenuIdByRole(role);
+            return id is null ? NotFound($"找不到角色 {role} 的 rich menu 設定") : Ok(new { role, richMenuId = id });
+        }
+
+        [HttpPost("bind-role/{userId}/{role}")]
+        public async Task<IActionResult> BindByRole(string userId, string role)
+        {
+            var result = await _service.BindUserToRoleAsync(userId, role);
+            return Ok(result);
+        }
+        [HttpDelete("unbind/{userId}")]
+        public async Task<IActionResult> Unbind(string userId)
+        {
+            var result = await _service.UnbindUserAsync(userId);
+            return Ok(result);
+        }
+        [HttpPost("force-bind/{account}")]
+        public async Task<IActionResult> ForceBind(string account)
+        {
+            // 從 DB 抓使用者
+            var user = await _db.Users
+                .Where(u => u.Account == account || u.UserId.ToString() == account)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                return NotFound($"❌ 找不到帳號 {account}");
+            }
+
+            if (string.IsNullOrEmpty(user.LineUserId))
+            {
+                return BadRequest($"⚠️ 使用者 {account} 沒有綁定 LineUserId");
+            }
+
+            // 取得角色，沒有就預設 Applicant
+            var role = string.IsNullOrEmpty(user.Role) ? "Applicant" : user.Role;
+
+            // 綁定 RichMenu
+            var result = await _service.BindUserToRoleAsync(user.LineUserId, role);
+
+            return Ok(new
+            {
+                account = user.Account,
+                role,
+                result
+            });
+        }
+        [HttpPost("upload-image/{richMenuId}")]
+        public async Task<IActionResult> UploadImage(string richMenuId, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("⚠️ 請選擇一張圖片");
+
+            var tempPath = Path.GetTempFileName();
+            using (var stream = new FileStream(tempPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var result = await _service.UploadRichMenuImageAsync(richMenuId, tempPath);
+
+            System.IO.File.Delete(tempPath);
+
+            return Ok(result);
+        }
+        [HttpGet("download-image/{richMenuId}")]
+        public async Task<IActionResult> DownloadImage(string richMenuId)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    _config["LineBot:ChannelAccessToken"]
+                );
+
+            var response = await client.GetAsync($"https://api-data.line.me/v2/bot/richmenu/{richMenuId}/content");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                return BadRequest($"❌ 無法下載圖片，錯誤：{error}");
+            }
+
+            var contentType = response.Content.Headers.ContentType?.ToString() ?? "image/png";
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+
+            return File(bytes, contentType);
+        }
+        [HttpDelete("{richMenuId}")]
+        public async Task<IActionResult> DeleteRichMenu(string richMenuId)
+        {
+            var result = await _service.DeleteRichMenuAsync(richMenuId);
+            return Ok(result);
+        }
+
+
+
     }
 }

@@ -21,7 +21,7 @@ namespace LineBotService
             builder.Configuration.GetSection("GoogleMaps"));
 
 
-            builder.Services.AddControllers().AddJsonOptions(opt =>
+            builder.Services.AddControllersWithViews().AddJsonOptions(opt =>
             {
                 opt.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
             });
@@ -40,9 +40,14 @@ namespace LineBotService
             }
 
             //app.UseHttpsRedirection();
+            app.UseStaticFiles();
 
+            app.UseRouting();
             app.UseAuthorization();
-
+            app.MapControllerRoute(
+            name: "default",
+            pattern: "{controller=LineRichMenu}/{action=Index}/{id?}"
+        );
 
             app.MapControllers();
 

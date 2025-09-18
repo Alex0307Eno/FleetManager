@@ -1,50 +1,132 @@
-﻿using System;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Net.Http.Headers;
 
 namespace LineBotDemo.Services
 {
     public class RichMenuService
     {
-        private readonly string _channelAccessToken;
         private readonly HttpClient _http;
-
-
-        public RichMenuService(IConfiguration config)
+        private readonly string _token;
+        private readonly IConfiguration _config;
+        private readonly Dictionary<string, string> _roleToMenu;   // 讀自 appsettings
+        private static readonly Dictionary<string, string> RoleAliases = new(StringComparer.OrdinalIgnoreCase)
         {
-            _channelAccessToken = config["LineBot:ChannelAccessToken"];
-            _http = new HttpClient();
+            // 正式鍵 → 本來在 appsettings 中的鍵
+            ["driver"] = "Driver",
+            ["admin"] = "Admin",
+            ["applicant"] = "Applicant",
+            // 別名
+            
+            ["申請人"] = "Applicant",
+            ["駕駛"] = "Driver",
+            ["管理員"] = "Admin"
+        };
+
+        public string? GetRichMenuIdByRole(string roleInput)
+        {
+            if (string.IsNullOrWhiteSpace(roleInput)) return null;
+
+            // 跟 BindUserToRoleAsync 用同一個角色對照表
+            var key = ResolveRoleKey(roleInput);
+            if (key is null) return null;
+
+            return _roleToMenu.TryGetValue(key, out var id) ? id : null;
+        }
+
+
+        public RichMenuService(IConfiguration config, IConfiguration cfg, IHttpClientFactory factory)
+        {
+            _config = config;
+            _http = factory.CreateClient();
+            _token = cfg["LineBot:ChannelAccessToken"]
+                     ?? throw new ArgumentNullException("LineBot:ChannelAccessToken missing");
+
             _http.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _channelAccessToken);
+                new AuthenticationHeaderValue("Bearer", _token);
+
+            _roleToMenu = cfg.GetSection("RichMenus").Get<Dictionary<string, string>>()
+                         ?? throw new ArgumentNullException("RichMenus config missing");
         }
 
-        // 建立 Rich Menu
-        public async Task<string> CreateRichMenuAsync(string jsonBody)
+        private string? ResolveRoleKey(string roleInput)
         {
-            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-            var response = await _http.PostAsync("https://api.line.me/v2/bot/richmenu", content);
-            return await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(roleInput)) return null;
+            return RoleAliases.TryGetValue(roleInput.Trim(), out var key) ? key : null;
         }
 
-        // 上傳圖片
-        public async Task<string> UploadImageAsync(string richMenuId, string imagePath)
+        public async Task<string> CreateRichMenuAsync(string json)
         {
-            using var fs = System.IO.File.OpenRead(imagePath);
-            using var content = new StreamContent(fs);
-            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
-
-            var url = $"https://api-data.line.me/v2/bot/richmenu/{richMenuId}/content";
-            var response = await _http.PostAsync(url, content);
-            return await response.Content.ReadAsStringAsync();
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var res = await _http.PostAsync("https://api.line.me/v2/bot/richmenu", content);
+            var body = await res.Content.ReadAsStringAsync();
+            return res.IsSuccessStatusCode ? $"✅ 建立成功：{body}" : $"❌ 建立失敗：{body}";
         }
 
-        // 綁定給使用者
         public async Task<string> BindToUserAsync(string userId, string richMenuId)
         {
             var url = $"https://api.line.me/v2/bot/user/{userId}/richmenu/{richMenuId}";
-            var response = await _http.PostAsync(url, null);
-            return await response.Content.ReadAsStringAsync();
+            var res = await _http.PostAsync(url, null);
+            var body = await res.Content.ReadAsStringAsync();
+            return res.IsSuccessStatusCode ? "✅ 已綁定" : $"❌ 綁定失敗：{body}";
         }
+
+        public async Task<string> BindUserToRoleAsync(string userId, string roleInput)
+        {
+            var key = ResolveRoleKey(roleInput);
+            if (key is null) return $"❌ 未知角色：{roleInput}（可用：Driver/Admin/Applicant 或別名 User/申請人/駕駛/管理員）";
+            if (!_roleToMenu.TryGetValue(key, out var menuId) || string.IsNullOrEmpty(menuId))
+                return $"❌ 設定檔未找到角色 {key} 對應的 richMenuId";
+
+            return await BindToUserAsync(userId, menuId);
+        }
+
+        public async Task<string> UnbindUserAsync(string userId)
+        {
+            var url = $"https://api.line.me/v2/bot/user/{userId}/richmenu";
+            var res = await _http.DeleteAsync(url);
+            var body = await res.Content.ReadAsStringAsync();
+            return res.IsSuccessStatusCode ? "✅ 已解除綁定" : $"❌ 解除失敗：{body}";
+        }
+
+        public async Task<string> UploadRichMenuImageAsync(string richMenuId, string imagePath)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", _config["LineBot:ChannelAccessToken"]);
+
+            using var fs = new FileStream(imagePath, FileMode.Open, FileAccess.Read);
+            var content = new StreamContent(fs);
+            content.Headers.ContentType = new MediaTypeHeaderValue("image/png"); // 或 "image/jpeg"
+
+            var response = await client.PostAsync(
+                $"https://api-data.line.me/v2/bot/richmenu/{richMenuId}/content",
+                content);
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            // 新增錯誤輸出，方便除錯
+            if (!response.IsSuccessStatusCode)
+            {
+                return $"❌ 上傳失敗，狀態碼：{response.StatusCode}\n內容：{responseBody}";
+            }
+
+            return $"✅ 上傳成功：{responseBody}";
+        }
+        public async Task<string> DeleteRichMenuAsync(string richMenuId)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", _config["LineBot:ChannelAccessToken"]);
+
+            var res = await client.DeleteAsync($"https://api.line.me/v2/bot/richmenu/{richMenuId}");
+            var body = await res.Content.ReadAsStringAsync();
+
+            if (!res.IsSuccessStatusCode)
+            {
+                return $"❌ 刪除失敗，狀態碼：{res.StatusCode}\n內容：{body}";
+            }
+
+            return $"✅ 已刪除 RichMenu {richMenuId}";
+        }
+
     }
 }
