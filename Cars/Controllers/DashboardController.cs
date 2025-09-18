@@ -136,7 +136,8 @@ namespace Cars.Controllers
                     isPresent = _db.Schedules.Any(s => s.DriverId == d.DriverId &&
                                                        s.WorkDate == today &&
                                                        s.IsPresent == true),
-                    isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId &&
+                    isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId && 
+                                     dis.DispatchStatus == "已派車"&&
                                      dis.StartTime.HasValue &&
                                      dis.StartTime.Value <= now &&
                                      (!dis.EndTime.HasValue || dis.EndTime.Value >= now)),

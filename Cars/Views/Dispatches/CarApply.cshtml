@@ -716,56 +716,46 @@
         // ----- 動作：計算距離/時間 -----
         async function calcDistance() {
           if (!origin.value || !destination.value) {
-            alert('請輸入出發地與目的地'); return;
+            alert('請輸入出發地與目的地');
+            return;
           }
-
-         
 
           try {
             const url = `/api/distance?origin=${encodeURIComponent(origin.value)}&destination=${encodeURIComponent(destination.value)}`;
             const res = await fetch(url);
             const data = await res.json();
 
-            let distMeters = null, durSecs = null;
-
-            // ★ 優先支援 Directions（routes/legs）— 可含中途站點
-            if (data?.routes?.[0]?.legs?.length) {
-              const legs = data.routes[0].legs;
-              distMeters = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0);
-              durSecs    = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0);
-            }
-            // 次選：Distance Matrix（不含多站點）
-            else if (data?.rows?.[0]?.elements?.[0]?.status === 'OK') {
-              distMeters = data.rows[0].elements[0].distance.value;
-              durSecs    = data.rows[0].elements[0].duration.value;
-            } else {
-              alert('⚠️ 查無路線'); return;
+            if (!data || !data.distanceKm) {
+              alert('⚠️ 查無路線');
+              return;
             }
 
-            // 更新內部秒數（供到站時間與來回計算用）
-            singleDurationSec    = durSecs;
-            roundTripDurationSec = durSecs * 2;
+            // 秒數換算
+            const singleDurationSec    = data.durationMin * 60;
+            const roundTripDurationSec = data.durationMin * 120;
 
             // 顯示用格式化
-            const km = (m) => (m/1000).toFixed(1) + ' 公里';
-            const fmt = (seconds) => {
-              let h = Math.floor(seconds/3600);
-              let m = Math.round((seconds%3600)/60);
-              if (m === 60){ h += 1; m = 0; }
-              let t=''; if (h>0) t += h+' 小時'; if (m>0) t += (h>0?' ':'')+m+' 分鐘'; return t || '0 分鐘';
+            const km = (data.distanceKm).toFixed(1) + ' 公里';
+            const fmt = (minutes) => {
+              let h = Math.floor(minutes / 60);
+              let m = Math.round(minutes % 60);
+              let t = '';
+              if (h > 0) t += h + ' 小時 ';
+              if (m > 0) t += m + ' 分鐘';
+              return t.trim() || '0 分鐘';
             };
 
             // 綁定到既有的顯示欄位
-            singleDistance.value    = km(distMeters);
-            singleDuration.value    = fmt(durSecs);
-            roundTripDistance.value = km(distMeters*2);
-            roundTripDuration.value = fmt(durSecs*2);
+            singleDistance.value    = km;
+            singleDuration.value    = fmt(data.durationMin);
+            roundTripDistance.value = (data.distanceKm * 2).toFixed(1) + ' 公里';
+            roundTripDuration.value = fmt(data.durationMin * 2);
 
             // 推估結束時間 + 載入可用車輛
             const start = new Date(useStart.value);
             if (!isNaN(start)) {
               const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
-              const arrival = new Date(start.getTime() + secs*1000);
+              const arrival = new Date(start.getTime() + secs * 1000);
               useEnd.value = toLocalDateTimeString(arrival);
               showForm.value = true;
               await loadVehicles();
