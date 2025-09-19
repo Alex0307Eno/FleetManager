@@ -21,11 +21,18 @@ namespace Cars.Models
 
         public int? DriverId { get; set; }              // 預計司機外鍵
         public string? ReasonType { get; set; }         // 申請事由類別
+        [MaxLength(200)]
         public string? ApplyReason { get; set; }        // 申請事由
-        [Required]
+        [Required, MaxLength(200)]
+        [RegularExpression(@"^[\u4e00-\u9fa5a-zA-Z0-9\s\-]+$", ErrorMessage = "出發地格式不正確")]
         public string? Origin { get; set; }             // 出發地
-        [Required]
+
+        [Required, MaxLength(200)]
+        [RegularExpression(@"^[\u4e00-\u9fa5a-zA-Z0-9\s\-]+$", ErrorMessage = "目的地格式不正確")]
         public string? Destination { get; set; }        // 目的地
+
+        [MaxLength(10)]
+        [RegularExpression(@"^(單程|來回|single|round)?$", ErrorMessage = "行程類型必須是 單程/來回")]
         public string? TripType { get; set; }           // 單程/來回
         public decimal? SingleDistance { get; set; }    // 單程公里數
         public string? SingleDuration { get; set; }     // 單程車程時間

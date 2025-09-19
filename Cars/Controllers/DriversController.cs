@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -113,7 +114,7 @@ namespace Cars.Controllers
                     return BadRequest("含無效 DriverId：" + string.Join(",", invalid));
             }
 
-            // DriverId → DriverName 字典（回傳變更用）
+            // DriverId → DriverName 字典
             var driverDict = await _db.Drivers
                 .AsNoTracking()
                 .ToDictionaryAsync(d => d.DriverId, d => d.DriverName);
@@ -126,7 +127,7 @@ namespace Cars.Controllers
             {
                 foreach (var date in dto.Dates.Select(x => x.Date).Distinct())
                 {
-                    // 一次抓出當天 5 筆（若 skeleton 未建好，這裡可能 < 5 筆）
+                    // 一次抓出當天 5 筆
                     var dayRows = await _db.Schedules
                         .Where(s => s.WorkDate == date)
                         .ToListAsync();
@@ -137,7 +138,7 @@ namespace Cars.Controllers
                         var row = dayRows.FirstOrDefault(r => r.Shift == shift);
                         if (row == null) continue; // 沒有這個班別的骨架就跳過
 
-                        var line = row.LineCode;               // A..E（由資料庫決定）
+                        var line = row.LineCode;               
                         var newDriverId = driverMap.ContainsKey(line) ? driverMap[line] : null;
 
                         if (newDriverId.HasValue)
@@ -146,7 +147,7 @@ namespace Cars.Controllers
                             {
                                 var oldName = row.DriverId.HasValue && driverDict.TryGetValue(row.DriverId.Value, out var on) ? on : null;
                                 var newName = driverDict.TryGetValue(newDriverId.Value, out var nn) ? nn : null;
-
+                                var oldDriverId = row.DriverId;
                                 row.DriverId = newDriverId.Value;
                                 row.IsPresent = true;
                                 _db.Schedules.Update(row);
@@ -160,6 +161,33 @@ namespace Cars.Controllers
                                     NewDriver = newName,
                                     Action = row.DriverId.HasValue ? "Update" : "Insert"
                                 });
+                                // 新增代理紀錄
+                                if (oldDriverId.HasValue && oldDriverId.Value != newDriverId.Value)
+                                {
+                                    var newDriver = await _db.Drivers.FindAsync(newDriverId.Value);
+                                    if (newDriver != null && newDriver.IsAgent)
+                                    {
+                                        // 先檢查有沒有已存在的紀錄
+                                        bool exists = await _db.DriverDelegations.AnyAsync(d =>
+                                            d.PrincipalDriverId == oldDriverId.Value &&
+                                            d.AgentDriverId == newDriverId.Value &&
+                                            d.StartDate.Date == date.Date);
+
+                                        if (!exists)
+                                        {
+                                            var delegation = new DriverDelegation
+                                            {
+                                                PrincipalDriverId = oldDriverId.Value,
+                                                AgentDriverId = newDriverId.Value,
+                                                StartDate = date,
+                                                EndDate = date,
+                                                Reason = "請假",
+                                                CreatedAt = DateTime.Now
+                                            };
+                                            _db.DriverDelegations.Add(delegation);
+                                        }
+                                    }
+                                }
                             }
                         }
                         else
@@ -186,7 +214,25 @@ namespace Cars.Controllers
                     }
                 }
 
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    // 資料被別人改過 → 可以提示用戶重試
+                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+                }
+                catch (DbUpdateException ex)
+                {
+                    // 一般資料庫錯誤
+                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+                }
+                catch (Exception ex)
+                {
+                    // 500 錯誤
+                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+                }
                 await tx.CommitAsync();
 
                 return Json(changes);
@@ -256,7 +302,25 @@ namespace Cars.Controllers
                     });
                 }
 
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    // 資料被別人改過 → 可以提示用戶重試
+                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+                }
+                catch (DbUpdateException ex)
+                {
+                    // 一般資料庫錯誤
+                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+                }
+                catch (Exception ex)
+                {
+                    // 500 錯誤
+                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+                }
                 await tx.CommitAsync();
                 return NoContent();
             }
@@ -379,12 +443,31 @@ namespace Cars.Controllers
             if (rows.Count == 0) return BadRequest("今日沒有班表記錄");
 
             foreach (var s in rows) s.IsPresent = dto.IsPresent;
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return NoContent();
         }
 
         #endregion
 
+        
 
         #region 自動指派代理人(暫不使用)
         //自動指派代理人
@@ -507,6 +590,7 @@ namespace Cars.Controllers
 
 
         [HttpGet("Create")]
+        [ValidateAntiForgeryToken]
         public IActionResult Create() => View();
 
         // POST: /Drivers/Create
@@ -531,7 +615,25 @@ namespace Cars.Controllers
             }
 
             _db.Drivers.Add(input);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return RedirectToAction(nameof(Index));
         }
 
@@ -581,7 +683,25 @@ namespace Cars.Controllers
             entity.EmergencyContactName = input.EmergencyContactName;
             entity.EmergencyContactPhone = input.EmergencyContactPhone;
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return RedirectToAction(nameof(Index));
         }
 

@@ -355,8 +355,25 @@ namespace Cars.Controllers.Api
 
             dispatch.DriverId = dto.DriverId;
             dispatch.VehicleId = dto.VehicleId;
-            await _db.SaveChangesAsync();
-
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
             _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
 
@@ -407,8 +424,25 @@ namespace Cars.Controllers.Api
 
             // 4️刪掉母單本身
             _db.Dispatches.Remove(row);
-            await _db.SaveChangesAsync();
-
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             Console.WriteLine($"[Console] Delete OK: {id}");
             _logger.LogInformation("Delete OK: {Id}", id);
 
@@ -470,8 +504,25 @@ namespace Cars.Controllers.Api
                 ChildDispatchId = childApp.DispatchId
             };
             _db.DispatchLinks.Add(link);
-            await _db.SaveChangesAsync();
-
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return Ok(new { message = "併入成功", remainingAfter = remaining - seatsWanted });
         }
 
@@ -497,8 +548,25 @@ namespace Cars.Controllers.Api
                 child.DriverId = null;
                 child.VehicleId = null;
             }
-            await _db.SaveChangesAsync();
-
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return Ok(new { message = "已取消併單" });
         }
         #endregion

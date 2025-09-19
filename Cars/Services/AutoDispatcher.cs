@@ -340,7 +340,34 @@ namespace Cars.Services
                 };
 
                 _db.Dispatches.Add(dispatch);
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料已被更新，請重新整理後再試：" + ex.Message
+                    };
+                }
+                catch (DbUpdateException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料儲存失敗，請確認輸入是否正確：" + (ex.InnerException?.Message ?? ex.Message)
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "伺服器內部錯誤：" + ex.Message
+                    };
+                }
                 await tx.CommitAsync();
 
                 var driverName = await _db.Drivers
@@ -483,7 +510,34 @@ namespace Cars.Services
 
                 d.VehicleId = v.VehicleId;
                 d.DispatchStatus = "已派車";
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料已被更新，請重新整理後再試：" + ex.Message
+                    };
+                }
+                catch (DbUpdateException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料儲存失敗，請確認輸入是否正確：" + (ex.InnerException?.Message ?? ex.Message)
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "伺服器內部錯誤：" + ex.Message
+                    };
+                }
 
                 return new DispatchResult
                 {
@@ -546,7 +600,34 @@ namespace Cars.Services
 
                 d.VehicleId = v.VehicleId;
                 d.DispatchStatus = "已派車";
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料已被更新，請重新整理後再試：" + ex.Message
+                    };
+                }
+                catch (DbUpdateException ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "資料儲存失敗，請確認輸入是否正確：" + (ex.InnerException?.Message ?? ex.Message)
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new DispatchResult
+                    {
+                        Success = false,
+                        Message = "伺服器內部錯誤：" + ex.Message
+                    };
+                }
 
                 return new DispatchResult
                 {

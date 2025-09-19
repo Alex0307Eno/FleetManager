@@ -124,32 +124,54 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="h in [8,9,10,11,12,13,14,15,16,17]" :key="h">
-                                <td v-for="(d,i) in weekDays" :key="d.date + '-' + h">
-                                    <!-- 08:00 slot：早、午 -->
-                                    <div v-if="h === 8" class="slot slot-dark">
-                                        <div class="slot-time">08:00</div>
-                                        <div class="slot-title">{{ (linesFor(d.jsDate)[0] || {}).text }}</div>
-                                        <span class="cnt">{{ getDisp(d.jsDate,'morning').length }}</span>
+                            <!-- 08:00–11:30 -->
+                            <tr class="band-row">
+                                <td v-for="d in weekDays" :key="d.date + '-s1'">
+                                    <div class="slot slot-dark">
+                                        <div class="slot-time">08:00–11:30</div>
+                                        <div class="slot-title">{{ (linesFor(d.jsDate)[0] || {}).text || '—' }}</div>
+                                        <span class="cnt">{{ getDisp(d.jsDate,'slot1').length }}</span>
                                     </div>
-
-                                    <!-- 11:30 slot：午、晚 -->
-                                    <div v-if="h === 12" class="slot slot-dark">
-                                        <div class="slot-time">11:30~13:00</div>
-                                        <div class="slot-title">{{ (linesFor(d.jsDate)[1] || {}).text }}</div>
-                                        <span class="cnt">{{ getDisp(d.jsDate,'noon').length }}</span>
+                                    <div class="dot" v-for="u in getDisp(d.jsDate,'slot1')" :key="'s1-' + u.id">
+                                        • {{ hhmm(u.start) }} {{ u.driverName || '—' }}
                                     </div>
+                                </td>
+                            </tr>
 
-                                    <!-- 17:00 slot：長差第一順位 -->
-                                    <div v-if="h === 17" class="slot slot-dark">
+                            <!-- 11:30–13:00 -->
+                            <tr class="band-row">
+                                <td v-for="d in weekDays" :key="d.date + '-s2'">
+                                    <div class="slot slot-dark">
+                                        <div class="slot-time">11:30–13:00</div>
+                                        <div class="slot-title">{{ (linesFor(d.jsDate)[1] || {}).text || '—' }}</div>
+                                        <span class="cnt">{{ getDisp(d.jsDate,'slot2').length }}</span>
+                                    </div>
+                                    <div class="dot" v-for="u in getDisp(d.jsDate,'slot2')" :key="'s2-' + u.id">
+                                        • {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- 13:00–17:00 -->
+                            <tr class="band-row">
+                                <td v-for="d in weekDays" :key="d.date + '-s3'">
+                                    
+                                    <div class="dot" v-for="u in getDisp(d.jsDate,'slot3')" :key="'s3-' + u.id">
+                                        • {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- 17:00~ -->
+                            <tr class="band-row">
+                                <td v-for="d in weekDays" :key="d.date + '-s4'">
+                                    <div class="slot slot-dark">
                                         <div class="slot-time">17:00~</div>
-                                        <div class="slot-title">{{ (linesFor(d.jsDate)[2] || {}).text }}</div>
-                                        <span class="cnt">{{ getDisp(d.jsDate,'afternoon').length }}</span>
+                                        <div class="slot-title">{{ (linesFor(d.jsDate)[2] || {}).text || '—' }}</div>
+                                        <span class="cnt">{{ getDisp(d.jsDate,'slot4').length }}</span>
                                     </div>
-
-                                    <!-- 其他時間：點狀派工 -->
-                                    <div v-for="u in getDisp(d.jsDate,h)" :key="u.id" class="dotline">
-                                        {{ hhmm(u.start) }} {{ u.driverName || '—' }}
+                                    <div class="dot" v-for="u in getDisp(d.jsDate,'slot4')" :key="'s4-' + u.id">
+                                        • {{ hhmm(u.start) }} {{ u.driverName || '—' }}
                                     </div>
                                 </td>
                             </tr>
@@ -305,7 +327,7 @@
         const day = ref(today.getDate())
         const yearAD = computed(() => rocYear.value + 1911);
 
-        const hours = ['08','09','10','11','12','13','14','15','16','17'];
+        const hours = ['08:00', '11:30–13:00', '17:00~'];
         const weekGrid = ref(null);
         const timeCol  = ref(null);
 
@@ -794,34 +816,42 @@
         // 週派工
     function getDisp(jsDate, bucket) {
       const key  = toYMD(jsDate)
-      // 先取出當天清單並按開始時間排序
       const list = (weekDispatches.value[key] || [])
         .slice()
         .sort((a, b) => new Date(a.start) - new Date(b.start))
 
-      // 1) 週視圖上方三個區塊用的 bucket（統計數量）
+      // 分鐘換算用
+      const minuteOfDay = (dt) => {
+        const x = new Date(dt)
+        return x.getHours() * 60 + x.getMinutes()
+      }
+
+      // 新的 4 個區段：
+      // slot1: 08:00–11:30
+      // slot2: 11:30–13:00
+      // slot3: 13:00–17:00
+      // slot4: >= 17:00
       if (typeof bucket === 'string') {
         switch (bucket) {
-          case 'morning': {
-            // < 11:30
-            return list.filter(u => minuteOfDay(u.start) < 690)
-          }
-          case 'noon': {
-            // 11:30 ~ 13:00
+          case 'slot1': { // 08:00–11:30
             return list.filter(u => {
               const m = minuteOfDay(u.start)
-              return m >= 690 && m < 780
+              return m >= 480 && m < 690   // 08:00=480, 11:30=690
             })
           }
-          case 'afternoon': {
-            // 13:00 ~ 17:00
+          case 'slot2': { // 11:30–13:00
             return list.filter(u => {
               const m = minuteOfDay(u.start)
-              return m >= 780 && m < 1020
+              return m >= 690 && m < 780   // 13:00=780
             })
           }
-          case 'evening': {
-            // >= 17:00
+          case 'slot3': { // 13:00–17:00
+            return list.filter(u => {
+              const m = minuteOfDay(u.start)
+              return m >= 780 && m < 1020  // 17:00=1020
+            })
+          }
+          case 'slot4': { // 17:00~
             return list.filter(u => minuteOfDay(u.start) >= 1020)
           }
           default:
@@ -829,20 +859,10 @@
         }
       }
 
-      // 2) 表格每一列的「整點」(數字小時)：顯示該小時~下一小時內的點狀派工
-      if (typeof bucket === 'number') {
-        const startMin = bucket * 60
-        const endMin   = (bucket + 1) * 60
-        return list.filter(u => {
-          const m = minuteOfDay(u.start)
-          return m >= startMin && m < endMin
-        })
-      }
-
-      // 3) 其他情況
-      return list
+      // 如果 bucket 是數字（舊的「整點」模式），直接回傳空陣列以免出現多餘列
+      return []
     }
-                async function loadDayDispatches() {
+                    async function loadDayDispatches() {
       try {
         const res = await axios.get('/Drivers/Schedule/DayDispatches', {
          params: { date: current.value.toISOString().slice(0,10) } 
@@ -918,10 +938,10 @@
         selectedOption.value = findWeekIndexOf(current.value)
         await loadWeekDispatches()
       } else if (m === 'day') {
-        selectedOption.value = current.value.getDate()
-        // 若當天還沒在週快取裡，就抓一次當週
-        const key = toYMD(current.value)
-        if (!weekDispatches.value[key]) await loadWeekDispatches()
+            const today = new Date()
+        current.value = today
+        selectedOption.value = today.getDate()
+        await loadDayDispatches()
       }
     })
 
@@ -978,9 +998,6 @@
     watch([viewMode, weekDays, schedules, weekDispatches], () => {
       if (viewMode.value === 'week') nextTick(syncWeekGutter)
     })
-
-
-       
 
 
         // 防止 A~E 選到重複司機
@@ -1153,7 +1170,7 @@
           // funcs
           prev, next, openAgentModal, loadSchedules, loadDayDispatches,
           linesFor, getDisp, hhmm, toYMD,isFirstWeek,isLastWeek,
-          getDriverNameByDateShift, getLineCodeByDateShift,
+              getDriverNameByDateShift, getLineCodeByDateShift,
           // right panel
           assign, allCandidates, applyAssignments,
           // helpers

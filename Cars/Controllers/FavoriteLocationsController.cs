@@ -51,6 +51,7 @@ namespace Cars.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([FromBody] FavoriteDto dto)
         {
             if (dto == null || string.IsNullOrWhiteSpace(dto.CustomName) || string.IsNullOrWhiteSpace(dto.Address))
@@ -80,8 +81,25 @@ namespace Cars.Controllers
             };
 
             _db.FavoriteLocations.Add(entity);
-            await _db.SaveChangesAsync();
-
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return Ok(entity);
         }
 
@@ -106,7 +124,25 @@ namespace Cars.Controllers
             entity.Lng = dto.Lng ?? entity.Lng;
             entity.UpdatedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return Ok(entity);
         }
 
@@ -118,7 +154,25 @@ namespace Cars.Controllers
             if (entity == null) return NotFound(new { message = "資料不存在" });
 
             _db.FavoriteLocations.Remove(entity);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 資料被別人改過 → 可以提示用戶重試
+                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                // 一般資料庫錯誤
+                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // 500 錯誤
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
             return Ok(new { message = "已刪除" });
         }
         #endregion 

@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace LineBotDemo.Services
 {
@@ -126,6 +127,16 @@ namespace LineBotDemo.Services
             }
 
             return $"✅ 已刪除 RichMenu {richMenuId}";
+        }
+        
+        public async Task<string?> GetUserLinkedRichMenuAsync(string userId)
+        {
+            var res = await _http.GetAsync($"https://api.line.me/v2/bot/user/{userId}/richmenu");
+            if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+            res.EnsureSuccessStatusCode();
+            var body = await res.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("richMenuId", out var el) ? el.GetString() : null;
         }
 
     }

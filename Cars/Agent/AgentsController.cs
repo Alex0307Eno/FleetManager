@@ -15,12 +15,13 @@ namespace Cars.Agent
         {
             return PartialView();
         }
-
+        [ValidateAntiForgeryToken]
         public IActionResult Create()
         {
 
             return View();
         }
+        [ValidateAntiForgeryToken]
         public IActionResult Edit(int id)
         {
            

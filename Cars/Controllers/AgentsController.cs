@@ -100,6 +100,7 @@ namespace Cars.Controllers
         #region 新增代理人
 
         [HttpGet]
+        [ValidateAntiForgeryToken]
         public IActionResult Create()
         {
             return View(new Driver { IsAgent = true });
@@ -114,7 +115,25 @@ namespace Cars.Controllers
             {
                 agent.IsAgent = true;
                 _db.Add(agent);
-                await _db.SaveChangesAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    // 資料被別人改過 → 可以提示用戶重試
+                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+                }
+                catch (DbUpdateException ex)
+                {
+                    // 一般資料庫錯誤
+                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+                }
+                catch (Exception ex)
+                {
+                    //500 錯誤
+                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+                }
                 return RedirectToAction("Index");
             }
             return View(agent);
@@ -145,7 +164,25 @@ namespace Cars.Controllers
                 {
                     agent.IsAgent = true;
                     _db.Update(agent);
-                    await _db.SaveChangesAsync();
+                    try
+                    {
+                        await _db.SaveChangesAsync();
+                    }
+                    catch (DbUpdateConcurrencyException ex)
+                    {
+                        // 資料被別人改過 → 可以提示用戶重試
+                        return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        // 一般資料庫錯誤
+                        return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
+                    }
+                    catch (Exception ex)
+                    {
+                        //500 錯誤
+                        return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+                    }
                     return RedirectToAction("Index");
                 }
                 catch (DbUpdateConcurrencyException)

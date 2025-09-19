@@ -14,12 +14,14 @@ namespace Cars.Models
         public int? VehicleId { get; set; }                         // 車輛外鍵
 
         // 派車狀態
+        [Required]
         public string DispatchStatus { get; set; }                  // 派車單狀態
 
         public bool IsLongTrip { get; set; }                        // 是否長途
         // 時間
         public DateTime? StartTime { get; set; }                    // 實際出發時間
         public DateTime? EndTime { get; set; }                      // 實際結束時間
+        [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // 建立時間
 
         // 導覽屬性
