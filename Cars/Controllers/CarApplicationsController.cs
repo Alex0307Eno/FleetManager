@@ -43,7 +43,6 @@ namespace Cars.Controllers
 
 
         [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
         {
             if (dto == null || dto.Application == null)
@@ -89,7 +88,7 @@ namespace Cars.Controllers
             }
             if (model.PassengerCount > maxCap)
             {
-                return BadRequest($"申請乘客數 {model.PassengerCount} 超過可用車輛最大容量 {maxCap}");
+                return BadRequest($"申請乘客數 {model.PassengerCount} 超過可用車輛最大載客量 {maxCap}");
             }
 
 
@@ -143,7 +142,23 @@ namespace Cars.Controllers
                     return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
                 }
             }
-
+            // === 7) 更新裝載物料品名 ===
+            if (!string.IsNullOrWhiteSpace(model.MaterialName))
+            {
+                var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == model.ApplyId);
+                if (app != null)
+                {
+                    app.MaterialName = model.MaterialName;
+                    try
+                    {
+                        await _db.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        return BadRequest(new { message = "物料品名寫入失敗", detail = ex.InnerException?.Message ?? ex.Message });
+                    }
+                }
+            }
 
 
             // 8) 自動派工（用「已存在」的 ApplyId）
@@ -227,7 +242,7 @@ namespace Cars.Controllers
             q = q.Where(v => !_db.CarApplications.Any(a =>
                 a.VehicleId == v.VehicleId && from < a.UseEnd && a.UseStart < to));
 
-            // 回傳最大容量（沒有車則回 0）
+            // 回傳最大載客量（沒有車則回 0）
             var max = await q.Select(v => (int?)v.Capacity).MaxAsync();
             return max ?? 0;
         }
@@ -419,8 +434,8 @@ namespace Cars.Controllers
 
                     tripType = a.TripType,            
                     singleDistance = a.SingleDistance,      
-                    roundTripDistance = a.RoundTripDistance,  
-
+                    roundTripDistance = a.RoundTripDistance,
+                    materialName = a.MaterialName,
                     status = a.Status,
                     reasonType = a.ReasonType,
                     applyReason = a.ApplyReason
@@ -469,6 +484,7 @@ namespace Cars.Controllers
                 app.Status,
                 app.ReasonType,
                 app.ApplyReason,
+                materialName = app.MaterialName,
 
                 // 車輛/駕駛
                 driverName = app.Driver != null ? app.Driver.DriverName : null,
@@ -677,7 +693,7 @@ namespace Cars.Controllers
             // 只要「可用」的車
             q = q.Where(v => (v.Status ?? "") == "可用");
 
-            // 容量限制
+            // 載客量限制
             if (capacity.HasValue)
                 q = q.Where(v => v.Capacity >= capacity.Value);
 

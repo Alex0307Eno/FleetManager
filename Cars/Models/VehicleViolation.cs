@@ -23,8 +23,6 @@ namespace Cars.Models
         [RegularExpression(@"^[\u4e00-\u9fa5A-Za-z\s]+$", ErrorMessage = "違規類別只能輸入中文或英文")]
         public string Category { get; set; }         // 例如：超速、違規停車…
 
-        [Range(0, 12, ErrorMessage = "記點必須在 0 ~ 12 之間")]
-        public int? Points { get; set; }             // 記點
 
         [Range(0, 1000000, ErrorMessage = "罰鍰必須在 0 ~ 1,000,000 之間")]
         public int? FineAmount { get; set; }         // 罰鍰(元)

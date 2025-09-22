@@ -87,7 +87,6 @@
                                 <th style="width:100px">審核狀態</th>
                                 <th style="width:120px">駕駛員</th>
                                 <th style="width:90px">車輛</th>
-                                <th style="width:70px">長/短差</th>
                                 @if (User.IsInRole("Admin"))
                                 {
                                     <th style="width:140px">功能</th>
@@ -149,12 +148,7 @@
                                 </td>
 
 
-                                <td>
-                                    <a href="javascript:;" @@click="toggleLongShort(r)"
-                                       :style="{color: r.longShort==='長差' ? '#2563eb':'#64748b', textDecoration:'none', fontWeight:'600'}">
-                                        {{ r.longShort || '—' }}
-                                    </a>
-                                </td>
+                                
 
                                 <!-- 功能列：母單可以編輯/刪除；子單維持檢視或不顯示 -->
                                 <td>
@@ -214,11 +208,11 @@
                         <option :value="null">（不指定）</option>
                         <!-- 當下的車輛 -->
                         <option v-if="currentVehicle" :value="currentVehicle.vehicleId">
-                            ★ 當前指派：{{ currentVehicle.plateNo }}(容量{{ currentVehicle.capacity }})
+                            ★ 當前指派：{{ currentVehicle.plateNo }}(載客量{{ currentVehicle.capacity }})
                         </option>
                         <!-- 其他可用車輛 -->
                         <option v-for="v in availVehicles" :key="v.vehicleId" :value="v.vehicleId">
-                            {{ v.plateNo }}（{{ v.brand }} {{ v.model }} / 容量 {{ v.capacity }}）
+                            {{ v.plateNo }}（{{ v.brand }} {{ v.model }} / 載客量 {{ v.capacity }}）
                         </option>
                     </select>
                     <div v-if="currentVehicle && (!availVehicles || availVehicles.length === 0)"
@@ -680,7 +674,7 @@
                     ? {
                       vehicleId: Number(veh),
                       plateNo: app.plateNo ?? r.plate ?? '(未知車輛)',
-                      capacity: app.capacity ?? r.capacity ?? '(未知容量)'
+                      capacity: app.capacity ?? r.capacity ?? '(未知載客量)'
                     }
                     : null;
 

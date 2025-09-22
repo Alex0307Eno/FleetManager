@@ -77,7 +77,7 @@
                             <th style="width:100px">審核狀態</th>
                             <th style="width:90px">駕駛人</th>
                             <th style="width:80px">車輛</th>
-                            <th style="width:80px">共乘</th>
+                            <th style="width:80px">裝載物料</th>
                             <th style="width:110px">功能</th>
                         </tr>
                     </thead>
@@ -97,10 +97,7 @@
                             <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
                             <td><span class="pill" :class="r.driverName ? '' : 's-muted'">{{ r.driverName || '未指派' }}</span></td>
                             <td><span class="pill blue" :class="r.plateNo ? '' : 's-muted'">{{ r.plateNo || '未指派' }}</span></td>
-                            <td class="text-center">
-                                <span v-if="r.passengerCount > 0" class="text-success fw-bold">✔</span>
-                                <span v-else>-</span>
-                            </td>
+                            <td class="mono">{{ r.materialName  }}</td>
                             <td class="row-actions">
                                 <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
                                 @if (User.IsInRole("Admin") || User.IsInRole("Manager"))
@@ -150,6 +147,11 @@
                         {{ viewing.applyReason }}
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>裝載物料</label>
+                    <div>{{ viewing.materialName || '—' }}</div>
+                </div>
+
 
                 <div class="form-group" >
                     <label>狀態</label>
@@ -243,6 +245,7 @@
           applicantName: x.applicantName || "",
           applicantDept: x.applicantDept || "",
           passengerCount: x.passengerCount ?? 0,
+          materialName: x.materialName  || "",
           tripType: x.tripType || "",
            tripDistance: (() => {
           const t = (x.tripType || "").toString().trim().toLowerCase();

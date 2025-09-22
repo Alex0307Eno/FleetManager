@@ -11,10 +11,12 @@ namespace Cars
     {
         public static void Main(string[] args)
         {
+
             var builder = WebApplication.CreateBuilder(args);
 
             // === Services ===
             // DbContext
+
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -53,6 +55,12 @@ namespace Cars
 
             builder.Services.AddAuthorization();
             var app = builder.Build();
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Database.EnsureCreated();
+            }
+    
 
             // 注意：不要在這裡額外放一條「無條件」CSP，避免覆蓋與衝突
             if (app.Environment.IsDevelopment())

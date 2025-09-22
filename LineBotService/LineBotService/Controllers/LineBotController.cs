@@ -962,7 +962,7 @@ namespace LineBotDemo.Controllers
                         if (msg == "確認")
                         {
                             var role = GetUserRole(uid);
-                            if (role != "Applicant")
+                            if (role != "Applicant" || role != "Admin")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有建立派車申請的權限");
                                 continue;

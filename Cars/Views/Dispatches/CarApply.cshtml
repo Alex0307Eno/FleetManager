@@ -2,9 +2,12 @@
     ViewData["Title"] = "用車申請";
 }
 <head>
+    <link href="/css/Dispatch/CarApply.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <link href="/css/Dispatch/CarApply.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
+
 </head>
 
 
@@ -29,69 +32,10 @@
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label>起始時間 *</label>
-                    <input type="datetime-local" class="form-control" v-model="useStart" />
-                </div>
-                <div class="section">
-                    <!-- 標題列 -->
-                    <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
-                        <div class="col-3">出發地</div>
-                        <div class="col-3">目的地</div>
-                        <div class="col-3">來回 | 單程</div>
-                        <div class="col-2">動作</div>
-                    </div>
-                </div>
-
-                <div class="section-bd">
-                    <div class="row align-items-center mb-2">
-                        <div class="col-3">
-                            <input id="orig" class="form-control" placeholder="請輸入出發地" v-model="origin" required />
-                            <div class="ac-dropdown" id="ac-orig"></div>
-                        </div>
-                       
-
-
-                        <div class="col-3">
-                            <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" required />
-                            <div class="ac-dropdown" id="ac-dest"></div>
-                        </div>
-
-
-
-                        <div class="col-3">
-                            <select class="form-control" v-model="tripType">
-                                <option value="round">來回</option>
-                                <option value="single">單程</option>
-                            </select>
-                        </div>
-
-                        <div class="col-2 text-center">
-                            <button type="button" class="btn btn-primary" @@click="calcDistance">查詢</button>
-                        </div>
-                    </div>
-                   
-
-                    <!-- 查詢結果 -->
-                    <div v-if="singleDistance && singleDuration" class="row mt-3">
-                        <div class="col">
-                            <div class="metric">
-                                🚗 單程距離：約 <b>{{ singleDistance }}</b>
-                                ⏱ 單程時間：約 <b>{{ singleDuration }}</b>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="metric">
-                                🔁 來回距離：約 <b>{{ roundTripDistance }}</b>
-                                ⏱ 來回時間：約 <b>{{ roundTripDuration }}</b>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                
 
             <!-- 其他表單內容 (查詢後才顯示) -->
-            <div v-show="showForm">
+            <div >
                 <!-- 用車申請（申請人 + 車輛卡） -->
                 <div class="section-bd">
                     <div class="grid-2">
@@ -142,13 +86,7 @@
                                 </div>
                             </div>
 
-                            <div class="grid-equal-2" style="margin-top:12px">
-                                
-                                <div>
-                                    <label>結束時間 *</label>
-                                    <input type="datetime-local" class="form-control" v-model="useEnd" readonly />
-                                </div>
-                            </div>
+                            
 
                             <div class="grid-1" style="margin-top:12px">
                                 <div class="row-combined">
@@ -180,9 +118,82 @@
                         </div>
                     </div>
                 </div>
+                    <div class="d-flex justify-content-between">
+                        <div style="width:45%;">
+                            <label>起始時間 *</label>
+                            <div class="input-group">
+                                <input id="useStart" type="text" class="form-control" placeholder="選擇起始時間" />
+                                <span class="input-group-text" id="calendarStart">📅</span>
+                            </div>
+                        </div>
 
+                        <div style="width:45%;">
+                            <label>結束時間 *</label>
+                            <div class="input-group">
+                                <input id="useEnd" type="text" class="form-control" placeholder="選擇結束時間" />
+                                <span class="input-group-text" id="calendarEnd">📅</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <!-- 標題列 -->
+                        <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
+                            <div class="col-3">出發地</div>
+                            <div class="col-3">目的地</div>
+                            <div class="col-3">來回 | 單程</div>
+                            <div class="col-2">動作</div>
+                        </div>
+                    </div>
+
+                    <div class="section-bd">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-3">
+                                <input id="orig" class="form-control" placeholder="請輸入出發地" v-model="origin" required />
+                                <div class="ac-dropdown" id="ac-orig"></div>
+                            </div>
+
+
+
+                            <div class="col-3">
+                                <input id="dest" class="form-control" placeholder="請輸入目的地" v-model="destination" required />
+                                <div class="ac-dropdown" id="ac-dest"></div>
+                            </div>
+
+
+
+                            <div class="col-3">
+                                <select class="form-control" v-model="tripType">
+                                    <option value="round">來回</option>
+                                    <option value="single">單程</option>
+                                </select>
+                            </div>
+
+                            <div class="col-2 text-center">
+                                <button type="button" class="btn btn-primary" @@click="calcDistance">查詢</button>
+                            </div>
+                        </div>
+
+
+                        <!-- 查詢結果 -->
+                        <div v-if="singleDistance && singleDuration" class="row mt-3">
+                            <div class="col">
+                                <div class="metric">
+                                    🚗 單程距離：約 <b>{{ singleDistance }}</b>
+                                    ⏱ 單程時間：約 <b>{{ singleDuration }}</b>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="metric">
+                                    🔁 來回距離：約 <b>{{ roundTripDistance }}</b>
+                                    ⏱ 來回時間：約 <b>{{ roundTripDuration }}</b>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <!-- 人員與單位 -->
-                <div class="section" v-show="showForm">
+                <div class="section">
                     <!-- 標題列 -->
                     <div class="row mb-2 bg-primary text-white text-center" style="padding:8px 0;">
                         <div class="col-2"><div>搭乘人數 *</div></div>
@@ -225,12 +236,17 @@
                                 </button>
                             </div>
                         </div>
+                        <div class="row mb-2 align-items-end">
+                            <div class="col-3">
+                                <label>裝載物料品名</label>
+                                <input class="form-control" v-model="materialName" placeholder="例如：木材 / 鋼筋 / 文件" />
 
-                    </div>
+                            </div>
+                        </div>
                 </div>
 
                 <!-- 動作列 -->
-                <div class="actions" style="margin-top:16px" v-show="showForm">
+                <div class="actions" style="margin-top:16px" >
                     <a asp-action="Dispatch" asp-controller="Dispatches"
                        class="btn"
                        style="background:#6b7280; color:#fff; border-color:#6b7280;">
@@ -522,7 +538,6 @@
 
             // ----- 狀態 -----
             const now = new Date();
-            const showForm = ref(false);
 
             // 申請人模式 & 下拉
             const applyFor = ref("self"); // self / other
@@ -549,7 +564,8 @@
 
             // 時間
             const useStart = ref(toLocalDateTimeString(now));
-            const useEnd   = ref(toLocalDateTimeString(new Date(now.getTime() + 60*60*1000)));
+            const useEnd = ref(toLocalDateTimeString(new Date(now.getTime() + 60*60*1000))); // 預設 +1 小時
+
 
             const arrivalDisplay = computed(() => {
               if (!useStart.value) return "";
@@ -577,7 +593,7 @@
             const passengers = ref([{ name: "", deptTitle: "" }]);
             const syncPassengerCount = () => { passengerCount.value = passengers.value.length; };
             async function addPassenger() {
-            // 判斷是否超過最大容量
+            // 判斷是否超過最大載客量
               if (maxCapacity.value > 0 && passengers.value.length >= maxCapacity.value) {
                 capacityError.value = `⚠️ 目前最多只能載 ${maxCapacity.value} 人`;
                 return;
@@ -602,7 +618,7 @@
             });
             //檢查載客量
             const capacityError = ref("");  // 顯示錯誤訊息
-            const maxCapacity = ref(0);     // 從後端查回的最大容量
+            const maxCapacity = ref(0);     // 從後端查回的最大載客量
 
                     async function checkCapacity() {
           if (!useStart.value || !useEnd.value) return;
@@ -622,6 +638,9 @@
             console.error("❌ checkCapacity error", err);
           }
         }
+        //裝載物料
+        const materialName = ref("");
+
          
 
             // ----- 載入 API -----
@@ -757,7 +776,6 @@
               const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
               const arrival = new Date(start.getTime() + secs * 1000);
               useEnd.value = toLocalDateTimeString(arrival);
-              showForm.value = true;
               await loadVehicles();
             }
           } catch (err) {
@@ -784,12 +802,15 @@
 
           const startDt = new Date(useStart.value);
           let endDt = useEnd.value ? new Date(useEnd.value) : null;
+        // 使用者有填結束時間 → 就直接用
+          if (useEnd.value) {
+            endDt = new Date(useEnd.value);
+          }
 
+          // 不再強制「沒填就推算」
           if (!endDt || isNaN(endDt.getTime())) {
-            const secs = (tripType.value === 'round')
-              ? (roundTripDurationSec || 7200)
-              : (singleDurationSec || 3600);
-            endDt = new Date(startDt.getTime() + secs * 1000);
+            alert('請輸入結束時間');
+            return;
           }
 
           const normUseStart = toLocalISOString(startDt);
@@ -823,6 +844,7 @@
             singleDuration: String(singleDuration.value ?? ''),
             roundTripDistance: toDecimalOrNull(roundTripDistance.value),
             roundTripDuration: String(roundTripDuration.value ?? ''),
+            materialName: materialName.value,
             vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
             status: '待審核'
           };
@@ -850,36 +872,86 @@
             console.log("✅ 後端回應:", res);
             alert(res.data?.message || "申請成功");
             window.location.href = '/Dispatches/Dispatch';
-          } catch (err) {
-            if (err.response) {
-              console.error('❌ 狀態：', err.response.status, '❌ 內容：', err.response.data);
-              const msg = problemDetailsToText(err.response.data);
-              alert(`❌ 送出失敗\n${msg}`);
+                  } catch (err) {
+          if (err.response) {
+            const data = err.response.data;
+
+            let msg;
+            if (typeof data === "string") {
+              msg = data;   
             } else {
-              console.error('❌ 網路錯誤：', err.message);
-              alert('❌ 無法連線伺服器');
+              msg =
+                data?.message ||
+                data?.error ||
+                data?.detail ||
+                data?.title ||
+                problemDetailsToText(data) ||
+                JSON.stringify(data) ||
+                "未知錯誤";
             }
+
+            alert(`⚠️ 申請失敗\n${msg}`);
+          } else {
+            alert('❌ 無法連線伺服器');
           }
+        }
         }
 
             // ----- 初始化 -----
-            onMounted(() => {
-              attachPlacesAutocomplete("orig", "ac-orig", (p)=>{ origin.value = p.text; }, 800, 'orig');
-              attachPlacesAutocomplete("dest", "ac-dest", (p)=>{ destination.value = p.text; }, 800, 'dest');
+                            onMounted(() => {
+          const pad = n => String(n).padStart(2, "0");
+          const formatRoc = (date) => {
+            const rocYear = date.getFullYear() - 1911;
+            const mm = pad(date.getMonth() + 1);
+            const dd = pad(date.getDate());
+            const hh = pad(date.getHours());
+            const mi = pad(date.getMinutes());
+            return `${rocYear}/${mm}/${dd} ${hh}:${mi}`;
+          };
 
-              loadApplicant();
-              loadVehicles();
-              if (applyFor.value === "other") loadApplicants();
+          const startPicker = flatpickr("#useStart", {
+            enableTime: true,
+            clickOpens: false,   // 🚫 禁止直接點輸入框打開
+            dateFormat: "Y-m-d H:i",
+            altInput: true,
+            altFormat: "Y-m-d H:i",
+            formatDate: (date) => formatRoc(date),
+            defaultDate: new Date(),
+            onChange: (dates) => {
+              if (dates.length) useStart.value = dates[0].toISOString();
+            }
+          });
+
+          const endPicker = flatpickr("#useEnd", {
+            enableTime: true,
+            clickOpens: false,   
+            dateFormat: "Y-m-d H:i",
+            altInput: true,
+            altFormat: "Y-m-d H:i",
+            formatDate: (date) => formatRoc(date),
+            defaultDate: new Date(),
+            onChange: (dates) => {
+              if (dates.length) useEnd.value = dates[0].toISOString();
+            }
+          });
+
+          // 📅 點擊圖示才開啟日曆
+          document.getElementById("calendarStart").addEventListener("click", () => {
+            startPicker.open();
+          });
+          document.getElementById("calendarEnd").addEventListener("click", () => {
+            endPicker.open();
+          });
+        });
+
+
 
             
-            });
-
-            // ----- 對外暴露 -----
             return {
               // 基本
               applyFor, vehicleType, purposeType,
               passengerCount, useStart, useEnd, reasonType, applyReason,
-              origin, destination, tripType, applicant, showForm,
+              origin, destination, tripType, applicant,materialName,
 
               // 申請者下拉
               applicants, selectedApplicantId, chosenName, loadApplicants,

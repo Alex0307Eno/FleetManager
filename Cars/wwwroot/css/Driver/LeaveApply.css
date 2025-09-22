@@ -1,0 +1,185 @@
+﻿[v-cloak] {
+    display: none;
+}
+
+/* ===== Tabs ===== */
+.tabs {
+    display: flex;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 20px;
+    background: #f9fafb;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+    .tabs button {
+        flex: 1;
+        padding: 12px 16px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 600;
+        color: #374151;
+        transition: all 0.2s ease;
+    }
+
+        .tabs button:hover {
+            background: #f3f4f6;
+        }
+
+        .tabs button.active {
+            background: #ffffff;
+            border-bottom: 3px solid #2563eb;
+            color: #2563eb;
+        }
+
+/* ===== Panel / Card ===== */
+.tab-pane {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0 0 8px 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* ===== Form ===== */
+.leave-form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+    .leave-form .form-group {
+        margin-bottom: 16px;
+    }
+
+    .leave-form label {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .leave-form input,
+    .leave-form select,
+    .leave-form textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+        .leave-form input:focus,
+        .leave-form select:focus,
+        .leave-form textarea:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
+            outline: none;
+        }
+
+    .leave-form textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+/* ===== Buttons ===== */
+.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s ease;
+}
+
+.btn-primary {
+    background: #2563eb;
+    color: #fff;
+}
+
+    .btn-primary:hover {
+        background: #1e40af;
+    }
+
+.btn-secondary {
+    background: #6b7280;
+    color: #fff;
+}
+
+    .btn-secondary:hover {
+        background: #4b5563;
+    }
+
+.leave-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* ===== Table ===== */
+.leave-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 14px;
+}
+
+    .leave-table th {
+        background: #f3f4f6;
+        font-weight: 600;
+        padding: 10px;
+        text-align: center;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .leave-table td {
+        padding: 10px;
+        text-align: center;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .leave-table tr:hover td {
+        background: #f9fafb;
+    }
+
+/* ===== Status Badge ===== */
+.s-approved {
+    color: #16a34a;
+    font-weight: bold;
+}
+
+.s-reject {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.s-wait {
+    color: #d97706;
+    font-weight: bold;
+}
+/* ===== Status Badge ===== */
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 9999px; /* 膠囊圓角 */
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 60px;
+    text-align: center;
+}
+
+.s-approved {
+    background-color: #16a34a; /* 綠色 */
+}
+
+.s-reject {
+    background-color: #dc2626; /* 紅色 */
+}
+
+.s-wait {
+    background-color: #d97706; /* 橘色 */
+}

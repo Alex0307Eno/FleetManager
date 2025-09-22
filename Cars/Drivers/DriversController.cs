@@ -30,6 +30,15 @@ namespace Cars.driver
         {
             return View();
         }
+
+        public IActionResult LeaveApply()
+        {
+            return View();
+        }
+        public IActionResult LeaveReview()
+        {
+            return View();
+        }
         
     }
 }

@@ -35,6 +35,8 @@ namespace Cars.Data
 
         public DbSet<LineUser> LineUsers { get; set; }
 
+        public DbSet<Leave> Leaves { get; set; } // 請假資料表
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

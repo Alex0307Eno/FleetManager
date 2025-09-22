@@ -66,10 +66,10 @@ namespace Cars.Controllers
                 from agent in ags.DefaultIfEmpty()
 
                     // 顯示駕駛：有代理就換代理人
-                let showDriverId = (dg != null && agent != null) ? agent.DriverId : d.DriverId
-                let showDriverName = (dg != null && agent != null) ? (agent.DriverName + " (代)") : d.DriverName
+                let showDriverId = (dg != null && agent != null && s.IsPresent == false) ? agent.DriverId : d.DriverId
+                let showDriverName = (dg != null && agent != null && s.IsPresent == false) ? (agent.DriverName + " (代)") : d.DriverName
 
-                // ★ 這裡改成展開所有今日派工，不要 FirstOrDefault()
+                // 這裡改成展開所有今日派工，不要 FirstOrDefault()
                 from dis in _db.Dispatches
                     .Where(x => x.DriverId == showDriverId && x.StartTime.HasValue && x.StartTime.Value.Date == today)
                     .DefaultIfEmpty()
@@ -396,8 +396,12 @@ namespace Cars.Controllers
                 join v in _db.Vehicles on d.VehicleId equals v.VehicleId into vj
                 from v in vj.DefaultIfEmpty()
                 where (d.DispatchStatus != "已完成"
-                       || d.DriverId == null || d.VehicleId == null || d.DispatchStatus == "待派車")
-                      && a.UseEnd.Date == today && a.UseEnd > DateTime.Now
+                      || d.DriverId == null
+                      || d.VehicleId == null
+                      || d.DispatchStatus == "待派車")
+                     && a.UseStart.Date == today   
+                     && a.UseEnd >= DateTime.Now   
+
                 orderby a.UseStart,
                 a.UseEnd,             
                 d.DispatchId

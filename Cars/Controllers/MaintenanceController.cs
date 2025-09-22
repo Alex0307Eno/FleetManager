@@ -130,7 +130,6 @@ namespace Cars.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([FromBody] CreateDto dto)
         {
             if (dto.VehicleId <= 0) return BadRequest("VehicleId 必填");
@@ -254,7 +253,6 @@ namespace Cars.Controllers
         // 新增報修
         [HttpPost("repair")]
         [Authorize(Roles = "Admin")]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateRepair([FromBody] RepairRequestDto dto)
         {
             if (dto.VehicleId <= 0) return BadRequest("VehicleId 必填");
@@ -458,7 +456,6 @@ namespace Cars.Controllers
 
         [HttpPost("inspections")]
         [Authorize(Roles = "Admin")]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateInspection([FromBody] SaveInspectionDto dto)
         {
             if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
@@ -582,7 +579,6 @@ namespace Cars.Controllers
                     date = x.ViolationDate,
                     location = x.Location,
                     category = x.Category,
-                    points = x.Points,
                     fineAmount = x.FineAmount,
                     status = x.Status,
                     dueDate = x.DueDate,
@@ -610,7 +606,6 @@ namespace Cars.Controllers
 
         [HttpPost("violations")]
         [Authorize(Roles = "Admin")]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateViolation([FromBody] SaveViolationDto dto)
         {
             if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
@@ -621,7 +616,6 @@ namespace Cars.Controllers
                 ViolationDate = dto.ViolationDate,
                 Location = dto.Location,
                 Category = dto.Category,
-                Points = dto.Points,
                 FineAmount = dto.FineAmount,
                 Status = string.IsNullOrWhiteSpace(dto.Status) ? "未繳" : dto.Status,
                 DueDate = dto.DueDate,
@@ -663,7 +657,6 @@ namespace Cars.Controllers
             m.ViolationDate = dto.ViolationDate;
             m.Location = dto.Location;
             m.Category = dto.Category;
-            m.Points = dto.Points;
             m.FineAmount = dto.FineAmount;
             m.Status = string.IsNullOrWhiteSpace(dto.Status) ? m.Status : dto.Status;
             m.DueDate = dto.DueDate;

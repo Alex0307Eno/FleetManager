@@ -1,0 +1,141 @@
+﻿@{
+    ViewData["Title"] = "請假管理";
+}
+<head>
+    <link rel="stylesheet" href="/css/Driver/LeaveApply.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
+</head>
+
+<body>
+    <div id="leave-app" v-cloak>
+        <!-- ===== Tabs ===== -->
+        <div class="tabs">
+            <button :class="{active: tab==='apply'}" @@click ="switchTab('apply')">我要請假</button>
+            <button :class="{active: tab==='records'}" @@click ="switchTab('records')">我的請假紀錄</button>
+        </div>
+
+        <!-- ===== 我要請假 ===== -->
+        <div v-if="tab==='apply'" class="tab-pane">
+            <form class="leave-form">
+                <div class="form-group">
+                    <label>假別</label>
+                    <select v-model="leaveType">
+                        <option value="事假">事假</option>
+                        <option value="病假">病假</option>
+                        <option value="特休">特休</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>開始時間</label>
+                    <input id="lvStart" type="text" placeholder="選擇開始時間" />
+                </div>
+
+                <div class="form-group">
+                    <label>結束時間</label>
+                    <input id="lvEnd" type="text" placeholder="選擇結束時間" />
+                </div>
+
+                <div class="form-group">
+                    <label>事由</label>
+                    <textarea v-model="reason" placeholder="請輸入請假事由"></textarea>
+                </div>
+
+                <div class="leave-actions">
+                    <button type="button" @@click ="goSchedule">返回班表</button>
+                    <button type="button" class="btn btn-primary" @@click ="submitLeave">送出申請</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- ===== 我的請假紀錄 ===== -->
+        <div v-if="tab==='records'" class="tab-pane">
+            <div v-if="loading">讀取中...</div>
+            <div v-else>
+                <table class="leave-table">
+                    <thead>
+                        <tr>
+                            <th>假別</th>
+                            <th>開始時間</th>
+                            <th>結束時間</th>
+                            <th>事由</th>
+                            <th>狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="l in leaves" :key="l.leaveId">
+                            <td>{{ l.leaveType }}</td>
+                            <td>{{ fmt(l.start) }}</td>
+                            <td>{{ fmt(l.end) }}</td>
+                            <td>{{ l.reason }}</td>
+                            <td><span class="status-badge" :class="statusClass(l.status)">{{ l.status }}</span></td>
+                        </tr>
+                        <tr v-if="!leaves.length">
+                            <td colspan="5" style="text-align:center; color:#6b7280;">尚無請假紀錄</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, nextTick } = Vue;
+
+        createApp({
+          setup(){
+            const tab = ref("apply");
+            const leaveType = ref("事假");
+            const startIso = ref(""), endIso = ref(""), reason = ref("");
+            const leaves = ref([]), loading = ref(false);
+            let fpStart=null, fpEnd=null;
+
+            const pad=n=>String(n).padStart(2,"0");
+            const formatRoc=(date)=>`${date.getFullYear()-1911}/${pad(date.getMonth()+1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            const toLocalISOString=(date)=> new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,-1);
+            const fmt=(dtStr)=>{const d=new Date(dtStr);return isNaN(d)? "" : formatRoc(d);};
+
+            async function loadLeaves(){
+              loading.value=true;
+              try{ const res=await axios.get("/api/Leaves/my"); leaves.value=res.data||[]; }
+              catch(err){ console.error("讀取請假紀錄失敗",err); leaves.value=[]; }
+              finally{ loading.value=false; }
+            }
+
+            function initPickers(){
+              nextTick(()=>{
+                const today = new Date();
+                const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 8,0,0);
+                const end   = new Date(today.getFullYear(), today.getMonth(), today.getDate(),17,0,0);
+                startIso.value = toLocalISOString(start);
+                endIso.value   = toLocalISOString(end);
+                if(fpStart) fpStart.destroy(); if(fpEnd) fpEnd.destroy();
+                fpStart=flatpickr("#lvStart",{enableTime:true,dateFormat:"Y-m-d H:i",altInput:true,altFormat:"Y-m-d H:i",defaultDate:start,onChange:ds=>{if(ds.length)startIso.value=toLocalISOString(ds[0]);}});
+                fpEnd=flatpickr("#lvEnd",{enableTime:true,dateFormat:"Y-m-d H:i",altInput:true,altFormat:"Y-m-d H:i",defaultDate:end,onChange:ds=>{if(ds.length)endIso.value=toLocalISOString(ds[0]);}});
+              });
+            }
+
+            async function submitLeave(){
+              if(!startIso.value||!endIso.value||!reason.value.trim()){ alert("⚠ 請完整填寫表單"); return; }
+              if(new Date(endIso.value)<=new Date(startIso.value)){ alert("⚠ 結束時間必須晚於開始時間"); return; }
+              try{
+                const payload={leaveType:leaveType.value,start:startIso.value,end:endIso.value,reason:reason.value.trim()};
+                const res=await axios.post("/api/Leaves",payload,{headers:{"Content-Type":"application/json"}});
+                alert(res.data?.message||"✅ 申請成功");
+                tab.value="records"; loadLeaves();
+              }catch(err){ alert("❌ 申請失敗"); }
+            }
+
+            function switchTab(t){ tab.value=t; if(t==="apply") initPickers(); else if(t==="records") loadLeaves(); }
+            function goSchedule(){ window.location.href="/Drivers/MySchedule"; }
+            const statusClass=(s)=> s==="核准"?"s-approved": s==="駁回"?"s-reject":"s-wait";
+
+            onMounted(()=>{ initPickers(); });
+            return { tab, leaveType, reason, leaves, loading, fmt, submitLeave, statusClass, switchTab, goSchedule };
+          }
+        }).mount("#leave-app");
+    </script>
+</body>

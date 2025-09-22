@@ -47,13 +47,40 @@
         <!-- 右：保養/維修/驗車/違規/總覽 -->
         <section class="card">
             <div class="tabs">
+                <div class="tab" :class="{active:tab==='record'}" @@click="tab='record'">紀錄總覽</div>
                 <div class="tab" :class="{active:tab==='maint'}" @@click="tab='maint'">保養修配</div>
                 <div class="tab" :class="{active:tab==='repair'}" @@click="tab='repair'">維修紀錄</div>
                 <div class="tab" :class="{active:tab==='inspection'}" @@click="tab='inspection'">驗車紀錄</div>
                 <div class="tab" :class="{active:tab==='violation'}" @@click="tab='violation'">違規紀錄</div>
-                <div class="tab" :class="{active:tab==='record'}" @@click="tab='record'">紀錄總覽</div>
             </div>
-
+            <div v-if="tab==='record'">
+                <div class="card-hd">
+                    <div class="title">紀錄總覽</div>
+                </div>
+                <div class="card-bd table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:120px">日期</th>
+                                <th style="width:80px">類別</th>
+                                <th style="width:200px">項目/描述</th>
+                                <th style="width:300px">細節</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in recordRows" :key="r.type+'-'+r.id">
+                                <td class="mono">{{ (r.date??'').slice(0,10) }}</td>
+                                <td>{{ r.type }}</td>
+                                <td>{{ r.title }}</td>
+                                <td>{{ r.detail }}</td>
+                            </tr>
+                            <tr v-if="!recordRows.length">
+                                <td colspan="4" style="text-align:center;color:#64748b">尚無紀錄</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             <!-- 保養紀錄 -->
             <div v-if="tab==='maint'">
                 <div class="card-hd">
@@ -134,7 +161,7 @@
                         <input type="date" v-model="repairForm.date" />
                         <input type="text" v-model="repairForm.place" placeholder="送修地點" />
                         <input type="text" v-model="repairForm.issue" placeholder="故障描述" />
-                        <input type="number" v-model.number="repairForm.costEstimate" step="0.01" placeholder="估計費用" />
+                        <input type="number" v-model.number="repairForm.costEstimate" step="0.01" placeholder="費用" />
                         <input type="text" v-model="repairForm.vendor" placeholder="廠商" />
                         <input type="text" v-model="repairForm.note" placeholder="聯絡人/電話（備註）" />
                     </div>
@@ -153,7 +180,7 @@
                                 <th style="width:100px">地點</th>
                                 <th style="width:160px">故障描述</th>
                                 <th style="width:100px">狀態</th>
-                                <th style="width:100px">估計費用</th>
+                                <th style="width:100px">費用</th>
                                 <th style="width:100px">廠商</th>
                                 <th style="width:160px">備註</th>
                                 <th style="width:80px">功能</th>
@@ -240,7 +267,6 @@
                         <input type="date" v-model="violationForm.date" />
                         <input type="text" v-model="violationForm.location" placeholder="地點" />
                         <input type="text" v-model="violationForm.category" placeholder="類別(如：超速)" />
-                        <input type="number" v-model.number="violationForm.points" placeholder="記點" />
                         <input type="number" v-model.number="violationForm.fineAmount" placeholder="罰鍰(元)" />
                         <select v-model="violationForm.status"><option value="未繳">未繳</option><option value="已繳">已繳</option><option value="申訴中">申訴中</option></select>
                         <input type="text" v-model="violationForm.notes" placeholder="備註" />
@@ -258,7 +284,6 @@
                                 <th style="width:120px">違規日期</th>
                                 <th style="width:160px">地點</th>
                                 <th style="width:120px">類別</th>
-                                <th style="width:80px">記點</th>
                                 <th style="width:100px">罰鍰</th>
                                 <th style="width:100px">狀態</th>
                                 <th style="width:120px">期限</th>
@@ -272,7 +297,6 @@
                                 <td class="mono">{{ (r.date ?? '').slice(0,10) }}</td>
                                 <td>{{ r.location || '' }}</td>
                                 <td>{{ r.category || '' }}</td>
-                                <td class="mono">{{ r.points ?? '' }}</td>
                                 <td class="mono">{{ fmtMoney(r.fineAmount) }}</td>
                                 <td>{{ r.status || '' }}</td>
                                 <td class="mono">{{ r.dueDate || '' }}</td>
@@ -285,34 +309,7 @@
                     </table>
                 </div>
             </div>
-            <div v-if="tab==='record'">
-                <div class="card-hd">
-                    <div class="title">紀錄總覽</div>
-                </div>
-                <div class="card-bd table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width:120px">日期</th>
-                                <th style="width:80px">類別</th>
-                                <th style="width:200px">項目/描述</th>
-                                <th style="width:300px">細節</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="r in recordRows" :key="r.type+'-'+r.id">
-                                <td class="mono">{{ (r.date??'').slice(0,10) }}</td>
-                                <td>{{ r.type }}</td>
-                                <td>{{ r.title }}</td>
-                                <td>{{ r.detail }}</td>
-                            </tr>
-                            <tr v-if="!recordRows.length">
-                                <td colspan="4" style="text-align:center;color:#64748b">尚無紀錄</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+           
 
         </section>
     </div>

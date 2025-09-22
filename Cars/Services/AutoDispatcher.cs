@@ -245,9 +245,19 @@ namespace Cars.Services
 
                     if (longRest)
                     {
-                        reasons.Add($"司機 {s.DriverId} 排除：長差未滿 1 小時");
+                        // 注意：不要叫 driverName，避免和外層同名
+                        var displayName = await _db.Drivers
+                            .Where(dr => dr.DriverId == s.DriverId)
+                            .Select(dr => dr.DriverName)
+                            .FirstOrDefaultAsync();
+
+                        reasons.Add($"司機 {displayName ?? s.DriverId.ToString()} 排除：長差未滿 1 小時");
                         continue;
                     }
+
+
+
+
 
                     // 後段任務檢查
                     var laterConflict = await _db.Dispatches.AnyAsync(d =>
@@ -322,7 +332,7 @@ namespace Cars.Services
                         }
 
                         if (chosenVehicleId == null)
-                            return new DispatchResult { Success = false, Message = "沒有符合時段/容量的可用車輛。" };
+                            return new DispatchResult { Success = false, Message = "沒有符合時段/載客量的可用車輛。" };
                     }
                 }
 
@@ -491,7 +501,7 @@ namespace Cars.Services
             var start = d.StartTime.Value;
             var end = d.EndTime.Value;
 
-            // 檢查可用/容量/時段衝突
+            // 檢查可用/載客量/時段衝突
             if (preferredVehicleId.HasValue)
             {
                 var v = await _db.Vehicles
@@ -639,7 +649,7 @@ namespace Cars.Services
                 };
             }
 
-            return new DispatchResult { Success = false, Message = "沒有符合時段/容量的可用車輛" };
+            return new DispatchResult { Success = false, Message = "沒有符合時段/載客量的可用車輛" };
         }
 
         #endregion

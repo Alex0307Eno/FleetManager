@@ -1,0 +1,100 @@
+﻿@{
+    ViewData["Title"] = "請假審核管理";
+}
+<head>
+    <link rel="stylesheet" href="/css/Admin/LeaveReview.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body>
+    <div id="review-app" v-cloak>
+        <h2>請假審核管理</h2>
+
+        <div v-if="loading">讀取中...</div>
+        <div v-else>
+            <table class="leave-table">
+                <thead>
+                    <tr>
+                        <th>姓名</th>
+                        <th>假別</th>
+                        <th>開始時間</th>
+                        <th>結束時間</th>
+                        <th>事由</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="l in leaves" :key="l.leaveId">
+                        <td>{{ l.applicantName }}</td>
+                        <td>{{ l.leaveType }}</td>
+                        <td>{{ fmt(l.start) }}</td>
+                        <td>{{ fmt(l.end) }}</td>
+                        <td>{{ l.reason }}</td>
+                        <td>
+                            <span class="status-badge" :class="statusClass(l.status)">
+                                {{ l.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <button v-if="l.status==='待審核'" class="btn btn-approve" @@click ="updateStatus(l.leaveId,'核准')">核准</button>
+                            <button v-if="l.status==='待審核'" class="btn btn-reject" @@sclick ="updateStatus(l.leaveId,'駁回')">駁回</button>
+                        </td>
+                    </tr>
+                    <tr v-if="!leaves.length">
+                        <td colspan="7" style="text-align:center;color:#888">目前沒有請假紀錄</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+          setup(){
+            const leaves = ref([]);
+            const loading = ref(false);
+
+            const pad = n => String(n).padStart(2,"0");
+            const formatRoc = d => {
+              const roc = d.getFullYear()-1911;
+              return `${roc}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+            const fmt = dtStr => {
+              const d = new Date(dtStr);
+              return isNaN(d) ? "" : formatRoc(d);
+            };
+
+            const statusClass = s => s==="核准" ? "s-approved" : s==="駁回" ? "s-reject" : "s-wait";
+
+            async function loadLeaves(){
+              loading.value=true;
+              try{
+                const res = await axios.get("/api/Leaves"); // 後端：回傳全部請假紀錄
+                leaves.value = res.data || [];
+              }catch(err){
+                console.error("讀取請假紀錄失敗",err);
+                leaves.value=[];
+              }finally{loading.value=false;}
+            }
+
+            async function updateStatus(id,status){
+              try{
+                const res = await axios.post(`/api/Leaves/${id}/status`, { status });
+                alert(res.data?.message || `✅ 已更新為 ${status}`);
+                await loadLeaves();
+              }catch(err){
+                console.error("更新狀態失敗",err);
+                alert("❌ 更新失敗");
+              }
+            }
+
+            onMounted(()=>loadLeaves());
+            return { leaves, loading, fmt, statusClass, updateStatus };
+          }
+        }).mount("#review-app");
+    </script>
+</body>
