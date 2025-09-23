@@ -520,8 +520,14 @@ namespace Cars.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LeaveId"));
 
+                    b.Property<int?>("AgentDriverId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("End")
                         .HasColumnType("datetime2");
@@ -541,10 +547,11 @@ namespace Cars.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
                     b.HasKey("LeaveId");
+
+                    b.HasIndex("AgentDriverId");
+
+                    b.HasIndex("DriverId");
 
                     b.ToTable("Leaves");
                 });
@@ -1037,6 +1044,23 @@ namespace Cars.Migrations
                     b.Navigation("Agent");
 
                     b.Navigation("Principal");
+                });
+
+            modelBuilder.Entity("Cars.Models.Leave", b =>
+                {
+                    b.HasOne("Cars.Models.Driver", "AgentDriver")
+                        .WithMany()
+                        .HasForeignKey("AgentDriverId");
+
+                    b.HasOne("Cars.Models.Driver", "Driver")
+                        .WithMany()
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AgentDriver");
+
+                    b.Navigation("Driver");
                 });
 
             modelBuilder.Entity("Cars.Models.Schedule", b =>

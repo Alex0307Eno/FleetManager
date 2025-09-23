@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /Cars/appsettings.Development.json
 /Cars/appsettings.json
+/Cars/Migrations

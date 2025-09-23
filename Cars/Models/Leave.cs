@@ -8,7 +8,11 @@ namespace Cars.Models
         [Key]
         public int LeaveId { get; set; }
 
-        public int UserId { get; set; }
+        public int DriverId { get; set; }
+        public Driver Driver { get; set; }
+
+        public int? AgentDriverId { get; set; }
+        public Driver AgentDriver { get; set; } 
 
         [Required]
         public string LeaveType { get; set; }

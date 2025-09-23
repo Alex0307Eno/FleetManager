@@ -504,6 +504,24 @@ namespace Cars.Controllers.Api
                 ChildDispatchId = childApp.DispatchId
             };
             _db.DispatchLinks.Add(link);
+            // 找子單的 Dispatch + CarApplication
+            var childDispatch = await _db.Dispatches
+                .Include(d => d.CarApply)
+                .FirstOrDefaultAsync(d => d.DispatchId == childDispatchId);
+
+            if (childDispatch != null)
+            {
+                // 🚗 更新子單 Dispatch
+                childDispatch.DriverId = parent.DriverId;
+                childDispatch.VehicleId = parent.VehicleId;
+
+                // 📄 同步更新 CarApplication
+                if (childDispatch.CarApply != null)
+                {
+                    childDispatch.CarApply.DriverId = parent.DriverId;
+                    childDispatch.CarApply.VehicleId = parent.VehicleId;
+                }
+            }
             try
             {
                 await _db.SaveChangesAsync();

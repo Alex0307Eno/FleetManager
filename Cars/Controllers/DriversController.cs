@@ -362,10 +362,10 @@ namespace Cars.Controllers
         #endregion
 
 
-        #region 司機基本資料與出勤狀況
+        #region 司機基本資料
 
         [HttpGet("Records")]
-        public async Task<ActionResult<IEnumerable<DriverListItem>>> Records()
+        public async Task<ActionResult> Records()
         {
             var today = DateTime.Today;
 
@@ -373,7 +373,7 @@ namespace Cars.Controllers
                 .AsNoTracking()
                  .Where(d => !d.IsAgent)
                 .OrderBy(d => d.DriverName )
-                .Select(d => new DriverListItem
+                .Select(d => new Driver
                 {
                     DriverId = d.DriverId,
                     DriverName = d.DriverName,
@@ -387,83 +387,14 @@ namespace Cars.Controllers
                     EmergencyContactName = d.EmergencyContactName,
                     EmergencyContactPhone = d.EmergencyContactPhone,
 
-                    HasTodaySchedule = (
-                   from s in _db.Schedules
-                   join dla in _db.DriverLineAssignments
-                        on s.LineCode equals dla.LineCode into gj
-                   from dla in gj.Where(a => a.StartDate <= today && (a.EndDate == null || a.EndDate >= today))
-                                 .DefaultIfEmpty()
-                   let resolved = (int?)(s.DriverId ?? (dla != null ? dla.DriverId : (int?)null))
-                   where s.WorkDate == today && resolved == d.DriverId
-                   select 1
-                ).Any(),
-
-                                    IsPresentToday = (
-                   from s in _db.Schedules
-                   join dla in _db.DriverLineAssignments
-                        on s.LineCode equals dla.LineCode into gj
-                   from dla in gj.Where(a => a.StartDate <= today && (a.EndDate == null || a.EndDate >= today))
-                                 .DefaultIfEmpty()
-                   let resolved = (int?)(s.DriverId ?? (dla != null ? dla.DriverId : (int?)null))
-                   where s.WorkDate == today && s.IsPresent && resolved == d.DriverId
-                   select 1
-                ).Any(),
-
+                  
 
                 })
                 .ToListAsync();
 
             return Ok(data);
         }
-        public class SetAttendanceDto
-        {
-            public int DriverId { get; set; }
-            public bool IsPresent { get; set; }
-            public int? AgentId { get; set; }      //  請假時指派代理人
-            public string? Reason { get; set; }    // 例如 "請假"
-        }
-
-        // 標記今天的出勤狀況
-        [HttpPost("SetAttendanceToday")]
-        public async Task<IActionResult> SetAttendanceToday([FromBody] SetAttendanceDto dto)
-        {
-            var today = DateTime.UtcNow.AddHours(8).Date;
-
-            var q =
-              from s in _db.Schedules
-              join dla in _db.DriverLineAssignments
-                   on s.LineCode equals dla.LineCode into gj
-              from dla in gj.Where(a => a.StartDate <= s.WorkDate && (a.EndDate == null || a.EndDate >= s.WorkDate))
-                            .DefaultIfEmpty()
-              let resolved = (int?)(s.DriverId ?? (dla != null ? dla.DriverId : (int?)null))
-              where s.WorkDate == today && resolved == dto.DriverId
-              select s;
-
-            var rows = await q.ToListAsync();
-            if (rows.Count == 0) return BadRequest("今日沒有班表記錄");
-
-            foreach (var s in rows) s.IsPresent = dto.IsPresent;
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
-            return NoContent();
-        }
+       
 
         #endregion
 
@@ -761,27 +692,44 @@ namespace Cars.Controllers
 
         #endregion
 
-        #region 司機出勤與排班dto
-        // 出勤
-        public class DriverListItem
+      
+
+
+        //代理人清單
+        [HttpGet("Agents")]
+        public async Task<IActionResult> GetAgents([FromQuery] int? leaveId = null)
         {
-            public int DriverId { get; set; }
-            public string DriverName { get; set; }
+            var q = _db.Drivers.AsNoTracking().Where(d => d.IsAgent == true);
 
-            public string NationalId { get; set; }
-            public DateTime? BirthDate { get; set; }
-            public string HouseholdAddress { get; set; }
-            public string ContactAddress { get; set; }
-            public string Phone { get; set; }
-            public string Mobile { get; set; }
-            public string EmergencyContactName { get; set; }
-            public string EmergencyContactPhone { get; set; }
+            if (leaveId.HasValue)
+            {
+                var leave = await _db.Leaves.FindAsync(leaveId.Value);
+                if (leave == null) return NotFound("找不到請假紀錄");
 
-            // 出勤顯示/控制
-            public bool IsPresentToday { get; set; }   // 今天是否出勤
-            public bool HasTodaySchedule { get; set; } // 今天是否有排班
+                var start = leave.Start.Date;
+                var end = leave.End.Date;
+
+                // 找出已經衝突的代理人
+                var busyAgents = await _db.Leaves
+                    .Where(l => l.LeaveId != leave.LeaveId &&
+                                l.AgentDriverId != null &&
+                                l.Status == "核准" &&
+                                l.Start.Date <= end &&
+                                l.End.Date >= start)
+                    .Select(l => l.AgentDriverId.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                q = q.Where(d => !busyAgents.Contains(d.DriverId));
+            }
+
+            var list = await q
+                .OrderBy(d => d.DriverName)
+                .Select(d => new { driverId = d.DriverId, driverName = d.DriverName })
+                .ToListAsync();
+
+            return Ok(list);
         }
-        #endregion
 
 
     }

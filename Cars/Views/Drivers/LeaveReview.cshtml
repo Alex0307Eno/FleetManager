@@ -22,12 +22,13 @@
                         <th>結束時間</th>
                         <th>事由</th>
                         <th>狀態</th>
+                        <th>代理人</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="l in leaves" :key="l.leaveId">
-                        <td>{{ l.applicantName }}</td>
+                        <td>{{ l.driverName }}</td>
                         <td>{{ l.leaveType }}</td>
                         <td>{{ fmt(l.start) }}</td>
                         <td>{{ fmt(l.end) }}</td>
@@ -38,12 +39,38 @@
                             </span>
                         </td>
                         <td>
-                            <button v-if="l.status==='待審核'" class="btn btn-approve" @@click ="updateStatus(l.leaveId,'核准')">核准</button>
-                            <button v-if="l.status==='待審核'" class="btn btn-reject" @@sclick ="updateStatus(l.leaveId,'駁回')">駁回</button>
+                            <div v-if="l.status==='待審核'">
+                                <select v-model="l.agentDriverId" @@focus ="loadDrivers(l)">
+                                    <option disabled value="">請選擇代理人</option>
+                                    <option v-for="d in l.availableAgents"
+                                            :key="d.driverId"
+                                            :value="d.driverId">
+                                        {{ d.driverName }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div v-else>
+                                {{ l.agentDriverName || '-' }}
+                            </div>
+                        </td>
+
+                        <td>
+                            <button v-if="l.status==='待審核'"
+                                    class="btn btn-approve"
+                                    @@click ="updateStatus(l.leaveId,'核准', l.agentDriverId)">
+                                核准
+                            </button>
+                            <button v-if="l.status==='待審核'"
+                                    class="btn btn-reject"
+                                    @@click ="updateStatus(l.leaveId,'駁回')">
+                                駁回
+                            </button>
                         </td>
                     </tr>
                     <tr v-if="!leaves.length">
-                        <td colspan="7" style="text-align:center;color:#888">目前沒有請假紀錄</td>
+                        <td colspan="8" style="text-align:center;color:#888">
+                            目前沒有請假紀錄
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -68,32 +95,51 @@
               return isNaN(d) ? "" : formatRoc(d);
             };
 
-            const statusClass = s => s==="核准" ? "s-approved" : s==="駁回" ? "s-reject" : "s-wait";
+            const statusClass = s =>
+              s==="核准" ? "s-approved" :
+              s==="駁回" ? "s-reject" : "s-wait";
 
+            // 載入請假紀錄
             async function loadLeaves(){
-              loading.value=true;
+              loading.value = true;
               try{
-                const res = await axios.get("/api/Leaves"); // 後端：回傳全部請假紀錄
-                leaves.value = res.data || [];
+                const res = await axios.get("/api/Leaves");
+                // 每筆請假多一個 availableAgents 陣列
+                leaves.value = (res.data || []).map(l => ({ ...l, availableAgents: [] }));
               }catch(err){
-                console.error("讀取請假紀錄失敗",err);
-                leaves.value=[];
-              }finally{loading.value=false;}
-            }
-
-            async function updateStatus(id,status){
-              try{
-                const res = await axios.post(`/api/Leaves/${id}/status`, { status });
-                alert(res.data?.message || `✅ 已更新為 ${status}`);
-                await loadLeaves();
-              }catch(err){
-                console.error("更新狀態失敗",err);
-                alert("❌ 更新失敗");
+                console.error("讀取請假紀錄失敗", err);
+                leaves.value = [];
+              }finally{
+                loading.value = false;
               }
             }
 
-            onMounted(()=>loadLeaves());
-            return { leaves, loading, fmt, statusClass, updateStatus };
+            // 更新狀態 (核准/駁回)
+            async function updateStatus(id, status, agentDriverId=null){
+              try {
+                const res = await axios.post(`/api/Leaves/${id}/status`, { status, agentDriverId });
+                alert(res.data?.message || `✅ 已更新為 ${status}`);
+                await loadLeaves();
+              } catch (err) {
+                console.error("更新狀態失敗", err);
+                alert(err.response?.data?.message || "❌ 更新失敗");
+              }
+            }
+
+            // 動態載入代理人
+            async function loadDrivers(leave){
+              try{
+                const res = await axios.get(`/Drivers/Agents?leaveId=${leave.leaveId}`);
+                leave.availableAgents = res.data || [];
+              }catch(err){
+                console.error("讀取代理人名單失敗", err);
+                leave.availableAgents = [];
+              }
+            }
+
+            onMounted(() => loadLeaves());
+
+            return { leaves, loading, fmt, statusClass, updateStatus, loadDrivers };
           }
         }).mount("#review-app");
     </script>
