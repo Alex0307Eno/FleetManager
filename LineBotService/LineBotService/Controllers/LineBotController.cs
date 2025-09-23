@@ -29,10 +29,11 @@ namespace LineBotDemo.Controllers
         private static readonly ConcurrentDictionary<string, string> _bindingStep = new();
         // 限流器：每個 userId 每分鐘 10 次
         private static readonly RateLimiter _rateLimiter = new RateLimiter(100, 60);
+        private readonly HttpClient _http; private readonly string _apiBaseUrl;
 
-
-        public LineBotController(IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService)
+        public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService)
         {
+            _http = httpFactory.CreateClient();
             _token = config["LineBot:ChannelAccessToken"];
             _baseUrl = config["AppBaseUrl"];
             _db = db;
@@ -44,6 +45,7 @@ namespace LineBotDemo.Controllers
         private class BookingState
         {
             public string? ReserveTime { get; set; }
+            public string? ArrivalTime { get; set; }
             public string? Reason { get; set; }
             public string? PassengerCount { get; set; }
             public string? Origin { get; set; }
@@ -66,59 +68,59 @@ namespace LineBotDemo.Controllers
         #region 對話工具
         // Step 1: 即時預約 or 預訂時間
         private const string Step1JsonArray = @"
-[
-  {
-  ""type"": ""template"",
-  ""altText"": ""請選擇預約方式"",
-  ""template"": {
-    ""type"": ""confirm"",
-    ""text"": ""請選擇預約的時間"",
-    ""actions"": [
-      { ""type"": ""message"", ""label"": ""即時預約"", ""text"": ""即時預約"" },
-      { ""type"": ""message"", ""label"": ""預訂時間"", ""text"": ""預訂時間"" }
-    ]
-  }
-}
-
-]";
+        [
+          {
+          ""type"": ""template"",
+          ""altText"": ""請選擇預約方式"",
+          ""template"": {
+            ""type"": ""confirm"",
+            ""text"": ""請選擇預約的時間"",
+            ""actions"": [
+              { ""type"": ""message"", ""label"": ""即時預約"", ""text"": ""即時預約"" },
+              { ""type"": ""message"", ""label"": ""預訂時間"", ""text"": ""預訂時間"" }
+            ]
+          }
+        }
+        
+        ]";
        
         // 1~4人
         private const string Step3JsonArray = @"
-[
- {
-  ""type"": ""template"",
-  ""altText"": ""請選擇乘客人數"",
-  ""template"": {
-    ""type"": ""buttons"",
-    ""title"": ""乘客人數"",
-    ""text"": ""請選擇乘客人數"",
-    ""actions"": [
-      { ""type"": ""message"", ""label"": ""1人"", ""text"": ""1人"" },
-      { ""type"": ""message"", ""label"": ""2人"", ""text"": ""2人"" },
-      { ""type"": ""message"", ""label"": ""3人"", ""text"": ""3人"" },
-      { ""type"": ""message"", ""label"": ""4人"", ""text"": ""4人"" }
-    ]
-  }
-}
+        [
+         {
+          ""type"": ""template"",
+          ""altText"": ""請選擇乘客人數"",
+          ""template"": {
+            ""type"": ""buttons"",
+            ""title"": ""乘客人數"",
+            ""text"": ""請選擇乘客人數"",
+            ""actions"": [
+              { ""type"": ""message"", ""label"": ""1人"", ""text"": ""1人"" },
+              { ""type"": ""message"", ""label"": ""2人"", ""text"": ""2人"" },
+              { ""type"": ""message"", ""label"": ""3人"", ""text"": ""3人"" },
+              { ""type"": ""message"", ""label"": ""4人"", ""text"": ""4人"" }
+            ]
+          }
+        }
 
-]";
+        ]";
         // 單程 or 來回
         private const string Step6bTripJsonArray = @"
-[
- {
-  ""type"": ""template"",
-  ""altText"": ""請選擇行程類型"",
-  ""template"": {
-    ""type"": ""confirm"",
-    ""text"": ""請選擇行程類型"",
-    ""actions"": [
-      { ""type"": ""message"", ""label"": ""單程"", ""text"": ""單程"" },
-      { ""type"": ""message"", ""label"": ""來回"", ""text"": ""來回"" }
-    ]
-  }
-}
-
-]";
+        [
+         {
+          ""type"": ""template"",
+          ""altText"": ""請選擇行程類型"",
+          ""template"": {
+            ""type"": ""confirm"",
+            ""text"": ""請選擇行程類型"",
+            ""actions"": [
+              { ""type"": ""message"", ""label"": ""單程"", ""text"": ""單程"" },
+              { ""type"": ""message"", ""label"": ""來回"", ""text"": ""來回"" }
+            ]
+          }
+        }
+        
+        ]";
         #endregion
 
         #region 主流程
@@ -156,15 +158,7 @@ namespace LineBotDemo.Controllers
                     //}
 
 
-                    //  防呆：檢查使用者是否有綁定
-                    if (ev.type == "follow")
-                    {
-                        bot.ReplyMessage(replyToken,
-                        "⚠️ 您的 LINE 帳號尚未綁定系統帳號\n" +
-                        "👉 請輸入「綁定帳號」開始綁定流程。");
-                        continue;
-
-                    }
+                    
                     var dbUser = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
                     if (dbUser == null)
                     {
@@ -240,9 +234,6 @@ namespace LineBotDemo.Controllers
                             await _richMenuService.BindUserToRoleAsync(uid, user.Role ?? "Applicant");
                             continue;
                         }
-
-
-
 
                         // 尚未綁定，統一提示
                         bot.ReplyMessage(replyToken,
@@ -596,7 +587,7 @@ namespace LineBotDemo.Controllers
 
                             app.DriverId = driverState.SelectedDriverId;
                             app.VehicleId = vehicleId;
-                            app.isLongTrip = (app.SingleDistance ?? 0) > 30;
+                            app.IsLongTrip = (app.SingleDistance ?? 0) > 30;
                             app.Status = "完成審核";
                             try
                             {
@@ -722,10 +713,13 @@ namespace LineBotDemo.Controllers
                             if (driver != null)
                             {
                                 var dispatches = _db.Dispatches
+                                    .Include(d => d.CarApply)
+                                    .Include(d => d.Vehicle) 
                                     .Where(d => d.DriverId == driver.DriverId &&
                                                 d.StartTime.HasValue &&
                                                 d.StartTime.Value.Date == today)
                                     .ToList();
+
 
                                 if (dispatches.Any())
                                 {
@@ -765,21 +759,40 @@ namespace LineBotDemo.Controllers
                         }
 
                         // Step 2: 預約時間
-                        if (string.IsNullOrEmpty(state.ReserveTime) && (msg == "即時預約" || msg == "預訂時間"))
+                       
+                        if (string.IsNullOrEmpty(state.ReserveTime) && msg == "預訂時間")
                         {
-                            if (msg == "即時預約")
-                            {
-                                var now = DateTime.Now;
-                                state.ReserveTime = now.ToString("yyyy/MM/dd HH:mm");
-                                bot.ReplyMessage(replyToken, "請輸入用車事由");
-                            }
-                            else // 預訂時間 → 顯示時間選單
-                            {
-                                var timeJson = BuildDepartureTimeQuickReply();
-                                bot.ReplyMessageWithJSON(replyToken, timeJson);
-                            }
+                            var depMenu = BuildDepartureTimeQuickReply("出發時間", DateTime.Today);
+                            bot.ReplyMessageWithJSON(replyToken, depMenu);
                             continue;
                         }
+
+                        // 還沒選出發 → 當出發
+                        if (string.IsNullOrEmpty(state.ReserveTime) && DateTime.TryParse(msg, out var depTime))
+                        {
+                            state.ReserveTime = depTime.ToString("yyyy/MM/dd HH:mm");
+                            var arriveMenu = BuildDepartureTimeQuickReply("抵達時間", depTime.Date, depTime.AddMinutes(10));
+                            bot.ReplyMessageWithJSON(replyToken, arriveMenu);
+                            continue;
+                        }
+
+                        // 已有出發，還沒抵達 → 當抵達
+                        if (!string.IsNullOrEmpty(state.ReserveTime) && string.IsNullOrEmpty(state.ArrivalTime) && DateTime.TryParse(msg, out var arrTime))
+                        {
+                            var dep = DateTime.Parse(state.ReserveTime);
+                            if (arrTime <= dep.AddMinutes(10))
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 抵達時間需晚於出發時間 10 分鐘以上");
+                                var arriveMenu = BuildDepartureTimeQuickReply("抵達時間", dep.Date, dep.AddMinutes(10));
+                                bot.ReplyMessageWithJSON(replyToken, arriveMenu);
+                                continue;
+                            }
+
+                            state.ArrivalTime = arrTime.ToString("yyyy/MM/dd HH:mm");
+                            bot.ReplyMessage(replyToken, "請輸入用車事由");
+                            continue;
+                        }
+
 
                         // 使用者點了「手動輸入」
                         if (string.IsNullOrEmpty(state.ReserveTime) && msg == "手動輸入")
@@ -918,34 +931,34 @@ namespace LineBotDemo.Controllers
                             var safeOrigin = Safe(state.Origin);
                             var safeDest = Safe(state.Destination);
                             string confirmBubble = $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""申請派車資訊"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""spacing"": ""md"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""申請派車資訊"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 預約時間：{state.ReserveTime}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 用車事由：{state.Reason}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{state.PassengerCount}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 出發地點：{state.Origin}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{state.Destination}"" }}
-      ]
-    }},
-    ""footer"": {{
-      ""type"": ""box"",
-      ""layout"": ""horizontal"",
-      ""contents"": [
-        {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" }} }},
-        {{ ""type"": ""button"", ""style"": ""primary"", ""action"": {{ ""type"": ""message"", ""label"": ""確認"", ""text"": ""確認"" }} }}
-      ]
-    }}
-  }}
-}}";
+                            {{
+                              ""type"": ""flex"",
+                              ""altText"": ""申請派車資訊"",
+                              ""contents"": {{
+                                ""type"": ""bubble"",
+                                ""body"": {{
+                                  ""type"": ""box"",
+                                  ""layout"": ""vertical"",
+                                  ""spacing"": ""md"",
+                                  ""contents"": [
+                                    {{ ""type"": ""text"", ""text"": ""申請派車資訊"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                                    {{ ""type"": ""text"", ""text"": ""■ 預約時間：{state.ReserveTime}"" }},
+                                    {{ ""type"": ""text"", ""text"": ""■ 用車事由：{state.Reason}"" }},
+                                    {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{state.PassengerCount}"" }},
+                                    {{ ""type"": ""text"", ""text"": ""■ 出發地點：{state.Origin}"" }},
+                                    {{ ""type"": ""text"", ""text"": ""■ 前往地點：{state.Destination}"" }}
+                                  ]
+                                }},
+                                ""footer"": {{
+                                  ""type"": ""box"",
+                                  ""layout"": ""horizontal"",
+                                  ""contents"": [
+                                    {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" }} }},
+                                    {{ ""type"": ""button"", ""style"": ""primary"", ""action"": {{ ""type"": ""message"", ""label"": ""確認"", ""text"": ""確認"" }} }}
+                                  ]
+                                }}
+                              }}
+                            }}";
                             bot.ReplyMessageWithJSON(replyToken, $"[{confirmBubble}]");
                             continue;
                         }
@@ -962,7 +975,7 @@ namespace LineBotDemo.Controllers
                         if (msg == "確認")
                         {
                             var role = GetUserRole(uid);
-                            if (role != "Applicant" || role != "Admin")
+                            if (role != "Applicant" && role != "Admin")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有建立派車申請的權限");
                                 continue;
@@ -1032,6 +1045,9 @@ namespace LineBotDemo.Controllers
                             if (state.TripType == "round")
                                 effectiveMinutes = minutes * 2;
                             // 建立申請單 (先存 DB)
+                            var end = !string.IsNullOrEmpty(state.ArrivalTime)
+                                      ? DateTime.Parse(state.ArrivalTime)
+                                      : start.AddMinutes(30);
                             var app = new CarApplication
                             {
                                 ApplyFor = "申請人",
@@ -1043,7 +1059,7 @@ namespace LineBotDemo.Controllers
                                 Origin = state.Origin ?? "公司",
                                 Destination = state.Destination ?? "",
                                 UseStart = start,
-                                UseEnd = start.AddMinutes(effectiveMinutes),
+                                UseEnd = end,
                                 TripType = state.TripType ?? "single",
                                 ApplicantId = applicant.ApplicantId,
                                 Status = "待審核",
@@ -1053,7 +1069,7 @@ namespace LineBotDemo.Controllers
                                 SingleDuration = ToHourMinuteString(minutes),
                                 RoundTripDistance = (decimal)(km * 2),
                                 RoundTripDuration = ToHourMinuteString(minutes * 2),
-                                isLongTrip = km > 30
+                                IsLongTrip = km > 30
                             };
                             _db.CarApplications.Add(app);
                             try
@@ -1113,10 +1129,10 @@ namespace LineBotDemo.Controllers
                             continue;
                         }
                         // ================= 管理員審核 =================
-                        if (msg.StartsWith("同意申請") || msg.StartsWith("拒絕申請"))
+                        if (msg.StartsWith("同意申請") && msg.StartsWith("拒絕申請"))
                         {
                             var role = GetUserRole(uid);
-                            if (role == "Admin" || role == "Manager")
+                            if (role == "Admin" && role == "Manager")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有審核的權限");
                                 continue;
@@ -1431,40 +1447,66 @@ namespace LineBotDemo.Controllers
 
         #region 產生當天時間選單
         // ====== 工具方法：產生出發時間選單 ======
-        private static string BuildDepartureTimeQuickReply()
+        // 共用：產生時間 Carousel（title 可傳 "出發時間"/"抵達時間"）
+        // minTime 若有值，僅顯示 >= minTime 的時段
+        private static string BuildDepartureTimeQuickReply(string title, DateTime baseDay, DateTime? minTime = null)
         {
-            var now = DateTime.Now;
-            var today = DateTime.Today;
+            var now = DateTime.Now.AddMinutes(5);
+            var floor = minTime ?? now;
+            var day = baseDay.Date;
 
-            // 可選時段：08:00–17:00，每小時一格
-            var timeSlots = Enumerable.Range(8, 10)
-                .Select(h => new DateTime(today.Year, today.Month, today.Day, h, 0, 0))
-                .Where(t => t >= now.AddMinutes(5)) // 過濾掉小於現在 (多加 5 分鐘保險)
+            var slots = Enumerable.Range(8, 10)
+                .Select(h => new DateTime(day.Year, day.Month, day.Day, h, 0, 0))
+                .Where(t => t >= floor)
                 .ToList();
 
-            var actions = new List<string>();
-            foreach (var t in timeSlots)
+            if (!slots.Any())
             {
-                var label = t.ToString("HH:mm");
-                actions.Add($@"{{ ""type"": ""message"", ""label"": ""{label}"", ""text"": ""{label}"" }}");
+                day = day.AddDays(1);
+                slots = Enumerable.Range(8, 10)
+                    .Select(h => new DateTime(day.Year, day.Month, day.Day, h, 0, 0))
+                    .ToList();
             }
 
-            // 額外選項：手動輸入、返回主選單
-            actions.Add(@"{ ""type"": ""message"", ""label"": ""手動輸入"", ""text"": ""手動輸入"" }");
-            actions.Add(@"{ ""type"": ""message"", ""label"": ""返回主選單"", ""text"": ""返回主選單"" }");
+            var columns = new List<string>();
+            var groups = slots.Select((t, i) => new { t, i }).GroupBy(x => x.i / 3).ToList();
+            int page = 1;
 
-            // 組成 JSON
+            foreach (var g in groups)
+            {
+                var actions = g.Select(x =>
+                    $@"{{ ""type"": ""message"", ""label"": ""{x.t:HH:mm}"", ""text"": ""{x.t:yyyy/MM/dd HH:mm}"" }}").ToList();
+
+                while (actions.Count < 3)
+                    actions.Add(@"{ ""type"": ""message"", ""label"": ""—"", ""text"": ""—"" }");
+
+                columns.Add($@"
+{{
+  ""title"": ""{title} ({page})"",
+  ""text"": ""請選擇時間"",
+  ""actions"": [ {string.Join(",", actions)} ]
+}}");
+                page++;
+            }
+
+            columns.Add(@"
+{
+  ""title"": ""其他選項"",
+  ""text"": ""請選擇"",
+  ""actions"": [
+    { ""type"": ""message"", ""label"": ""手動輸入"", ""text"": ""手動輸入"" },
+    { ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" },
+    { ""type"": ""message"", ""label"": ""返回主選單"", ""text"": ""返回主選單"" }
+  ]
+}");
+
             var json = $@"
 [ {{
   ""type"": ""template"",
-  ""altText"": ""請選擇出發時間"",
+  ""altText"": ""請選擇{title}"",
   ""template"": {{
-    ""type"": ""buttons"",
-    ""title"": ""出發時間"",
-    ""text"": ""請選擇出發時間"",
-    ""actions"": [
-      {string.Join(",", actions)}
-    ]
+    ""type"": ""carousel"",
+    ""columns"": [ {string.Join(",", columns)} ]
   }}
 }} ]";
 
@@ -1509,44 +1551,44 @@ namespace LineBotDemo.Controllers
 
             // 每筆一個盒子 + 按鈕
             var cardContents = string.Join(",\n", items.Select(a => $@"
-{{
-  ""type"": ""box"",
-  ""layout"": ""vertical"",
-  ""margin"": ""md"",
-  ""spacing"": ""xs"",
-  ""borderWidth"": ""1px"",
-  ""borderColor"": ""#dddddd"",
-  ""cornerRadius"": ""md"",
-  ""paddingAll"": ""10px"",
-  ""contents"": [
-    {{ ""type"": ""text"", ""text"": ""申請單 #{a.ApplyId}"", ""weight"": ""bold"" }},
-    {{ ""type"": ""text"", ""text"": ""時間：{a.UseStart:yyyy/MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"" }},
-    {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination}"", ""size"": ""sm"", ""wrap"": true }},
-    {{ ""type"": ""text"", ""text"": ""人數：{a.PassengerCount}、行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"" }},
-    {{ ""type"": ""box"", ""layout"": ""horizontal"", ""spacing"": ""md"", ""margin"": ""sm"", ""contents"": [
-      {{
-        ""type"": ""button"",
-        ""style"": ""primary"",
-        ""height"": ""sm"",
-        ""action"": {{
-          ""type"": ""postback"",
-          ""label"": ""同意"",
-          ""data"": ""action=reviewApprove&applyId={a.ApplyId}""
-        }}
-      }},
-      {{
-        ""type"": ""button"",
-        ""style"": ""secondary"",
-        ""height"": ""sm"",
-        ""action"": {{
-          ""type"": ""postback"",
-          ""label"": ""拒絕"",
-          ""data"": ""action=reviewReject&applyId={a.ApplyId}""
-        }}
-      }}
-    ]}}
-  ]
-}}"));
+                            {{
+                              ""type"": ""box"",
+                              ""layout"": ""vertical"",
+                              ""margin"": ""md"",
+                              ""spacing"": ""xs"",
+                              ""borderWidth"": ""1px"",
+                              ""borderColor"": ""#dddddd"",
+                              ""cornerRadius"": ""md"",
+                              ""paddingAll"": ""10px"",
+                              ""contents"": [
+                                {{ ""type"": ""text"", ""text"": ""申請單 #{a.ApplyId}"", ""weight"": ""bold"" }},
+                                {{ ""type"": ""text"", ""text"": ""時間：{a.UseStart:yyyy/MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"" }},
+                                {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination}"", ""size"": ""sm"", ""wrap"": true }},
+                                {{ ""type"": ""text"", ""text"": ""人數：{a.PassengerCount}、行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"" }},
+                                {{ ""type"": ""box"", ""layout"": ""horizontal"", ""spacing"": ""md"", ""margin"": ""sm"", ""contents"": [
+                                  {{
+                                    ""type"": ""button"",
+                                    ""style"": ""primary"",
+                                    ""height"": ""sm"",
+                                    ""action"": {{
+                                      ""type"": ""postback"",
+                                      ""label"": ""同意"",
+                                      ""data"": ""action=reviewApprove&applyId={a.ApplyId}""
+                                    }}
+                                  }},
+                                  {{
+                                    ""type"": ""button"",
+                                    ""style"": ""secondary"",
+                                    ""height"": ""sm"",
+                                    ""action"": {{
+                                      ""type"": ""postback"",
+                                      ""label"": ""拒絕"",
+                                      ""data"": ""action=reviewReject&applyId={a.ApplyId}""
+                                    }}
+                                  }}
+                                ]}}
+                              ]
+                            }}"));
 
             var totalPages = (int)Math.Ceiling(total / (double)pageSize);
             var hasPrev = page > 1;
@@ -1576,31 +1618,31 @@ namespace LineBotDemo.Controllers
 
             // Flex bubble
             var bubble = $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""待審核清單"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""size"": ""mega"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""spacing"": ""md"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""待審核清單"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {cardContents}
-      ]
-    }},
-    ""footer"": {{
-      ""type"": ""box"",
-      ""layout"": ""horizontal"",
-      ""spacing"": ""md"",
-      ""contents"": [
-        {footer}
-      ]
-    }}
-  }}
-}}";
+            {{
+              ""type"": ""flex"",
+              ""altText"": ""待審核清單"",
+              ""contents"": {{
+                ""type"": ""bubble"",
+                ""size"": ""mega"",
+                ""body"": {{
+                  ""type"": ""box"",
+                  ""layout"": ""vertical"",
+                  ""spacing"": ""md"",
+                  ""contents"": [
+                    {{ ""type"": ""text"", ""text"": ""待審核清單"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                    {cardContents}
+                  ]
+                }},
+                ""footer"": {{
+                  ""type"": ""box"",
+                  ""layout"": ""horizontal"",
+                  ""spacing"": ""md"",
+                  ""contents"": [
+                    {footer}
+                  ]
+                }}
+              }}
+            }}";
 
             return bubble;
         }
@@ -1610,33 +1652,33 @@ namespace LineBotDemo.Controllers
 
         //申請人通知卡片
         private static string BuildAdminFlexBubble(CarApplication app) => $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""派車申請"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},        
-        {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }}
-      ]
-    }},
-    ""footer"": {{
-      ""type"": ""box"",
-      ""layout"": ""horizontal"",
-      ""contents"": [
-        {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""拒絕"", ""text"": ""拒絕申請 {app.ApplyId}"" }} }},
-        {{ ""type"": ""button"", ""style"": ""primary"",   ""action"": {{ ""type"": ""message"", ""label"": ""同意"", ""text"": ""同意申請 {app.ApplyId}"" }} }}
-      ]
-    }}
-  }}
-}}";
+        {{
+          ""type"": ""flex"",
+          ""altText"": ""派車申請"",
+          ""contents"": {{
+            ""type"": ""bubble"",
+            ""body"": {{
+              ""type"": ""box"",
+              ""layout"": ""vertical"",
+              ""contents"": [
+                {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},        
+                {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }}
+              ]
+            }},
+            ""footer"": {{
+              ""type"": ""box"",
+              ""layout"": ""horizontal"",
+              ""contents"": [
+                {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""拒絕"", ""text"": ""拒絕申請 {app.ApplyId}"" }} }},
+                {{ ""type"": ""button"", ""style"": ""primary"",   ""action"": {{ ""type"": ""message"", ""label"": ""同意"", ""text"": ""同意申請 {app.ApplyId}"" }} }}
+              ]
+            }}
+          }}
+        }}";
         //選擇司機卡片
         private static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
         {
@@ -1670,21 +1712,21 @@ namespace LineBotDemo.Controllers
         }}"));
 
             return $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""選擇駕駛人"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {btns}
-      ]
-    }}
-  }}
-}}";
+                    {{
+                      ""type"": ""flex"",
+                      ""altText"": ""選擇駕駛人"",
+                      ""contents"": {{
+                        ""type"": ""bubble"",
+                        ""body"": {{
+                          ""type"": ""box"",
+                          ""layout"": ""vertical"",
+                          ""contents"": [
+                            {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                            {btns}
+                          ]
+                        }}
+                      }}
+                    }}";
         }
         //選擇車輛卡片
         private static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
@@ -1714,41 +1756,41 @@ namespace LineBotDemo.Controllers
         }}"));
 
             return $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""選擇車輛"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {btns}
-      ]
-    }}
-  }}
-}}";
+                    {{
+                      ""type"": ""flex"",
+                      ""altText"": ""選擇車輛"",
+                      ""contents"": {{
+                        ""type"": ""bubble"",
+                        ""body"": {{
+                          ""type"": ""box"",
+                          ""layout"": ""vertical"",
+                          ""contents"": [
+                            {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                            {btns}
+                          ]
+                        }}
+                      }}
+                    }}";
         }
 
         //通知申請人已安排駕駛人員
         private static string BuildDoneBubble(string driverName, string carNo) => $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""已安排駕駛人員"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""已安排駕駛人員"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 使用車輛：{carNo}"" }}
-      ]
-    }}
-  }}
-}}";
+        {{
+          ""type"": ""flex"",
+          ""altText"": ""已安排駕駛人員"",
+          ""contents"": {{
+            ""type"": ""bubble"",
+            ""body"": {{
+              ""type"": ""box"",
+              ""layout"": ""vertical"",
+              ""contents"": [
+                {{ ""type"": ""text"", ""text"": ""已安排駕駛人員"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
+                {{ ""type"": ""text"", ""text"": ""■ 使用車輛：{carNo}"" }}
+              ]
+            }}
+          }}
+        }}";
 
         // 駕駛—派車通知
         private static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes)
@@ -1765,67 +1807,67 @@ namespace LineBotDemo.Controllers
             var safeOrigin = Safe(app.Origin);
             var safeDest = Safe(app.Destination);
             return $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""派車通知"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"",
-      ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""🚗 派車通知"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 任務單號：{app.ApplyId}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 預約時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor ?? "未知"}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 車輛：{carNo}"" }},
-        {{ ""type"": ""text"", ""text"": ""{distanceText}"" }},
-        {{ ""type"": ""text"", ""text"": ""{durationText}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 上車地點：{app.Origin ?? "公司"}"" }},
-        {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }},
-        {{ ""type"": ""separator"", ""margin"": ""md"" }},
-        {{ ""type"": ""text"", ""text"": ""請即刻前往指定地點，若有其他問題請撥02-12345678，謝謝!"",
-           ""wrap"": true, ""size"": ""sm"", ""color"": ""#555555"", ""margin"": ""md"" }}
-      ]
-    }}
-  }}
-}}";
+            {{
+              ""type"": ""flex"",
+              ""altText"": ""派車通知"",
+              ""contents"": {{
+                ""type"": ""bubble"",
+                ""body"": {{
+                  ""type"": ""box"",
+                  ""layout"": ""vertical"",
+                  ""contents"": [
+                    {{ ""type"": ""text"", ""text"": ""🚗 派車通知"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 任務單號：{app.ApplyId}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 預約時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor ?? "未知"}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 車輛：{carNo}"" }},
+                    {{ ""type"": ""text"", ""text"": ""{distanceText}"" }},
+                    {{ ""type"": ""text"", ""text"": ""{durationText}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 上車地點：{app.Origin ?? "公司"}"" }},
+                    {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }},
+                    {{ ""type"": ""separator"", ""margin"": ""md"" }},
+                    {{ ""type"": ""text"", ""text"": ""請即刻前往指定地點，若有其他問題請撥02-12345678，謝謝!"",
+                       ""wrap"": true, ""size"": ""sm"", ""color"": ""#555555"", ""margin"": ""md"" }}
+                  ]
+                }}
+              }}
+            }}";
         }
         // 駕駛—開始行程確認
         private static string BuildStartedBubble(Dispatch d) => $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""行程已開始"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"", ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""行程已開始"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""出發時間：{DateTime.Now:HH:mm}"" }}
-      ]
-    }}
-  }}
-}}";
+        {{
+          ""type"": ""flex"",
+          ""altText"": ""行程已開始"",
+          ""contents"": {{
+            ""type"": ""bubble"",
+            ""body"": {{
+              ""type"": ""box"", ""layout"": ""vertical"",
+              ""contents"": [
+                {{ ""type"": ""text"", ""text"": ""行程已開始"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                {{ ""type"": ""text"", ""text"": ""出發時間：{DateTime.Now:HH:mm}"" }}
+              ]
+            }}
+          }}
+        }}";
 
         // 駕駛—完成行程確認
         private static string BuildFinishedBubble(Dispatch d) => $@"
-{{
-  ""type"": ""flex"",
-  ""altText"": ""行程已完成"",
-  ""contents"": {{
-    ""type"": ""bubble"",
-    ""body"": {{
-      ""type"": ""box"", ""layout"": ""vertical"",
-      ""contents"": [
-        {{ ""type"": ""text"", ""text"": ""行程已完成"", ""weight"": ""bold"", ""size"": ""lg"" }},
-        {{ ""type"": ""text"", ""text"": ""結束時間：{DateTime.Now:HH:mm}"" }}
-      ]
-    }}
-  }}
-}}";
+        {{
+          ""type"": ""flex"",
+          ""altText"": ""行程已完成"",
+          ""contents"": {{
+            ""type"": ""bubble"",
+            ""body"": {{
+              ""type"": ""box"", ""layout"": ""vertical"",
+              ""contents"": [
+                {{ ""type"": ""text"", ""text"": ""行程已完成"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                {{ ""type"": ""text"", ""text"": ""結束時間：{DateTime.Now:HH:mm}"" }}
+              ]
+            }}
+          }}
+        }}";
         #endregion
 
         #region 轉換工具

@@ -38,7 +38,7 @@ namespace Cars.Models
         public string? SingleDuration { get; set; }     // 單程車程時間
         public decimal? RoundTripDistance { get; set; } // 來回公里數
         public string? RoundTripDuration { get; set; }  // 來回車程時間
-        public bool isLongTrip { get; set; }            // 是否長途
+        public bool IsLongTrip { get; set; }            // 是否長途
 
         public string ? MaterialName { get; set; }         // 車上物品清單
         public string Status { get; set; } = "待審核";  // 申請單狀態

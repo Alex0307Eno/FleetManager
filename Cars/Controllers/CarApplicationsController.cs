@@ -79,7 +79,7 @@ namespace Cars.Controllers
 
             decimal km = isSingle ? (model.SingleDistance ?? 0) : (model.RoundTripDistance ?? 0);
             if (km <= 0) km = model.SingleDistance ?? 0;
-            model.isLongTrip = km > 30;
+            model.IsLongTrip = km > 30;
             // 4-b) 驗證當下是否有車輛能承載這麼多人
             var maxCap = await GetMaxAvailableCapacityAsync(model.UseStart, model.UseEnd);
             if (maxCap == 0)
@@ -177,7 +177,7 @@ namespace Cars.Controllers
                 {
                     message = "申請成功，但派工失敗：" + result.Message,
                     id = model.ApplyId,
-                    isLongTrip = model.isLongTrip ? 1 : 0
+                    isLongTrip = model.IsLongTrip ? 1 : 0
                 });
             }
 
@@ -213,7 +213,7 @@ namespace Cars.Controllers
                 driverId = result.DriverId,
                 vehicleId = result.VehicleId,
                 plateNo = result.PlateNo,
-                isLongTrip = model.isLongTrip ? 1 : 0
+                isLongTrip = model.IsLongTrip ? 1 : 0
             });
         }
         [HttpGet("/api/vehicles/max-capacity")]
