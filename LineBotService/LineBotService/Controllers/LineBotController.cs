@@ -10,9 +10,13 @@ using LineBotService.Helpers;
 using LineBotService.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
+using System.Net.Http.Json;
+using System.Text;
 using System.Text.RegularExpressions;
+
 
 namespace LineBotDemo.Controllers
 {
@@ -162,7 +166,6 @@ namespace LineBotDemo.Controllers
                     var dbUser = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
                     if (dbUser == null)
                     {
-                        // Step 1: 輸入「綁定帳號」
                         // Step 1: 使用者輸入「綁定帳號」
                         if (msg == "綁定帳號")
                         {
@@ -981,47 +984,22 @@ namespace LineBotDemo.Controllers
                                 continue;
                             }
 
-
-                            // 先呼叫 Distance API 算距離與時間
+                            // 呼叫 Distance API
                             double km = 0, minutes = 0;
                             try
                             {
-                                using var client = new HttpClient();
                                 var url = $"{_baseUrl}/api/distance?origin={Uri.EscapeDataString(state.Origin ?? "公司")}&destination={Uri.EscapeDataString(state.Destination ?? "")}";
-                                var res = await client.GetStringAsync(url);
+                                var resDist = await _http.GetStringAsync(url);
+                                var json = JObject.Parse(resDist);
 
-                                Console.WriteLine("?? Response: " + res);
-
-                                var json = JObject.Parse(res);
-
-                                // 直接取出 distanceKm 和 durationMin
                                 km = json["distanceKm"]?.Value<double>() ?? 0;
                                 minutes = json["durationMin"]?.Value<double>() ?? 0;
-
-                                Console.WriteLine($"?? API 回傳距離: {km} 公里, 時間: {minutes} 分鐘");
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine("⚠️ Distance API 失敗: " + ex.Message);
                             }
-                            // 把 UseStart 決定好：優先用使用者選/輸入，否則用現在
-                            DateTime start;
-                            if (!string.IsNullOrEmpty(state.ReserveTime))
-                            {
-                                DateTime tmp;
-                                if (DateTime.TryParse(state.ReserveTime, out tmp))
-                                    start = tmp;
-                                else
-                                {
-                                    // 若是只有 HH:mm（被你上面格式化成完整字串就不會來這裡；這裡是保險）
-                                    var today = DateTime.Today;
-                                    start = new DateTime(today.Year, today.Month, today.Day, 8, 0, 0);
-                                }
-                            }
-                            else
-                            {
-                                start = DateTime.Now;
-                            }
+
                             // 先找到 User
                             var user = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
                             if (user == null)
@@ -1038,95 +1016,73 @@ namespace LineBotDemo.Controllers
                                 return Ok();
                             }
 
-                            // minutes 是 Google API 回來的「單程」分鐘數
-                            double effectiveMinutes = minutes;
+                            // 出發時間
+                            DateTime start;
+                            if (!string.IsNullOrEmpty(state.ReserveTime) && DateTime.TryParse(state.ReserveTime, out var tmp))
+                                start = tmp;
+                            else
+                                start = DateTime.Now;
 
-                            // 如果是 round 行程，就乘 2
-                            if (state.TripType == "round")
-                                effectiveMinutes = minutes * 2;
-                            // 建立申請單 (先存 DB)
                             var end = !string.IsNullOrEmpty(state.ArrivalTime)
                                       ? DateTime.Parse(state.ArrivalTime)
                                       : start.AddMinutes(30);
-                            var app = new CarApplication
+
+
+
+                            // === 呼叫 API 建立申請單 ===
+                            var appInput = new CarApplication
                             {
-                                ApplyFor = "申請人",
-                                VehicleType = "汽車",
-                                PurposeType = "公務車(不可選車)",
-                                ReasonType = "公務用",
-                                PassengerCount = int.TryParse(state.PassengerCount?.Replace("人", ""), out var n) ? n : 1,
-                                ApplyReason = state.Reason ?? string.Empty,
+                                ApplyReason = state.Reason,
                                 Origin = state.Origin ?? "公司",
                                 Destination = state.Destination ?? "",
                                 UseStart = start,
                                 UseEnd = end,
                                 TripType = state.TripType ?? "single",
-                                ApplicantId = applicant.ApplicantId,
-                                Status = "待審核",
-
-                                // 這邊直接存距離 & 時間
                                 SingleDistance = (decimal)km,
                                 SingleDuration = ToHourMinuteString(minutes),
                                 RoundTripDistance = (decimal)(km * 2),
                                 RoundTripDuration = ToHourMinuteString(minutes * 2),
-                                IsLongTrip = km > 30
                             };
-                            _db.CarApplications.Add(app);
-                            try
+
+                            var jsonBody = JsonConvert.SerializeObject(appInput);
+                            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                            var res = await _http.PostAsync(
+                                $"{_baseUrl}/api/CarApplications/auto-create?lineUserId={uid}",
+                                content
+                            );
+
+                            var created = await res.Content.ReadFromJsonAsync<CarApplication>();
+
+                            if (created == null)
                             {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
+                                bot.ReplyMessage(replyToken, "⚠️ 建單回應解析失敗");
+                                return Ok();
                             }
 
-                            var dispatch = new Dispatch
-                            {
-                                ApplyId = app.ApplyId,
-                                DispatchStatus = "待指派",
-                                CreatedAt = DateTime.Now,
-                                IsLongTrip = km > 30
-                            };
-                            _db.Dispatches.Add(dispatch);
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
 
-                            _applyToApplicant[app.ApplyId] = uid;
 
-                            // 推播給管理員
+                            // === 呼叫 API 建立派車單 (待指派) ===
+                            var resDispatch = await _http.PostAsync($"{_baseUrl}/api/CarApplications/{created.ApplyId}/dispatch", null);
+                            resDispatch.EnsureSuccessStatusCode();
+
+                            // 紀錄申請單
+                            _applyToApplicant[created.ApplyId] = uid;
+
+                            // 推播管理員
                             var adminIds = _db.Users
-                                .Where(u => u.Role == "Admin" && u.LineUserId != null && u.LineUserId != "")
-                                .Select(u => u.LineUserId)
-                                .ToList(); var adminFlex = BuildAdminFlexBubble(app);
+                                .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
+                                .Select(u => u.LineUserId!)
+                                .ToList();
+
+                            var adminFlex = BuildAdminFlexBubble(created);
                             foreach (var aid in adminIds)
                                 bot.PushMessageWithJSON(aid, $"[{adminFlex}]");
 
-                            bot.ReplyMessage(replyToken, "✅ 已送出派車申請，等待審核。");
+                            bot.ReplyMessage(replyToken, $"✅ 已送出派車申請（編號 {created.ApplyId}），已建立派車單，等待管理員指派。");
+
                             _flow.TryRemove(uid, out _);
-                            continue;
+                            return Ok();
                         }
                         // ================= 管理員審核 =================
                         if (msg.StartsWith("同意申請") && msg.StartsWith("拒絕申請"))

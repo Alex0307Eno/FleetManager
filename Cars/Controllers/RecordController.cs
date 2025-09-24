@@ -67,7 +67,7 @@ namespace Cars.Controllers.Api
                     a.TripType,
                     a.SingleDistance,
                     a.RoundTripDistance,
-                    a.Status,
+                    d.DispatchStatus,
                     DriverId = r != null ? r.DriverId : (int?)null,
                     DriverName = r != null ? r.DriverName : null,
                     VehicleId = v != null ? v.VehicleId : (int?)null,
@@ -188,7 +188,7 @@ namespace Cars.Controllers.Api
                      a.TripType,
                      a.SingleDistance,
                      a.RoundTripDistance,
-                     a.Status
+                     d.DispatchStatus
                  }).ToListAsync();
             _logger.LogDebug("linkDetails count={Count}", linkDetails.Count);
             //母單
@@ -237,7 +237,7 @@ namespace Cars.Controllers.Api
                     Applicant = x.ApplicantName,
                     Seats = totalSeats,
                     Km = km,
-                    Status = x.Status,
+                    Status = x.DispatchStatus,
                     Driver = x.DriverName,
                     DriverId = x.DriverId,
                     Plate = x.PlateNo,
@@ -270,7 +270,7 @@ namespace Cars.Controllers.Api
                         Applicant = c.ApplicantName,
                         Seats = c.Seats,
                         Km = km2,
-                        Status = c.Status,
+                        Status = x.DispatchStatus,
                         Driver = x.DriverName,
                         DriverId = x.DriverId,
                         Plate = x.PlateNo,
@@ -353,31 +353,48 @@ namespace Cars.Controllers.Api
                 return NotFound();
             }
 
+            // 1. 更新 Dispatch
             dispatch.DriverId = dto.DriverId;
             dispatch.VehicleId = dto.VehicleId;
+            dispatch.DispatchStatus = "已派車";
+
+            // 2. 更新 CarApplication 對應的 DriverId/VehicleId
+            var app = await _db.CarApplications.FindAsync(dispatch.ApplyId);
+            if (app != null)
+            {
+                app.DriverId = dto.DriverId;
+                app.VehicleId = dto.VehicleId;
+                app.Status = "完成審核"; // 這邊可以依照你的流程改，若只要改派車狀態可省略
+            }
+
             try
             {
                 await _db.SaveChangesAsync();
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                // 資料被別人改過 → 可以提示用戶重試
                 return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
             }
             catch (DbUpdateException ex)
             {
-                // 一般資料庫錯誤
                 return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
             }
             catch (Exception ex)
             {
-                // 500 錯誤
                 return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
             }
+
             Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
             _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
 
-            return Ok(new { message = "更新成功", dispatch.DispatchId, dispatch.DriverId, dispatch.VehicleId });
+            return Ok(new
+            {
+                message = "更新成功",
+                dispatch.DispatchId,
+                dispatch.DriverId,
+                dispatch.VehicleId,
+                appId = dispatch.ApplyId
+            });
         }
         #endregion
 
@@ -660,11 +677,11 @@ namespace Cars.Controllers.Api
 
             var now = DateTime.Now;
 
-            // ✅ 不再用 (a.PassengerCount <= remaining) 過濾
+            
             var apps = await (
                 from d in _db.Dispatches
                 join a in _db.CarApplications on d.ApplyId equals a.ApplyId
-                where a.Status == "完成審核"
+                where d.DispatchStatus == "已派車"
                       && a.UseEnd > now
                       && !exclude.Contains(d.DispatchId)
                 orderby a.UseStart

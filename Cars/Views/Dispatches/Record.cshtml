@@ -682,10 +682,14 @@
                   const to = isoLocal(app.useEnd ?? r.useEnd);
                   const cap = Number(app.passengerCount ?? r.seats );
 
+                  const fromIso = isoLocal(app.useStart ?? r.useStart);
+                  const toIso   = isoLocal(app.useEnd ?? r.useEnd);
+
                   const [driversRes, vehiclesRes] = await Promise.all([
-                    axios.get(`/api/drivers/available`, { params: { from, to } }),
-                    axios.get(`/api/vehicles/available`, { params: { from, to, capacity: cap || undefined } })
+                    axios.get('/api/drivers/available', { params: { useStart: fromIso, useEnd: toIso } }),
+                    axios.get('/api/vehicles/available', { params: { from: fromIso, to: toIso, capacity: cap || undefined } })
                   ]);
+
 
                   availDrivers.value = driversRes.data || [];
                   availVehicles.value = vehiclesRes.data || [];
@@ -704,21 +708,26 @@
                 return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${d.getMinutes().toString().padStart(2,"0")}`;
               }
 
-              const confirmEdit = async () => {
-                if (!editing.value) return;
-                try {
-                  await axios.patch(`/api/carapplications/${editing.value.applyId}/assignment`, {
-                    driverId: selectedDriverId.value ?? null,
-                    vehicleId: selectedVehicleId.value ?? null
-                  });
-                  alert("指派已更新");
-                  editing.value = null;
-                  await reload();
-                } catch (err) {
-                  console.error(err);
-                  alert("更新失敗");
-                }
-              };
+              //指派司機和車輛
+            const confirmEdit = async () => {
+              try {
+                if (!editing.value) return; 
+
+                await axios.put(`/api/dispatch/${editing.value.dispatchId}`, {
+                  driverId: selectedDriverId.value,
+                  vehicleId: selectedVehicleId.value
+                }); 
+
+                alert("✅ 已派車");
+                editing.value = null;
+                await loadRecords(); // 重新載入表格
+              } catch (err) {
+                console.error("更新派車失敗：", err);
+                alert(err?.response?.data?.message || "更新派車失敗");
+              }
+            };
+
+
 
               const cancelEdit = () => { editing.value = null };
 
@@ -732,6 +741,15 @@
                   alert("刪除失敗");
                 }
               };
+              //載入所有紀錄
+              async function loadRecords() {
+               try {
+                 const res = await axios.get("/api/carapplications");
+                 records.value = res.data;
+               } catch (err) {
+                 console.error("讀取紀錄失敗：", err);
+               }
+             }
 
               const exportCsv = () => {
                 const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差'];
@@ -818,7 +836,7 @@
                   applicant: x.applicant ?? x.applicantName ?? '',
                   seats: Number(x.seats ?? x.passengerCount ?? 0),
                   km: Number(x.km ?? x.tripDistance ?? 0),
-                  status: x.status ?? x.dispatchStatus ?? '待審核',
+                  status: x.status ?? x.dispatchStatus ?? '待指派',
                   driver: x.driver ?? x.driverName ?? '',
                   driverId: x.driverId ?? null,
                   plate: x.plate ?? x.plateNo ?? x.PlateNo ?? '',
@@ -829,14 +847,12 @@
 
               const statusText = (s) => {
                 const k = String(s || "").trim();
-                if (k === "完成審核" || k.toLowerCase() === "approved") return "完成審核";
-                if (k === "駁回" || k.toLowerCase() === "reject") return "駁回";
-                return "待審核";
+                if (k === "已派車" || k.toLowerCase() === "approved") return "已派車";
+                return "待指派";
               };
               const statusClass = (s) => {
                 const k = String(s || "").trim();
-                if (k === "完成審核" || k.toLowerCase() === "approved") return "s-approved";
-                if (k === "駁回" || k.toLowerCase() === "reject") return "s-reject";
+                if (k === "已派車" || k.toLowerCase() === "approved") return "s-approved";
                 return "s-wait";
               };
 

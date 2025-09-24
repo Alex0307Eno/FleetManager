@@ -1,4 +1,5 @@
 ﻿using Cars.Models;
+using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -12,53 +13,29 @@ namespace Cars.Controllers
     [Route("api/[controller]")]
     public class DistanceController : ControllerBase
     {
-        private readonly GoogleMapsSettings _settings;
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IDistanceService _distance;
 
-        public DistanceController(IOptions<GoogleMapsSettings> settings, IHttpClientFactory httpClientFactory)
+        public DistanceController(IDistanceService distance)
         {
-            _settings = settings.Value;
-            _httpClientFactory = httpClientFactory;
+            _distance = distance;
         }
-        #region google api 算距離與時間
+
         [HttpGet]
         public async Task<IActionResult> GetDistance([FromQuery] string origin, [FromQuery] string destination)
         {
             if (string.IsNullOrWhiteSpace(origin) || string.IsNullOrWhiteSpace(destination))
                 return BadRequest(new { error = "origin 和 destination 必填" });
 
-            var url = $"https://maps.googleapis.com/maps/api/distancematrix/json" +
-                      $"?units=metric" +
-                      $"&origins={Uri.EscapeDataString(origin)}" +
-                      $"&destinations={Uri.EscapeDataString(destination)}" +
-                      $"&key={_settings.ApiKey}";
-
-            var client = _httpClientFactory.CreateClient();
-            var res = await client.GetAsync(url);
-            var body = await res.Content.ReadAsStringAsync();
-
-            if (!res.IsSuccessStatusCode)
-                return BadRequest(new { error = "Google Distance Matrix 失敗", details = body });
-
-            // 解析 JSON
-            var json = Newtonsoft.Json.Linq.JObject.Parse(body);
-            var elem = json["rows"]?[0]?["elements"]?[0];
-
-            if (elem?["status"]?.ToString() != "OK")
-                return BadRequest(new { error = "查無路線" });
-
-            double km = elem["distance"]?["value"]?.Value<double>() / 1000 ?? 0;
-            double minutes = elem["duration"]?["value"]?.Value<double>() / 60 ?? 0;
-
-            return Ok(new
+            try
             {
-                origin,
-                destination,
-                distanceKm = km,
-                durationMin = minutes
-            });
+                var (km, minutes) = await _distance.GetDistanceAsync(origin, destination);
+                return Ok(new { origin, destination, distanceKm = km, durationMin = minutes });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
         }
-        #endregion
-
     }
+
 }

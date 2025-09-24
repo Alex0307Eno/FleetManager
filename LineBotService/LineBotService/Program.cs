@@ -1,6 +1,7 @@
 
 using Cars.Data;
 using Cars.Models;
+using Cars.Services;
 using LineBotDemo.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,7 @@ namespace LineBotService
             // Add services to the container.
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
+            builder.Services.AddScoped<AutoDispatcher>();
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.Configure<GoogleMapsSettings>(
@@ -43,7 +45,6 @@ namespace LineBotService
             app.UseStaticFiles();
 
             app.UseRouting();
-            app.UseAuthorization();
             app.MapControllerRoute(
             name: "default",
             pattern: "{controller=LineRichMenu}/{action=Index}/{id?}"

@@ -168,3 +168,4 @@ ClientBin/
 *.bak
 .DS_Store
 .localhistory/
+Migrations/

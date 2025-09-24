@@ -23,6 +23,8 @@ namespace Cars
 
             // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));
+            // Google Maps 距離服務
+            builder.Services.AddScoped<IDistanceService, GoogleDistanceService>();
 
             // 其他服務
             builder.Services.AddScoped<AutoDispatcher>();
