@@ -16,7 +16,7 @@ namespace Cars.Controllers
         public AccountController(ApplicationDbContext db) { _db = db; }
 
 
-        #region 登入登出
+        #region 個人資料       
         [HttpGet]
         public async Task<IActionResult> Profile()
         {
@@ -39,9 +39,8 @@ namespace Cars.Controllers
             };
             return View(vm);
         }
-        #endregion
 
-        #region 個人資料
+       
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Profile(Profile vm)
         {

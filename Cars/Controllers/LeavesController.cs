@@ -141,82 +141,87 @@ namespace Cars.Controllers
         [HttpPost("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
         {
-            var leave = await _db.Leaves
-                .Include(l => l.Driver)
-                .FirstOrDefaultAsync(l => l.LeaveId == id);
+            using var tx = await _db.Database.BeginTransactionAsync(); //  開始交易
 
-            if (leave == null) return NotFound("找不到請假紀錄");
-
-            var status = dto.Status?.Trim();
-            if (status != "核准" && status != "駁回")
-                return BadRequest("狀態無效");
-
-            leave.Status = status;
-            string agentName = null;
-
-
-            if (status == "核准" && dto.AgentDriverId.HasValue)
+            try
             {
-                if (dto.AgentDriverId.Value == leave.DriverId)
-                    return BadRequest("代理人不可與請假人相同");
+                var leave = await _db.Leaves
+                    .Include(l => l.Driver)
+                    .FirstOrDefaultAsync(l => l.LeaveId == id);
 
-                var agent = await _db.Drivers.FindAsync(dto.AgentDriverId.Value);
-                if (agent == null) return BadRequest("代理人不存在");
+                if (leave == null) return NotFound("找不到請假紀錄");
 
-                var start = leave.Start.Date;
-                var end = leave.End.Date;
+                var status = dto.Status?.Trim();
+                if (status != "核准" && status != "駁回")
+                    return BadRequest("狀態無效");
 
-                // ⚠️ 檢查整段日期區間是否已有其他核准的請假指派給同一代理人
-                bool alreadyAssigned = await _db.Leaves.AnyAsync(l =>
-                    l.LeaveId != leave.LeaveId &&               // 排除自己
-                    l.AgentDriverId == dto.AgentDriverId.Value &&
-                    l.Status == "核准" &&
-                    (
-                        // 時間區間有重疊：另一筆 Start <= 本次 End，另一筆 End >= 本次 Start
-                        l.Start.Date <= end && l.End.Date >= start
-                    )
-                );
+                leave.Status = status;
+                string agentName = null;
 
-                if (alreadyAssigned)
-                    return BadRequest("該代理人在請假期間已有其他指派，請選擇其他代理人");
-
-                leave.AgentDriverId = dto.AgentDriverId.Value;
-                agentName = agent.DriverName;
-
-            }
-            if (status == "核准" && dto.AgentDriverId.HasValue)
-            {
-                // 找出該司機請假區間內的班表
-                var schedules = await _db.Schedules
-                    .Where(s => s.DriverId == leave.DriverId &&
-                                s.WorkDate >= leave.Start.Date &&
-                                s.WorkDate <= leave.End.Date)
-                    .ToListAsync();
-
-                foreach (var s in schedules)
+                if (status == "核准")
                 {
-                    // 改成代理人上班
-                    s.DriverId = dto.AgentDriverId.Value;
+                    if (!dto.AgentDriverId.HasValue)
+                        return BadRequest("核准請假時必須指定代理人");
+                    if (dto.AgentDriverId.Value == leave.DriverId)
+                        return BadRequest("代理人不可與請假人相同");
+
+                    var agent = await _db.Drivers.FindAsync(dto.AgentDriverId.Value);
+                    if (agent == null) return BadRequest("代理人不存在");
+
+                    var start = leave.Start.Date;
+                    var end = leave.End.Date;
+
+                    // ⚠️ 檢查代理人是否已被指派在同一時段
+                    bool alreadyAssigned = await _db.Leaves.AnyAsync(l =>
+                        l.LeaveId != leave.LeaveId &&
+                        l.AgentDriverId == dto.AgentDriverId.Value &&
+                        l.Status == "核准" &&
+                        l.Start.Date <= end && l.End.Date >= start
+                    );
+
+                    if (alreadyAssigned)
+                        return BadRequest("該代理人在請假期間已有其他指派，請選擇其他代理人");
+
+                    leave.AgentDriverId = dto.AgentDriverId.Value;
+                    agentName = agent.DriverName;
+
+                    // === 更新班表 ===
+                    var schedules = await _db.Schedules
+                        .Where(s => s.DriverId == leave.DriverId &&
+                                    s.WorkDate >= leave.Start.Date &&
+                                    s.WorkDate <= leave.End.Date)
+                        .ToListAsync();
+
+                    foreach (var s in schedules)
+                        s.DriverId = dto.AgentDriverId.Value;
+
+                    // === 新增 DriverDelegation ===
+                    var deleg = new DriverDelegation
+                    {
+                        PrincipalDriverId = leave.DriverId,
+                        AgentDriverId = dto.AgentDriverId.Value,
+                        StartDate = leave.Start.Date,
+                        EndDate = leave.End.Date,
+                        Reason = "請假",
+                        CreatedAt = DateTime.Now
+                    };
+                    _db.DriverDelegations.Add(deleg);
                 }
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync(); //  全部成功才提交
+
+                var msg = status == "核准"
+                    ? $"請假紀錄 {id} 已更新為 {status}，並指派代理人 {agentName}"
+                    : $"請假紀錄 {id} 已駁回";
+
+                return Ok(new { message = msg });
             }
-            // 如果是核准，新增 DriverDelegation 紀錄
-            var deleg = new DriverDelegation
+            catch (Exception ex)
             {
-                PrincipalDriverId = leave.DriverId,
-                AgentDriverId = dto.AgentDriverId.Value,
-                StartDate = leave.Start.Date,
-                EndDate = leave.End.Date,
-                Reason = "請假",
-                CreatedAt = DateTime.Now
-            };
-            _db.DriverDelegations.Add(deleg);
-
-            await _db.SaveChangesAsync();
-            var msg = agentName == null
-                    ? $"請假紀錄 {id} 已更新為 {status}"
-                    : $"請假紀錄 {id} 已更新為 {status}，並指派代理人 {agentName}";
-
-            return Ok(new { message = msg });
+                await tx.RollbackAsync(); // 有錯誤就回滾
+                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
+            }
         }
 
 
