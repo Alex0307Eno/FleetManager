@@ -1,9 +1,5 @@
-﻿using Cars.Areas.Admin.Controllers;
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Models;
-using DocumentFormat.OpenXml.ExtendedProperties;
-using DocumentFormat.OpenXml.Spreadsheet;
-using isRock.LIFF;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -13,9 +9,9 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.RegularExpressions;
+
 
 
 namespace LineBotDemo.Controllers
@@ -34,6 +30,8 @@ namespace LineBotDemo.Controllers
         // 限流器：每個 userId 每分鐘 10 次
         private static readonly RateLimiter _rateLimiter = new RateLimiter(100, 60);
         private readonly HttpClient _http; private readonly string _apiBaseUrl;
+        private Bot _bot;              // 全域 Bot 物件
+        private string? _replyToken;   // 全域 replyToken
 
         public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService)
         {
@@ -43,25 +41,11 @@ namespace LineBotDemo.Controllers
             _db = db;
             _config = config;
             _richMenuService = richMenuService;
+            _bot = new Bot(_token);
+
         }
         #region 暫存方法
-        // ===== 使用者流程暫存（依 userId 分別保存） =====
-        private class BookingState
-        {
-            public string? ReserveTime { get; set; }
-            public string? ArrivalTime { get; set; }
-            public string? Reason { get; set; }
-            public string? PassengerCount { get; set; }
-            public string? Origin { get; set; }
-
-            public string? Destination { get; set; }
-            public string? TripType { get; set; }   // 單程 or 來回
-
-
-            // 給管理員指派流程用
-            public int? SelectedDriverId { get; set; }
-            public string? SelectedDriverName { get; set; }
-        }
+        
         // 對話進度暫存
         private static readonly ConcurrentDictionary<string, BookingState> _flow = new();
 
@@ -69,63 +53,7 @@ namespace LineBotDemo.Controllers
         private static readonly ConcurrentDictionary<int, string> _applyToApplicant = new();
         #endregion
 
-        #region 對話工具
-        // Step 1: 即時預約 or 預訂時間
-        private const string Step1JsonArray = @"
-        [
-          {
-          ""type"": ""template"",
-          ""altText"": ""請選擇預約方式"",
-          ""template"": {
-            ""type"": ""confirm"",
-            ""text"": ""請選擇預約的時間"",
-            ""actions"": [
-              { ""type"": ""message"", ""label"": ""即時預約"", ""text"": ""即時預約"" },
-              { ""type"": ""message"", ""label"": ""預訂時間"", ""text"": ""預訂時間"" }
-            ]
-          }
-        }
-        
-        ]";
        
-        // 1~4人
-        private const string Step3JsonArray = @"
-        [
-         {
-          ""type"": ""template"",
-          ""altText"": ""請選擇乘客人數"",
-          ""template"": {
-            ""type"": ""buttons"",
-            ""title"": ""乘客人數"",
-            ""text"": ""請選擇乘客人數"",
-            ""actions"": [
-              { ""type"": ""message"", ""label"": ""1人"", ""text"": ""1人"" },
-              { ""type"": ""message"", ""label"": ""2人"", ""text"": ""2人"" },
-              { ""type"": ""message"", ""label"": ""3人"", ""text"": ""3人"" },
-              { ""type"": ""message"", ""label"": ""4人"", ""text"": ""4人"" }
-            ]
-          }
-        }
-
-        ]";
-        // 單程 or 來回
-        private const string Step6bTripJsonArray = @"
-        [
-         {
-          ""type"": ""template"",
-          ""altText"": ""請選擇行程類型"",
-          ""template"": {
-            ""type"": ""confirm"",
-            ""text"": ""請選擇行程類型"",
-            ""actions"": [
-              { ""type"": ""message"", ""label"": ""單程"", ""text"": ""單程"" },
-              { ""type"": ""message"", ""label"": ""來回"", ""text"": ""來回"" }
-            ]
-          }
-        }
-        
-        ]";
-        #endregion
 
         #region 主流程
         [HttpPost]
@@ -185,7 +113,9 @@ namespace LineBotDemo.Controllers
                         }
 
                         // Step 3: 如果 state.Reason 有帳號但 Password 還沒存 → 表示在等密碼
-                        if (_flow.TryGetValue(uid, out bindState) && !string.IsNullOrEmpty(bindState.Reason) && string.IsNullOrEmpty(bindState.PassengerCount))
+                        if (_flow.TryGetValue(uid, out bindState)
+                            && !string.IsNullOrEmpty(bindState.Reason)
+                            && !bindState.PassengerCount.HasValue)
                         {
                             var account = bindState.Reason;
                             var password = msg;
@@ -213,23 +143,7 @@ namespace LineBotDemo.Controllers
 
                             // 綁定成功
                             user.LineUserId = uid;
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
-                            _flow.TryRemove(uid, out _);
+                            if (!TrySave(replyToken)) continue; _flow.TryRemove(uid, out _);
 
                             bot.ReplyMessage(replyToken, $"✅ 帳號綁定成功！歡迎 {user.DisplayName ?? user.Account}");
 
@@ -269,23 +183,7 @@ namespace LineBotDemo.Controllers
                             else
                             {
                                 user.LineUserId = null;
-                                try
-                                {
-                                    _db.SaveChanges();
-                                }
-                                catch (DbUpdateException dbex)
-                                {
-                                    Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                    continue; // 中止本次事件，避免後續又用到未儲存資料
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                    continue;
-                                }
-
+                                if (!TrySave(replyToken)) continue;
 
                                 bot.ReplyMessage(replyToken, $"🔓 您的帳號 {user.Account} 已成功解除綁定。");
 
@@ -358,43 +256,13 @@ namespace LineBotDemo.Controllers
                                 CreatedAt = DateTime.Now
                             };
                             _db.LineUsers.Add(lineUser);
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
+                            if (!TrySave(replyToken)) continue;
 
                         }
                         else
                         {
                             lineUser.DisplayName = lineDisplayName;
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
+                            if (!TrySave(replyToken)) continue;
 
                         }
 
@@ -428,11 +296,16 @@ namespace LineBotDemo.Controllers
                             int.TryParse(kv.GetValueOrDefault("page"), out var page);
                             if (page <= 0) page = 1;
                             var adminDept = await GetAdminDeptAsync(uid, _db);
-                            var bubble = BuildPendingListBubble(page, 5, adminDept, _db);
-                            if (bubble == null)
-                                bot.ReplyMessage(replyToken, "目前沒有待審核的申請。");
+                            var bubbleJson = MessageBuilder.BuildPendingListBubble(1, 5, adminDept, _db);
+                            if (bubbleJson != null)
+                            {
+                                await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
+                            }
                             else
-                                bot.ReplyMessageWithJSON(replyToken, $"[{bubble}]");
+                            {
+                                bot.ReplyMessage(replyToken, "目前沒有待審核的申請單。");
+                            }
+                            bot.ReplyMessageWithJSON(replyToken, $"[{bubbleJson}]");
                             return Ok();
                         }
 
@@ -448,22 +321,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             app.Status = "審核通過(待指派)";
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
+                            if (!TrySave(replyToken)) continue;
 
                             var selectDriverBubble = BuildDriverSelectBubble(applyId, _db);
                             bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
@@ -482,22 +340,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             app.Status = "駁回";
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
+                            if (!TrySave(replyToken)) continue;
 
                             if (_applyToApplicant.TryGetValue(applyId, out var applicantUid))
                             {
@@ -592,22 +435,7 @@ namespace LineBotDemo.Controllers
                             app.VehicleId = vehicleId;
                             app.IsLongTrip = (app.SingleDistance ?? 0) > 30;
                             app.Status = "完成審核";
-                            try
-                            {
-                                _db.SaveChanges();
-                            }
-                            catch (DbUpdateException dbex)
-                            {
-                                Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                continue; // 中止本次事件，避免後續又用到未儲存資料
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                continue;
-                            }
+                            if (!TrySave(replyToken)) continue;
 
                             bot.ReplyMessage(replyToken, $"✅ 已選擇車輛：{plateNo}");
 
@@ -658,7 +486,7 @@ namespace LineBotDemo.Controllers
                         if (msg == "待審核")
                         {
                             // 角色確認（以 Users.LineUserId + Role 判斷）
-                            var isAdmin = _db.Users.Any(u => u.LineUserId == uid && u.Role == "Admin" || u.Role == "Manager");
+                            var isAdmin = _db.Users.Any(u => u.LineUserId == uid && (u.Role == "Admin" || u.Role == "Manager"));
                             if (!isAdmin)
                             {
                                 bot.ReplyMessage(replyToken, "您沒有權限查看待審核清單。");
@@ -666,14 +494,14 @@ namespace LineBotDemo.Controllers
                             }
                             var adminDept = await GetAdminDeptAsync(uid, _db);
                             // 第 1 頁
-                            var bubble = BuildPendingListBubble(1, 5, adminDept, _db);
-                            if (bubble == null)
+                            var bubbleJson = MessageBuilder.BuildPendingListBubble(1, 5, adminDept, _db);
+                            if (bubbleJson != null)
                             {
-                                bot.ReplyMessage(replyToken, "目前沒有待審核的申請。");
+                                await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
                             }
                             else
                             {
-                                bot.ReplyMessageWithJSON(replyToken, $"[{bubble}]");
+                                bot.ReplyMessageWithJSON(replyToken, $"[{bubbleJson}]");
                             }
                             continue;
                         }
@@ -744,7 +572,7 @@ namespace LineBotDemo.Controllers
 
                             continue;
                         }
-
+                       
 
                         // Step 1: 開始預約
                         if (msg.Contains("預約車輛"))
@@ -757,16 +585,30 @@ namespace LineBotDemo.Controllers
                             }
 
                             _flow[uid] = new BookingState(); // reset
-                            bot.ReplyMessageWithJSON(replyToken, Step1JsonArray);
+                            bot.ReplyMessageWithJSON(replyToken, MessageBuilder.BuildStep1());
                             continue;
                         }
 
                         // Step 2: 預約時間
-                       
+                        if (string.IsNullOrEmpty(state.ReserveTime) && msg == "即時預約")
+                        {
+                            // 存現在時間作為出發時間
+                            state.ReserveTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+                            // 立刻跳抵達時間 QuickReply（至少比出發晚 10 分鐘）
+                            var dep = DateTime.Now;
+                            var arriveMenu = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
+                            await BotJson.ReplyAsync(_token, replyToken, arriveMenu);
+                            bot.ReplyMessageWithJSON(replyToken, arriveMenu);
+
+                            continue;
+                        }
+
                         if (string.IsNullOrEmpty(state.ReserveTime) && msg == "預訂時間")
                         {
-                            var depMenu = BuildDepartureTimeQuickReply("出發時間", DateTime.Today);
-                            bot.ReplyMessageWithJSON(replyToken, depMenu);
+                            var reserveJson = MessageBuilder.BuildDepartureTimeQuickReply("出發時間", DateTime.Today);
+                            await BotJson.ReplyAsync(_token, replyToken, reserveJson);
+                            bot.ReplyMessageWithJSON(replyToken, reserveJson);
                             continue;
                         }
 
@@ -774,7 +616,8 @@ namespace LineBotDemo.Controllers
                         if (string.IsNullOrEmpty(state.ReserveTime) && DateTime.TryParse(msg, out var depTime))
                         {
                             state.ReserveTime = depTime.ToString("yyyy/MM/dd HH:mm");
-                            var arriveMenu = BuildDepartureTimeQuickReply("抵達時間", depTime.Date, depTime.AddMinutes(10));
+                            var arriveMenu = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
+                            await BotJson.ReplyAsync(_token, replyToken, arriveMenu);
                             bot.ReplyMessageWithJSON(replyToken, arriveMenu);
                             continue;
                         }
@@ -786,8 +629,9 @@ namespace LineBotDemo.Controllers
                             if (arrTime <= dep.AddMinutes(10))
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 抵達時間需晚於出發時間 10 分鐘以上");
-                                var arriveMenu = BuildDepartureTimeQuickReply("抵達時間", dep.Date, dep.AddMinutes(10));
-                                bot.ReplyMessageWithJSON(replyToken, arriveMenu);
+                                var reserveJson = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
+                                await BotJson.ReplyAsync(_token, replyToken, reserveJson); 
+                                bot.ReplyMessageWithJSON(replyToken, reserveJson);
                                 continue;
                             }
 
@@ -795,6 +639,7 @@ namespace LineBotDemo.Controllers
                             bot.ReplyMessage(replyToken, "請輸入用車事由");
                             continue;
                         }
+
 
 
                         // 使用者點了「手動輸入」
@@ -855,25 +700,34 @@ namespace LineBotDemo.Controllers
 
                             // 通過才寫入並進下一步
                             state.Reason = reason;
-                            bot.ReplyMessageWithJSON(replyToken, Step3JsonArray);
+                            bot.ReplyMessageWithJSON(replyToken, MessageBuilder.BuildStep3());
                             continue;
                         }
 
                         // Step 4: 人數
                         if (!string.IsNullOrEmpty(state.Reason) &&
-                            string.IsNullOrEmpty(state.PassengerCount) &&
+                            !state.PassengerCount.HasValue &&
                             msg.EndsWith("人"))
                         {
-                            state.PassengerCount = msg;
-                            bot.ReplyMessage(replyToken, "請輸入出發地點");
+                            int pax;
+                            if (int.TryParse(msg.Replace("人", ""), out pax))
+                            {
+                                state.PassengerCount = pax; // 👈 這裡存 int
+                                bot.ReplyMessage(replyToken, "請輸入出發地點");
+                            }
+                            else
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 人數格式錯誤，請重新輸入（例如：3人）");
+                            }
                             continue;
                         }
+
 
                         // Step 5: 出發地
 
 
 
-                        if (!string.IsNullOrEmpty(state.PassengerCount) &&
+                        if (state.PassengerCount.HasValue &&
                             string.IsNullOrEmpty(state.Origin) &&
                             msg != "確認" && msg != "取消")
                         {
@@ -915,7 +769,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             state.Destination = result.formatted;
-                            bot.ReplyMessageWithJSON(replyToken, Step6bTripJsonArray);
+                            bot.ReplyMessageWithJSON(replyToken, MessageBuilder.BuildStep6());
                             continue;
                         }
 
@@ -930,39 +784,13 @@ namespace LineBotDemo.Controllers
                             // 確認卡片
                             var safeReserveTime = Safe(state.ReserveTime);
                             var safeReason = Safe(state.Reason);
-                            var safePax = Safe(state.PassengerCount);
+                            var safePax = state.PassengerCount ?? 1;
                             var safeOrigin = Safe(state.Origin);
                             var safeDest = Safe(state.Destination);
-                            string confirmBubble = $@"
-                            {{
-                              ""type"": ""flex"",
-                              ""altText"": ""申請派車資訊"",
-                              ""contents"": {{
-                                ""type"": ""bubble"",
-                                ""body"": {{
-                                  ""type"": ""box"",
-                                  ""layout"": ""vertical"",
-                                  ""spacing"": ""md"",
-                                  ""contents"": [
-                                    {{ ""type"": ""text"", ""text"": ""申請派車資訊"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                                    {{ ""type"": ""text"", ""text"": ""■ 預約時間：{state.ReserveTime}"" }},
-                                    {{ ""type"": ""text"", ""text"": ""■ 用車事由：{state.Reason}"" }},
-                                    {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{state.PassengerCount}"" }},
-                                    {{ ""type"": ""text"", ""text"": ""■ 出發地點：{state.Origin}"" }},
-                                    {{ ""type"": ""text"", ""text"": ""■ 前往地點：{state.Destination}"" }}
-                                  ]
-                                }},
-                                ""footer"": {{
-                                  ""type"": ""box"",
-                                  ""layout"": ""horizontal"",
-                                  ""contents"": [
-                                    {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" }} }},
-                                    {{ ""type"": ""button"", ""style"": ""primary"", ""action"": {{ ""type"": ""message"", ""label"": ""確認"", ""text"": ""確認"" }} }}
-                                  ]
-                                }}
-                              }}
-                            }}";
+                            string confirmBubble = MessageBuilder.BuildConfirmBubble(state);
                             bot.ReplyMessageWithJSON(replyToken, $"[{confirmBubble}]");
+
+
                             continue;
                         }
 
@@ -984,16 +812,29 @@ namespace LineBotDemo.Controllers
                                 continue;
                             }
 
-                            // 呼叫 Distance API
+                            // 呼叫 Distance API（安全解析）
                             double km = 0, minutes = 0;
                             try
                             {
-                                var url = $"{_baseUrl}/api/distance?origin={Uri.EscapeDataString(state.Origin ?? "公司")}&destination={Uri.EscapeDataString(state.Destination ?? "")}";
-                                var resDist = await _http.GetStringAsync(url);
-                                var json = JObject.Parse(resDist);
+                                var url = string.Format("{0}/api/distance?origin={1}&destination={2}",
+                                    _baseUrl,
+                                    Uri.EscapeDataString(state.Origin ?? "公司"),
+                                    Uri.EscapeDataString(state.Destination ?? "")
+                                );
 
-                                km = json["distanceKm"]?.Value<double>() ?? 0;
-                                minutes = json["durationMin"]?.Value<double>() ?? 0;
+                                var resDist = await _http.GetStringAsync(url);
+                                var s = (resDist ?? "").TrimStart();
+
+                                if (s.StartsWith("{") || s.StartsWith("["))
+                                {
+                                    var json = JObject.Parse(resDist);
+                                    km = json["distanceKm"] != null ? json["distanceKm"].Value<double>() : 0;
+                                    minutes = json["durationMin"] != null ? json["durationMin"].Value<double>() : 0;
+                                }
+                                else
+                                {
+                                    Console.WriteLine("⚠️ Distance API 非 JSON 回應: " + resDist);
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -1016,9 +857,10 @@ namespace LineBotDemo.Controllers
                                 return Ok();
                             }
 
-                            // 出發時間
+                            // 出發／抵達時間
                             DateTime start;
-                            if (!string.IsNullOrEmpty(state.ReserveTime) && DateTime.TryParse(state.ReserveTime, out var tmp))
+                            DateTime tmp;
+                            if (!string.IsNullOrEmpty(state.ReserveTime) && DateTime.TryParse(state.ReserveTime, out tmp))
                                 start = tmp;
                             else
                                 start = DateTime.Now;
@@ -1026,8 +868,6 @@ namespace LineBotDemo.Controllers
                             var end = !string.IsNullOrEmpty(state.ArrivalTime)
                                       ? DateTime.Parse(state.ArrivalTime)
                                       : start.AddMinutes(30);
-
-
 
                             // === 呼叫 API 建立申請單 ===
                             var appInput = new CarApplication
@@ -1037,6 +877,7 @@ namespace LineBotDemo.Controllers
                                 Destination = state.Destination ?? "",
                                 UseStart = start,
                                 UseEnd = end,
+                                PassengerCount = state.PassengerCount ?? 1,
                                 TripType = state.TripType ?? "single",
                                 SingleDistance = (decimal)km,
                                 SingleDuration = ToHourMinuteString(minutes),
@@ -1048,23 +889,59 @@ namespace LineBotDemo.Controllers
                             var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
                             var res = await _http.PostAsync(
-                                $"{_baseUrl}/api/CarApplications/auto-create?lineUserId={uid}",
+                                string.Format("{0}/api/CarApplications/auto-create?lineUserId={1}", _baseUrl, uid),
                                 content
                             );
 
-                            var created = await res.Content.ReadFromJsonAsync<CarApplication>();
-
-                            if (created == null)
+                            if (!res.IsSuccessStatusCode)
                             {
-                                bot.ReplyMessage(replyToken, "⚠️ 建單回應解析失敗");
+                                var errText = await res.Content.ReadAsStringAsync();
+                                Console.WriteLine("建單 API 失敗: " + (int)res.StatusCode + " " + errText);
+                                bot.ReplyMessage(replyToken, "⚠️ 建單失敗，請稍後再試");
                                 return Ok();
                             }
 
+                            // 安全解析（避免 'S' is an invalid start of a value）
+                            var raw = await res.Content.ReadAsStringAsync();
+                            Console.WriteLine("Create Application API Response: " + raw);
 
+                            CarApplication created = null;
+                            var rawTrim = (raw ?? "").TrimStart();
+                            if (!string.IsNullOrWhiteSpace(rawTrim) && (rawTrim.StartsWith("{") || rawTrim.StartsWith("[")))
+                            {
+                                try
+                                {
+                                    created = JsonConvert.DeserializeObject<CarApplication>(raw);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine("⚠️ 建單回應 JSON 解析失敗: " + ex.Message);
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("⚠️ 建單回應非 JSON 格式: " + raw);
+                            }
+
+                            if (created == null)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 建單回應解析失敗（非 JSON 或格式異常）");
+                                return Ok();
+                            }
 
                             // === 呼叫 API 建立派車單 (待指派) ===
-                            var resDispatch = await _http.PostAsync($"{_baseUrl}/api/CarApplications/{created.ApplyId}/dispatch", null);
-                            resDispatch.EnsureSuccessStatusCode();
+                            var resDispatch = await _http.PostAsync(
+                                string.Format("{0}/api/CarApplications/{1}/dispatch", _baseUrl, created.ApplyId),
+                                null
+                            );
+
+                            if (!resDispatch.IsSuccessStatusCode)
+                            {
+                                var errText2 = await resDispatch.Content.ReadAsStringAsync();
+                                Console.WriteLine("建立派車單失敗: " + (int)resDispatch.StatusCode + " " + errText2);
+                                bot.ReplyMessage(replyToken, "⚠️ 已建立申請，但派車單建立失敗，請通知管理員協助處理。");
+                                return Ok();
+                            }
 
                             // 紀錄申請單
                             _applyToApplicant[created.ApplyId] = uid;
@@ -1072,23 +949,23 @@ namespace LineBotDemo.Controllers
                             // 推播管理員
                             var adminIds = _db.Users
                                 .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
-                                .Select(u => u.LineUserId!)
+                                .Select(u => u.LineUserId)
                                 .ToList();
 
                             var adminFlex = BuildAdminFlexBubble(created);
                             foreach (var aid in adminIds)
-                                bot.PushMessageWithJSON(aid, $"[{adminFlex}]");
+                                bot.PushMessageWithJSON(aid, "[" + adminFlex + "]");
 
-                            bot.ReplyMessage(replyToken, $"✅ 已送出派車申請（編號 {created.ApplyId}），已建立派車單，等待管理員指派。");
+                            bot.ReplyMessage(replyToken, "✅ 已送出派車申請（編號 " + created.ApplyId + "），已建立派車單，等待管理員指派。");
 
                             _flow.TryRemove(uid, out _);
                             return Ok();
                         }
                         // ================= 管理員審核 =================
-                        if (msg.StartsWith("同意申請") && msg.StartsWith("拒絕申請"))
+                        if (msg.StartsWith("同意申請") || msg.StartsWith("拒絕申請"))
                         {
                             var role = GetUserRole(uid);
-                            if (role == "Admin" && role == "Manager")
+                            if (role != "Admin" && role != "Manager")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有審核的權限");
                                 continue;
@@ -1130,22 +1007,7 @@ namespace LineBotDemo.Controllers
                                 }
 
                                 app.Status = "已拒絕";
-                                try
-                                {
-                                    _db.SaveChanges();
-                                }
-                                catch (DbUpdateException dbex)
-                                {
-                                    Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                    continue; // 中止本次事件，避免後續又用到未儲存資料
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                    continue;
-                                }
+                                if (!TrySave(replyToken)) continue;
 
                                 // 通知申請人
                                 if (_applyToApplicant.TryGetValue(applyId, out var applicantUid))
@@ -1196,22 +1058,7 @@ namespace LineBotDemo.Controllers
                                 // 更新派車單狀態
                                 dispatch.DispatchStatus = "執行中";
                                 dispatch.StartTime = now;
-                                try
-                                {
-                                    _db.SaveChanges();
-                                }
-                                catch (DbUpdateException dbex)
-                                {
-                                    Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                    continue; // 中止本次事件，避免後續又用到未儲存資料
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                    bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                    continue;
-                                }
+                                if (!TrySave(replyToken)) continue;
 
                                 bot.ReplyMessage(replyToken, $"✅ 行程已開始\n任務單號：{dispatch.DispatchId}\n開始時間：{now:HH:mm}");
                                 continue;
@@ -1245,22 +1092,7 @@ namespace LineBotDemo.Controllers
                                     // 🔻 已在執行 → 按下就結束
                                     running.DispatchStatus = "已完成";
                                     running.EndTime = now;
-                                    try
-                                    {
-                                        _db.SaveChanges();
-                                    }
-                                    catch (DbUpdateException dbex)
-                                    {
-                                        Console.WriteLine("[DB] Update failure: " + dbex.Message);
-                                        bot.ReplyMessage(replyToken, "⚠️ 資料儲存失敗，請稍後再試");
-                                        continue; // 中止本次事件，避免後續又用到未儲存資料
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine("[DB] Unknown error: " + ex.Message);
-                                        bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
-                                        continue;
-                                    }
+                                    if (!TrySave(replyToken)) continue;
 
                                     bot.ReplyMessage(replyToken, $"✅ 行程已完成\n任務單號：{running.DispatchId}\n結束時間：{now:HH:mm}");
                                     continue;
@@ -1401,74 +1233,7 @@ namespace LineBotDemo.Controllers
 
         #endregion
 
-        #region 產生當天時間選單
-        // ====== 工具方法：產生出發時間選單 ======
-        // 共用：產生時間 Carousel（title 可傳 "出發時間"/"抵達時間"）
-        // minTime 若有值，僅顯示 >= minTime 的時段
-        private static string BuildDepartureTimeQuickReply(string title, DateTime baseDay, DateTime? minTime = null)
-        {
-            var now = DateTime.Now.AddMinutes(5);
-            var floor = minTime ?? now;
-            var day = baseDay.Date;
-
-            var slots = Enumerable.Range(8, 10)
-                .Select(h => new DateTime(day.Year, day.Month, day.Day, h, 0, 0))
-                .Where(t => t >= floor)
-                .ToList();
-
-            if (!slots.Any())
-            {
-                day = day.AddDays(1);
-                slots = Enumerable.Range(8, 10)
-                    .Select(h => new DateTime(day.Year, day.Month, day.Day, h, 0, 0))
-                    .ToList();
-            }
-
-            var columns = new List<string>();
-            var groups = slots.Select((t, i) => new { t, i }).GroupBy(x => x.i / 3).ToList();
-            int page = 1;
-
-            foreach (var g in groups)
-            {
-                var actions = g.Select(x =>
-                    $@"{{ ""type"": ""message"", ""label"": ""{x.t:HH:mm}"", ""text"": ""{x.t:yyyy/MM/dd HH:mm}"" }}").ToList();
-
-                while (actions.Count < 3)
-                    actions.Add(@"{ ""type"": ""message"", ""label"": ""—"", ""text"": ""—"" }");
-
-                columns.Add($@"
-{{
-  ""title"": ""{title} ({page})"",
-  ""text"": ""請選擇時間"",
-  ""actions"": [ {string.Join(",", actions)} ]
-}}");
-                page++;
-            }
-
-            columns.Add(@"
-{
-  ""title"": ""其他選項"",
-  ""text"": ""請選擇"",
-  ""actions"": [
-    { ""type"": ""message"", ""label"": ""手動輸入"", ""text"": ""手動輸入"" },
-    { ""type"": ""message"", ""label"": ""取消"", ""text"": ""取消"" },
-    { ""type"": ""message"", ""label"": ""返回主選單"", ""text"": ""返回主選單"" }
-  ]
-}");
-
-            var json = $@"
-[ {{
-  ""type"": ""template"",
-  ""altText"": ""請選擇{title}"",
-  ""template"": {{
-    ""type"": ""carousel"",
-    ""columns"": [ {string.Join(",", columns)} ]
-  }}
-}} ]";
-
-            return json;
-        }
-        #endregion
+       
         // ====== 工具方法：取得主管部門 ======
         private async Task<string?> GetAdminDeptAsync(string lineUserId, ApplicationDbContext db)
         {
@@ -1487,122 +1252,7 @@ namespace LineBotDemo.Controllers
                 .FirstOrDefaultAsync();
         }
 
-        #region 管理員審核卡片
-        //管理員審核清單卡片
-        private static string? BuildPendingListBubble(int page, int pageSize, string adminDept, ApplicationDbContext db)
-        {
-            if (page <= 0) page = 1;
-            if (pageSize <= 0) pageSize = 5;
-
-            // 只取同部門 + 待審核
-            var q = db.CarApplications
-                .Include(a => a.Applicant)
-                .Where(a => a.Status == "待審核" && a.Applicant.Dept == adminDept)
-                .OrderBy(a => a.UseStart);
-
-            var total = q.Count();
-            if (total == 0) return null;
-
-            var items = q.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-            // 每筆一個盒子 + 按鈕
-            var cardContents = string.Join(",\n", items.Select(a => $@"
-                            {{
-                              ""type"": ""box"",
-                              ""layout"": ""vertical"",
-                              ""margin"": ""md"",
-                              ""spacing"": ""xs"",
-                              ""borderWidth"": ""1px"",
-                              ""borderColor"": ""#dddddd"",
-                              ""cornerRadius"": ""md"",
-                              ""paddingAll"": ""10px"",
-                              ""contents"": [
-                                {{ ""type"": ""text"", ""text"": ""申請單 #{a.ApplyId}"", ""weight"": ""bold"" }},
-                                {{ ""type"": ""text"", ""text"": ""時間：{a.UseStart:yyyy/MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"" }},
-                                {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination}"", ""size"": ""sm"", ""wrap"": true }},
-                                {{ ""type"": ""text"", ""text"": ""人數：{a.PassengerCount}、行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"" }},
-                                {{ ""type"": ""box"", ""layout"": ""horizontal"", ""spacing"": ""md"", ""margin"": ""sm"", ""contents"": [
-                                  {{
-                                    ""type"": ""button"",
-                                    ""style"": ""primary"",
-                                    ""height"": ""sm"",
-                                    ""action"": {{
-                                      ""type"": ""postback"",
-                                      ""label"": ""同意"",
-                                      ""data"": ""action=reviewApprove&applyId={a.ApplyId}""
-                                    }}
-                                  }},
-                                  {{
-                                    ""type"": ""button"",
-                                    ""style"": ""secondary"",
-                                    ""height"": ""sm"",
-                                    ""action"": {{
-                                      ""type"": ""postback"",
-                                      ""label"": ""拒絕"",
-                                      ""data"": ""action=reviewReject&applyId={a.ApplyId}""
-                                    }}
-                                  }}
-                                ]}}
-                              ]
-                            }}"));
-
-            var totalPages = (int)Math.Ceiling(total / (double)pageSize);
-            var hasPrev = page > 1;
-            var hasNext = page < totalPages;
-
-            var footerButtons = new List<string>();
-            if (hasPrev)
-            {
-                footerButtons.Add(@$"{{
-          ""type"": ""button"",
-          ""style"": ""secondary"",
-          ""action"": {{ ""type"": ""postback"", ""label"": ""上一頁"", ""data"": ""action=reviewListPage&page={page - 1}"" }}
-        }}");
-            }
-            if (hasNext)
-            {
-                footerButtons.Add(@$"{{
-          ""type"": ""button"",
-          ""style"": ""secondary"",
-          ""action"": {{ ""type"": ""postback"", ""label"": ""下一頁"", ""data"": ""action=reviewListPage&page={page + 1}"" }}
-        }}");
-            }
-
-            var footer = footerButtons.Count > 0
-                ? string.Join(",", footerButtons)
-                : @"{ ""type"": ""text"", ""text"": ""已到清單底部"", ""align"": ""center"", ""size"": ""sm"", ""color"": ""#888888"" }";
-
-            // Flex bubble
-            var bubble = $@"
-            {{
-              ""type"": ""flex"",
-              ""altText"": ""待審核清單"",
-              ""contents"": {{
-                ""type"": ""bubble"",
-                ""size"": ""mega"",
-                ""body"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""spacing"": ""md"",
-                  ""contents"": [
-                    {{ ""type"": ""text"", ""text"": ""待審核清單"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                    {cardContents}
-                  ]
-                }},
-                ""footer"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""horizontal"",
-                  ""spacing"": ""md"",
-                  ""contents"": [
-                    {footer}
-                  ]
-                }}
-              }}
-            }}";
-
-            return bubble;
-        }
-        #endregion
+       
 
         #region 通知
 
@@ -1940,10 +1590,29 @@ namespace LineBotDemo.Controllers
             return json.Length >= 2 ? json.Substring(1, json.Length - 2) : "";
         }
 
-        
+
         #endregion
+        // ====== 共用方法：嘗試儲存資料庫 ======
+        private bool TrySave(string replyToken, string userMsg = "⚠️ 資料儲存失敗，請稍後再試")
+        {
+            try { _db.SaveChanges(); return true; }
+            catch (DbUpdateException dbex)
+            {
+                Console.WriteLine("[DB] Update failure: " + dbex.Message);
+                _bot.ReplyMessage(replyToken, userMsg);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[DB] Unknown error: " + ex.Message);
+                _bot.ReplyMessage(replyToken, "⚠️ 系統發生錯誤，請稍後再試");
+                return false;
+            }
+        }
+
 
     }
+
 
 
 

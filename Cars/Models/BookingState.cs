@@ -5,7 +5,7 @@
         public string? ReserveTime { get; set; }
         public string? ArrivalTime { get; set; }
         public string? Reason { get; set; }
-        public string? PassengerCount { get; set; }
+        public int? PassengerCount { get; set; }
         public string? Origin { get; set; }
         public string? Destination { get; set; }
         public string? TripType { get; set; }

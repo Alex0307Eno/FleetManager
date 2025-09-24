@@ -1,7 +1,7 @@
-
 using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+
 using LineBotDemo.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,20 +17,26 @@ namespace LineBotService
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
             builder.Services.AddScoped<AutoDispatcher>();
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-            builder.Services.Configure<GoogleMapsSettings>(
-            builder.Configuration.GetSection("GoogleMaps"));
 
+            // µù¥U GoogleMapsSettings
+            builder.Services.Configure<GoogleMapsSettings>(
+                builder.Configuration.GetSection("GoogleMaps"));
+
+            // µù¥U HttpClient + DistanceService
+            builder.Services.AddHttpClient<IDistanceService, GoogleDistanceService>();
+
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddControllersWithViews().AddJsonOptions(opt =>
             {
-                opt.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                opt.JsonSerializerOptions.ReferenceHandler =
+                    System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
             });
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+            // Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            builder.Services.AddHttpClient();
 
             var app = builder.Build();
 
@@ -45,10 +51,11 @@ namespace LineBotService
             app.UseStaticFiles();
 
             app.UseRouting();
+
             app.MapControllerRoute(
-            name: "default",
-            pattern: "{controller=LineRichMenu}/{action=Index}/{id?}"
-        );
+                name: "default",
+                pattern: "{controller=LineRichMenu}/{action=Index}/{id?}"
+            );
 
             app.MapControllers();
 
