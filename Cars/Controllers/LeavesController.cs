@@ -1,6 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+using Cars.Features.Leaves;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,13 +16,7 @@ namespace Cars.ApiControllers
         private readonly ApplicationDbContext _db;
         public LeavesController(ApplicationDbContext db) { _db = db; }
 
-        public class LeaveDto
-        {
-            public string LeaveType { get; set; }
-            public DateTime Start { get; set; }
-            public DateTime End { get; set; }
-            public string Reason { get; set; }
-        }
+        
 
         // 單一版本：取得「目前登入者」的請假紀錄
         [HttpGet("my")]
@@ -125,17 +120,8 @@ namespace Cars.ApiControllers
 
             return Ok(list);
         }
-
-
-
-      
-
-        public class UpdateStatusDto
-        {
-            public string Status { get; set; }
-            public int? AgentDriverId { get; set; } 
-        }
-
+        #region 請假狀態審核
+        // 更新請假狀態（核准或駁回）
         [HttpPost("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
         {
@@ -225,8 +211,7 @@ namespace Cars.ApiControllers
 
 
 
-
-
+        // 指派代理人（僅限已核准的請假）
         [HttpPost("{id}/agent")]
         public async Task<IActionResult> AssignAgent(int id, [FromBody] int agentDriverId)
         {
@@ -244,6 +229,7 @@ namespace Cars.ApiControllers
             if (!ok) return err1!;
             return Ok(new { message = $"代理人已指派為 {agent.DriverName}" });
         }
+        #endregion
 
     }
 }

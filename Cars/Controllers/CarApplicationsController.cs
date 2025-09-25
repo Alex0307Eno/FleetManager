@@ -23,11 +23,6 @@ namespace Cars.ApiControllers
         private readonly VehicleService _vehicleService;
 
 
-
-
-
-
-
         public CarApplicationsController(ApplicationDbContext db, AutoDispatcher dispatcher, IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService)
         {
             _db = db;
@@ -154,7 +149,7 @@ namespace Cars.ApiControllers
 
         }
         // 建立派車單
-
+        [AllowAnonymous]
         [HttpPost("{applyId}/dispatch")]
 
         public async Task<IActionResult> CreateDispatch(int applyId)
@@ -333,11 +328,8 @@ namespace Cars.ApiControllers
 
 
         #region 更新審核狀態
-        public class StatusDto
-        {
-            public string? Status { get; set; }
-        }
 
+        [AllowAnonymous]
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusDto dto)
         {

@@ -304,7 +304,7 @@ namespace LineBotDemo.Controllers
                             var bubbleJson = MessageBuilder.BuildPendingListBubble(page, 5, apps);
                             if (bubbleJson != null)
                             {
-                                await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
+                                await BotJson.ReplyAsync(replyToken, bubbleJson, _token);
                             }
                             else
                             {
@@ -506,7 +506,7 @@ namespace LineBotDemo.Controllers
 
                             if (!string.IsNullOrEmpty(bubbleJson))
                             {
-                                await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
+                                await BotJson.ReplyAsync(replyToken, bubbleJson, _token);
                             }
                             else
                             {
@@ -609,7 +609,7 @@ namespace LineBotDemo.Controllers
                             // 立刻跳抵達時間 QuickReply（至少比出發晚 10 分鐘）
                             var dep = DateTime.Now;
                             var arriveMenu = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
-                            await BotJson.ReplyAsync(_token, replyToken, arriveMenu);
+                            await BotJson.ReplyAsync(replyToken, arriveMenu, _token);
                             bot.ReplyMessageWithJSON(replyToken, arriveMenu);
 
                             continue;
@@ -618,7 +618,7 @@ namespace LineBotDemo.Controllers
                         if (string.IsNullOrEmpty(state.ReserveTime) && msg == "預訂時間")
                         {
                             var reserveJson = MessageBuilder.BuildDepartureTimeQuickReply("出發時間", DateTime.Today);
-                            await BotJson.ReplyAsync(_token, replyToken, reserveJson);
+                            await BotJson.ReplyAsync(replyToken, reserveJson, _token);
                             bot.ReplyMessageWithJSON(replyToken, reserveJson);
                             continue;
                         }
@@ -628,7 +628,7 @@ namespace LineBotDemo.Controllers
                         {
                             state.ReserveTime = depTime.ToString("yyyy/MM/dd HH:mm");
                             var arriveMenu = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
-                            await BotJson.ReplyAsync(_token, replyToken, arriveMenu);
+                            await BotJson.ReplyAsync(replyToken, arriveMenu, _token);
                             bot.ReplyMessageWithJSON(replyToken, arriveMenu);
                             continue;
                         }
@@ -641,7 +641,7 @@ namespace LineBotDemo.Controllers
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 抵達時間需晚於出發時間 10 分鐘以上");
                                 var reserveJson = MessageBuilder.BuildDepartureTimeQuickReply("抵達時間", DateTime.Today);
-                                await BotJson.ReplyAsync(_token, replyToken, reserveJson); 
+                                await BotJson.ReplyAsync(replyToken, reserveJson, _token);
                                 bot.ReplyMessageWithJSON(replyToken, reserveJson);
                                 continue;
                             }

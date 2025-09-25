@@ -1,6 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+using Cars.Features.Maintenance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -98,23 +99,11 @@ namespace Cars.ApiControllers
         }
 
         // 新增保養紀錄
-        public sealed class CreateDto
-        {
-            public int VehicleId { get; set; }
-            public string? VehiclePlate { get; set; }
-            public DateTime Date { get; set; }
-            public int? Odometer { get; set; }
-            public string Item { get; set; } = "";
-            public string? Unit { get; set; }
-            public decimal? Qty { get; set; }
-            public decimal? Amount { get; set; }
-            public string? Vendor { get; set; }
-            public string? Note { get; set; }
-        }
+        
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create([FromBody] CreateDto dto)
+        public async Task<IActionResult> Create([FromBody] MaintainanceCreateDto dto)
         {
             if (dto.VehicleId <= 0) return BadRequest("VehicleId 必填");
             if (string.IsNullOrWhiteSpace(dto.Item)) return BadRequest("保養項目必填");
@@ -168,18 +157,8 @@ namespace Cars.ApiControllers
             if (!ok) return err1!; 
             return Ok(new { message = "已刪除" });
         }
-        // === 報修申請 DTO ===
-        public sealed class RepairRequestDto
-        {
-            public int VehicleId { get; set; }
-            public string? PlateNo { get; set; }
-            public DateTime Date { get; set; }
-            public string? Place { get; set; }
-            public string Issue { get; set; } = "";
-            public decimal? CostEstimate { get; set; }
-            public string? Vendor { get; set; }
-            public string? Note { get; set; }
-        }
+        
+        
         #endregion
 
         #region 維修紀錄 CRUD
@@ -308,20 +287,11 @@ namespace Cars.ApiControllers
             return Ok(list);
         }
 
-        public class SaveInspectionDto
-        {
-            public int VehicleId { get; set; }
-            public DateTime InspectionDate { get; set; }
-            public string? Station { get; set; }
-            public string Result { get; set; } = "合格";
-            public DateTime? NextDueDate { get; set; }
-            public int? OdometerKm { get; set; }
-            public string? Notes { get; set; }
-        }
+        
 
         [HttpPost("inspections")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateInspection([FromBody] SaveInspectionDto dto)
+        public async Task<IActionResult> CreateInspection([FromBody] InspectionDto dto)
         {
             if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
 
@@ -344,7 +314,7 @@ namespace Cars.ApiControllers
 
         [HttpPut("inspections/{id:int}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateInspection(int id, [FromBody] SaveInspectionDto dto)
+        public async Task<IActionResult> UpdateInspection(int id, [FromBody] InspectionDto dto)
         {
             var m = await _db.VehicleInspections.FindAsync(id);
             if (m == null) return NotFound();
@@ -404,23 +374,11 @@ namespace Cars.ApiControllers
             return Ok(list);
         }
 
-        public class SaveViolationDto
-        {
-            public int VehicleId { get; set; }
-            public DateTime ViolationDate { get; set; }
-            public string? Location { get; set; }
-            public string? Category { get; set; }
-            public int? Points { get; set; }
-            public int? FineAmount { get; set; }
-            public string? Status { get; set; }  // 未繳/已繳/申訴中
-            public DateTime? DueDate { get; set; }
-            public DateTime? PaidDate { get; set; }
-            public string? Notes { get; set; }
-        }
+        
 
         [HttpPost("violations")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateViolation([FromBody] SaveViolationDto dto)
+        public async Task<IActionResult> CreateViolation([FromBody] ViolationDto dto)
         {
             if (dto == null || dto.VehicleId <= 0) return BadRequest(new { message = "資料不完整" });
 
@@ -445,7 +403,7 @@ namespace Cars.ApiControllers
 
         [HttpPut("violations/{id:int}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateViolation(int id, [FromBody] SaveViolationDto dto)
+        public async Task<IActionResult> UpdateViolation(int id, [FromBody] ViolationDto dto)
         {
             var m = await _db.VehicleViolations.FindAsync(id);
             if (m == null) return NotFound();

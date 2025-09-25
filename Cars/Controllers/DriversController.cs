@@ -73,21 +73,6 @@ namespace Cars.ApiControllers
 
         #region 更新班表
 
-        // DTO
-        public class BulkSetDto
-        {
-            public List<DateTime> Dates { get; set; } = new();  // 要套用的日期清單（日期即可）
-            public PersonAssign Assign { get; set; } = new();    // A~E 對應 AM/PM/G1/G2/G3
-        }
-        public class PersonAssign
-        {
-            public int? A { get; set; }  // 人
-            public int? B { get; set; }
-            public int? C { get; set; }
-            public int? D { get; set; }
-            public int? E { get; set; }
-        }
-
         [Authorize(Roles = "Admin")]
         [HttpPost("Schedule/BulkSet")]
         public async Task<IActionResult> BulkSet([FromBody] BulkSetDto dto)
@@ -231,22 +216,10 @@ namespace Cars.ApiControllers
         }
 
 
-
-
-
         #endregion
 
         #region 設定歷史對應
-        public class SetAssignmentDto
-        {
-            public DateTime StartDate { get; set; }
-            public DateTime? EndDate { get; set; } // null=一直到未來
-            public int? A { get; set; }
-            public int? B { get; set; }
-            public int? C { get; set; }
-            public int? D { get; set; }
-            public int? E { get; set; }
-        }
+       
 
         [Authorize(Roles = "Admin")]
         [HttpPost("Schedule/SetLineAssignments")]
@@ -487,11 +460,6 @@ namespace Cars.ApiControllers
 
             return Json(driver);
         }
-
-
-        [HttpGet("Create")]
-        [ValidateAntiForgeryToken]
-        public IActionResult Create() => View();
 
         // POST: /Drivers/Create
         [HttpPost("Create")]

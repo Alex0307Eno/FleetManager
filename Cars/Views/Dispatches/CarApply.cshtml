@@ -711,13 +711,12 @@
                   busy:      false
                 }));
 
-                if (purposeType.value === '公務車(可選車)') {
-                  assign.vehicleId = vehicles.value[0]?.vehicleId ?? null;
-                } else {
-                  assign.vehicleId = null;
-                }
+                // if (purposeType.value === '公務車(可選車)') {
+                //   assign.vehicleId = vehicles.value[0]?.vehicleId ?? null;
+                // } else {
+                //   assign.vehicleId = null;
+                // }
               } catch (err) {
-                console.error("❌ 載入可用車失敗", err);
                 vehicles.value = [];
               }
             }

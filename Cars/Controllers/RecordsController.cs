@@ -1,6 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
+using Cars.Features.CarApplications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +13,12 @@ namespace Cars.ApiControllers
     [Authorize]
     [ApiController]
     [Route("api/dispatch")]
-    public class RecordController : ControllerBase
+    public class RecordsController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        private readonly ILogger<RecordController> _logger;
+        private readonly ILogger<RecordsController> _logger;
 
-        public RecordController(ApplicationDbContext db, ILogger<RecordController> logger)
+        public RecordsController(ApplicationDbContext db, ILogger<RecordsController> logger)
         {
             _db = db;
             _logger = logger;
@@ -333,14 +334,10 @@ namespace Cars.ApiControllers
         #endregion
 
         #region 更新派車單狀態
-        public class UpdateDispatchDto
-        {
-            public int? DriverId { get; set; }
-            public int? VehicleId { get; set; }
-        }
+        
         
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateDispatch(int id, [FromBody] UpdateDispatchDto dto)
+        public async Task<IActionResult> UpdateDispatch(int id, [FromBody] AssignDto dto)
         {
             Console.WriteLine($"[Console] UpdateDispatch id={id}, body={JsonSerializer.Serialize(dto)}");
             _logger.LogInformation("UpdateDispatch id={Id}, body={@Dto}", id, dto);

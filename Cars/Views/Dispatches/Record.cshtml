@@ -725,7 +725,7 @@
 
                 alert("✅ 已派車");
                 editing.value = null;
-                await loadRecords(); // 重新載入表格
+                await reload();
               } catch (err) {
                 console.error("更新派車失敗：", err);
                 alert(err?.response?.data?.message || "更新派車失敗");

@@ -681,9 +681,13 @@
           const leave             = (x?.leaveNote || '').trim();
 
           // 狀態（執勤中 > 休息中 > 待命中）
-          let stateText = x?.stateText
-        || ( (st && et && !isNaN(st) && !isNaN(et) && now >= st && now <= et) ? '執勤中'
-           : (restRemainMinutes > 0 ? '休息中' : '待命中') );
+          let stateText;
+            if ((x?.stateText || '').trim() === '執勤中') {
+              stateText = '執勤中';
+            } else {
+              stateText = (restRemainMinutes > 0) ? '休息中' : '待命中';
+            }
+
 
           // 燈號
           let stateDotClass = 'status-green';

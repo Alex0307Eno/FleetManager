@@ -131,12 +131,11 @@ namespace Cars.ApiControllers
         //駕駛目前狀態
         [HttpGet("drivers/today-status")]
         public async Task<ActionResult<ApiResponse<List<DriverStatusDto>>>> DriversTodayStatus()
-
         {
             var today = DateTime.Today;
             var now = DateTime.Now;
 
-            // === Step 1. 把每個駕駛 + 今天的班別 + 是否出勤查出來 ===
+            // === Step 1. 駕駛基本資料 + 今日班別 ===
             var baseDrivers = await (
                 from d in _db.Drivers.Where(d => d.IsAgent == false)
                 join s in _db.Schedules.Where(s => s.WorkDate == today) on d.DriverId equals s.DriverId into sg
@@ -148,9 +147,9 @@ namespace Cars.ApiControllers
                     Shift = s != null ? s.Shift : null,
                     IsPresent = s != null && s.IsPresent
                 }
-            ).ToListAsync();
+            ).AsNoTracking().ToListAsync();
 
-            // === Step 2. 查出每個駕駛目前的派工（正在執勤的那張單） ===
+            // === Step 2. 當前派工（正在執勤的那張，挑最貼近現在的一筆） ===
             var dispatchesNow = await (
                 from dis in _db.Dispatches
                 where dis.StartTime.HasValue && dis.StartTime.Value <= now &&
@@ -159,45 +158,60 @@ namespace Cars.ApiControllers
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
+                where dis.DriverId != null
                 select new
                 {
                     dis.DriverId,
                     dis.StartTime,
                     dis.EndTime,
-                    PlateNo = v.PlateNo,
-                    ap.Dept,
-                    ap.Name,
+                    PlateNo = v != null ? v.PlateNo : null,
+                    Dept = ap.Dept,
+                    Name = ap.Name,
                     a.PassengerCount
                 }
-            ).ToListAsync();
+            )
+            .OrderByDescending(x => x.StartTime)
+            .ThenBy(x => x.EndTime)
+            .AsNoTracking()
+            .ToListAsync();
 
-            // Step 2: 改成 group，避免 DriverId 為 null 時爆掉
             var dispatchByDriver = dispatchesNow
-                .Where(x => x.DriverId.HasValue) // 排除沒有 DriverId 的派工
-                .GroupBy(x => x.DriverId.Value)
+                .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
 
-            // === Step 3. 查代理人對應 ===
+            // === Step 3. 查代理人 ===
             var delegs = await (
                 from dg in _db.DriverDelegations
                 where dg.StartDate.Date <= today && today <= dg.EndDate.Date
                 join agent in _db.Drivers on dg.AgentDriverId equals agent.DriverId
                 select new { dg.PrincipalDriverId, Agent = agent, dg.CreatedAt }
-            ).ToListAsync();
+            ).AsNoTracking().ToListAsync();
 
             var delegMap = delegs
                 .GroupBy(x => x.PrincipalDriverId)
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First().Agent);
 
-            // === Step 4. 組合結果 ===
+            // === Step 4. 查每個駕駛今天最後一筆長差，用來計算休息中 ===
+            var longTripEnds = await (
+                from dis in _db.Dispatches
+                where dis.IsLongTrip && dis.EndTime.HasValue && dis.EndTime.Value <= now && dis.EndTime.Value.Date == today
+                select new { dis.DriverId, dis.EndTime }
+            ).AsNoTracking().ToListAsync();
+
+            var lastLongEndByDriver = longTripEnds
+                .GroupBy(x => x.DriverId!.Value)
+                .ToDictionary(g => g.Key, g => g.Max(z => z.EndTime!.Value));
+
+            // === Step 5. 組合結果 ===
             var result = new List<DriverStatusDto>();
+
             foreach (var d in baseDrivers)
             {
                 bool isAgenting = false;
                 var driverId = d.DriverId;
                 var driverName = d.DriverName;
 
-                // 如果被代理，換成代理人
+                // 缺勤 → 代理人頂替
                 if (!d.IsPresent && delegMap.TryGetValue(d.DriverId, out var proxyAgent))
                 {
                     isAgenting = true;
@@ -205,7 +219,36 @@ namespace Cars.ApiControllers
                     driverName = $"{proxyAgent.DriverName}(代)";
                 }
 
-                var dispatch = dispatchByDriver.ContainsKey(driverId) ? dispatchByDriver[driverId] : null;
+                var dispatch = dispatchByDriver.ContainsKey(driverId)
+                    ? dispatchByDriver[driverId]
+                    : null;
+
+                // === 狀態判斷 ===
+                bool isResting = false;
+                DateTime? restUntil = null;
+                int? restRemainMinutes = null;
+                string stateText;
+
+                // 有派工 → 執勤中
+                if (dispatch != null)
+                {
+                    stateText = "執勤中";
+                }
+                else
+                {
+                    // 沒派工 → 看是否剛跑完長差
+                    if (lastLongEndByDriver.TryGetValue(driverId, out var lastEnd))
+                    {
+                        var until = lastEnd.AddHours(1);
+                        if (now < until)
+                        {
+                            isResting = true;
+                            restUntil = until;
+                            restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
+                        }
+                    }
+                    stateText = isResting ? "休息中" : "待命中";
+                }
 
                 result.Add(new DriverStatusDto
                 {
@@ -218,67 +261,17 @@ namespace Cars.ApiControllers
                     PassengerCount = dispatch?.PassengerCount,
                     StartTime = dispatch?.StartTime,
                     EndTime = dispatch?.EndTime,
-                    StateText = dispatch != null ? "執勤中" : "待命中",
-                    Attendance = isAgenting ? $"請假({d.DriverName ?? "-"})" : (d.IsPresent ? "正常" : "請假")
+                    StateText = stateText,
+                    Attendance = isAgenting ? $"請假({d.DriverName ?? "-"})" : (d.IsPresent ? "正常" : "請假"),
+                    RestUntil = restUntil,
+                    RestRemainMinutes = restRemainMinutes
                 });
             }
-
 
             return Ok(ApiResponse<List<DriverStatusDto>>.Ok(result, "今日駕駛狀態查詢成功"));
         }
 
-        //駕駛目前狀態(休息中)
-        [HttpGet("vehicles/today-status")]
-        public async Task<ActionResult<ApiResponse<List<DriverBreakingStatusDto>>>> DriverBreakingStatus()
-        {
-            var now = DateTime.Now;
 
-            var list = await _db.Vehicles
-                .Select(v => new
-                {
-                    v.VehicleId,
-                    v.PlateNo,
-                    v.Status, // 原車況（可用/維修中…）
-                    last = _db.Dispatches
-                        .Where(d => d.VehicleId == v.VehicleId && d.EndTime.HasValue)
-                        .OrderByDescending(d => d.EndTime)
-                        .Select(d => new { d.EndTime, d.IsLongTrip })
-                        .FirstOrDefault()
-                })
-                .ToListAsync();
-
-            var result = list.Select(x =>
-            {
-                bool isResting = false;
-                DateTime? restUntil = null;
-                int? restRemainMinutes = null;
-
-                if (x.last != null && x.last.IsLongTrip && x.last.EndTime.HasValue)
-                {
-                    var until = x.last.EndTime.Value.AddHours(1);
-                    if (now < until)
-                    {
-                        isResting = true;
-                        restUntil = until;
-                        restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
-                    }
-                }
-
-                var uiState = isResting ? "休息中" : "待命中";
-
-                return new DriverBreakingStatusDto
-                {
-                    VehicleId = x.VehicleId,
-                    PlateNo = x.PlateNo,
-                    VehicleState = x.Status,
-                    UiState = uiState,
-                    RestUntil = restUntil,
-                    RestRemainMinutes = restRemainMinutes
-                };
-            }).ToList();
-
-            return Ok(ApiResponse<List<DriverBreakingStatusDto>>.Ok(result, "駕駛休息中狀態查詢成功"));
-        }
         #endregion
 
         #region 今日未完成任務

@@ -1,4 +1,7 @@
 using Cars.Data;
+using Cars.Features.CarApplications;
+using Cars.Features.Vehicles;
+using Cars.Features.Drivers;
 using Cars.Models;
 using Cars.Services;
 
@@ -17,6 +20,11 @@ namespace LineBotService
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
             builder.Services.AddScoped<AutoDispatcher>();
+            builder.Services.AddScoped<CarApplicationService>();
+            builder.Services.AddScoped<VehicleService>();
+            builder.Services.AddScoped<DriverService>();
+
+
 
             // µù¥U GoogleMapsSettings
             builder.Services.Configure<GoogleMapsSettings>(
@@ -49,8 +57,10 @@ namespace LineBotService
 
             //app.UseHttpsRedirection();
             app.UseStaticFiles();
-
             app.UseRouting();
+            app.UseAuthentication();
+            app.UseAuthorization();
+
 
             app.MapControllerRoute(
                 name: "default",
