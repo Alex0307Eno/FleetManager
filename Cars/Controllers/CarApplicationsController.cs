@@ -1,21 +1,16 @@
 ﻿using Cars.Data;
+using Cars.Features.CarApplications;
+using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using static Cars.Services.AutoDispatcher;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     
@@ -24,29 +19,29 @@ namespace Cars.Controllers
         private readonly ApplicationDbContext _db;
         private readonly AutoDispatcher _dispatcher;
         private readonly IDistanceService _distance;
+        private readonly CarApplicationService _carApplicationService;
+        private readonly VehicleService _vehicleService;
 
 
 
-        public CarApplicationsController(ApplicationDbContext db, AutoDispatcher dispatcher, IDistanceService distance)
+
+
+
+
+        public CarApplicationsController(ApplicationDbContext db, AutoDispatcher dispatcher, IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService)
         {
             _db = db;
             _dispatcher = dispatcher;
             _distance = distance;
-
+            _carApplicationService = carApplicationService;
+            _vehicleService = vehicleService;
         }
 
         #region 建立申請單
         // 建立申請單（含搭乘人員清單）
-        public class CarApplyDto
-        {
-            public CarApplication Application { get; set; }
-            public List<CarPassenger> Passengers { get; set; } = new();
-
-        }
 
 
 
-        [Authorize]
         [HttpPost]
         [Authorize(Roles = "Admin,Applicant,Manager")]
         public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
@@ -57,8 +52,8 @@ namespace Cars.Controllers
             var model = dto.Application;
 
             // 1) 取得登入者
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (!int.TryParse(userIdStr, out var userId))
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(uid, out var userId))
                 return Unauthorized("尚未登入或 Session 遺失");
 
             // 2) 找申請人
@@ -105,7 +100,7 @@ namespace Cars.Controllers
             model.IsLongTrip = checkKm > 30;
 
             // 6) 驗證當下是否有車輛能承載這麼多人
-            var maxCap = await GetMaxAvailableCapacityAsync(model.UseStart, model.UseEnd);
+            var maxCap = await _vehicleService.GetMaxAvailableCapacityAsync(model.UseStart, model.UseEnd);
             if (maxCap == 0)
             {
                 return BadRequest("目前時段沒有任何可用車輛");
@@ -114,47 +109,21 @@ namespace Cars.Controllers
             {
                 return BadRequest($"申請乘客數 {model.PassengerCount} 超過可用車輛最大載客量 {maxCap}");
             }
+            using var tx = await _db.Database.BeginTransactionAsync();
 
             // === 7) 先存「申請單」
             _db.CarApplications.Add(model);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok1, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok1) return err1!;
 
             // 8) 乘客寫入
-            if (dto.Passengers != null && dto.Passengers.Count > 0)
+            if (dto.Passengers?.Any() == true)
             {
-                foreach (var p in dto.Passengers)
-                {
-                    p.ApplyId = model.ApplyId;
-                }
+                dto.Passengers.ForEach(p => p.ApplyId = model.ApplyId);
                 _db.CarPassengers.AddRange(dto.Passengers);
-                await _db.SaveChangesAsync();
             }
 
-            // 9) 裝載物料品名
-            if (!string.IsNullOrWhiteSpace(model.MaterialName))
-            {
-                var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == model.ApplyId);
-                if (app != null)
-                {
-                    app.MaterialName = model.MaterialName;
-                    await _db.SaveChangesAsync();
-                }
-            }
+           
 
             // 10) 建立派工（待指派）
             var dispatch = new Cars.Models.Dispatch
@@ -169,25 +138,38 @@ namespace Cars.Controllers
             };
 
             _db.Dispatches.Add(dispatch);
-            await _db.SaveChangesAsync();
-
-            return Ok(new
+            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            if (!ok2)
             {
-                message = "申請完成，已建立派車單 (待指派)",
-                id = model.ApplyId,
-                isLongTrip = model.IsLongTrip ? 1 : 0
-            });
+                await tx.RollbackAsync();
+                return err2!;
+            }
+            await tx.CommitAsync();
+
+            return Ok(ApiResponse<CarApplicationResultDto>.Ok(
+             new CarApplicationResultDto(model.ApplyId, model.IsLongTrip),
+             "申請完成，已建立派車單 (待指派)"
+            ));
+
+
         }
         // 建立派車單
+
         [HttpPost("{applyId}/dispatch")]
+
         public async Task<IActionResult> CreateDispatch(int applyId)
         {
             var app = await _db.CarApplications.FindAsync(applyId);
-            if (app == null) return NotFound(new { message = "找不到申請單" });
+            if (app == null)
+                return NotFound(new { success = false, message = "找不到申請單" });
+
+            if (app.UseStart == default || app.UseEnd == default)
+                return BadRequest(new { success = false, message = "申請單時間無效，無法建立派工" });
 
             // 檢查是否已經有派車單
             var exists = await _db.Dispatches.AnyAsync(d => d.ApplyId == applyId);
-            if (exists) return Conflict(new { message = "已經有派車單存在" });
+            if (exists)
+                return Conflict(new { success = false, message = "已經有派車單存在" });
 
             var dispatch = new Cars.Models.Dispatch
             {
@@ -201,41 +183,22 @@ namespace Cars.Controllers
             };
 
             _db.Dispatches.Add(dispatch);
-            await _db.SaveChangesAsync();
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
+            var dto = new DispatchDto(
+                dispatch.DispatchId,
+                dispatch.ApplyId,
+                dispatch.StartTime,
+                dispatch.EndTime,
+                dispatch.DispatchStatus
+            );
 
-            return Ok(dispatch);
+            return Ok(ApiResponse<DispatchDto>.Ok(dto, "派車單建立成功"));
+
         }
 
-        [HttpGet("/api/vehicles/max-capacity")]
-        public async Task<IActionResult> GetMaxCapacity([FromQuery] DateTime from, [FromQuery] DateTime to)
-        {
-            if (from == default || to == default || from >= to)
-                return BadRequest(new { message = "時間參數錯誤" });
+        
 
-            var max = await GetMaxAvailableCapacityAsync(from, to);
-            return Ok(new { max });
-        }
-
-        // 計算最大載客量
-        private async Task<int> GetMaxAvailableCapacityAsync(DateTime from, DateTime to)
-        {
-            var q = _db.Vehicles.AsQueryable();
-
-            // 只取可用車
-            q = q.Where(v => (v.Status ?? "") == "可用");
-
-            // 避開該時段被派工(Dispatches)
-            q = q.Where(v => !_db.Dispatches.Any(d =>
-                d.VehicleId == v.VehicleId && from < d.EndTime && d.StartTime < to));
-
-            // 避開該時段已被申請(CarApplications)的車
-            q = q.Where(v => !_db.CarApplications.Any(a =>
-                a.VehicleId == v.VehicleId && from < a.UseEnd && a.UseStart < to));
-
-            // 回傳最大載客量（沒有車則回 0）
-            var max = await q.Select(v => (int?)v.Capacity).MaxAsync();
-            return max ?? 0;
-        }
 
         #endregion
 
@@ -243,199 +206,35 @@ namespace Cars.Controllers
         #region dispatches頁面功能
 
         #region 取得全部申請人
+
         // 取得全部申請人
         [HttpGet("applicants")]
         public async Task<IActionResult> GetApplicants()
         {
             var list = await _db.Applicants.AsNoTracking()
                 .OrderBy(a => a.Name)
-                .Select(a => new {
-                    applicantId = a.ApplicantId,
-                    name = a.Name,
-                    dept = a.Dept
-                })
-                .ToListAsync();
-            return Ok(list);
+                .Select(a => new ApplicantDto
+                {
+                    ApplicantId = a.ApplicantId,
+                    Name = a.Name,
+                    Dept = a.Dept,
+                    Email = a.Email,
+                    Ext = a.Ext,
+                    Birth = a.Birth
+                }).ToListAsync();
+
+            return Ok(ApiResponse<List<ApplicantDto>>.Ok(list, "申請人清單取得成功"));
         }
+
         // 取得全部申請單
         [Authorize(Roles = "Admin,Applicant,Manager")]
         [HttpGet]
-        public async Task<IActionResult> GetAll(
-    [FromQuery] DateTime? dateFrom,
-    [FromQuery] DateTime? dateTo,
-    [FromQuery] string? q)
+        public async Task<IActionResult> GetAll(DateTime? dateFrom, DateTime? dateTo, string? q)
         {
-            // 基礎查詢（含導航屬性）
-            var baseQuery = _db.CarApplications
-                .Include(a => a.Vehicle)
-                .Include(a => a.Driver)
-                .AsNoTracking()
-                .AsQueryable();
-
-            // 目前登入者
-            var uidStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var userName = User.Identity?.Name;
-
-
-            // ===== 可視範圍：Admin=全部；Manager=本部門；其他=自己 =====
-            if (User.IsInRole("Admin"))
-            {
-                // Admin 看全部
-            }
-            else if (User.IsInRole("Manager"))
-            {
-                if (int.TryParse(uidStr, out var userId))
-                {
-                    // 取自己的部門
-                    var myDept = await _db.Applicants
-                        .Where(a => a.UserId == userId)
-                        .Select(a => a.Dept)
-                        .FirstOrDefaultAsync();
-
-                    if (!string.IsNullOrWhiteSpace(myDept))
-                    {
-                        // 只看同部門的申請
-                        baseQuery =
-                            from a in baseQuery
-                            join ap in _db.Applicants.AsNoTracking()
-                                on a.ApplicantId equals ap.ApplicantId
-                            where ap.Dept == myDept
-                            select a;
-                    }
-                    else if (!string.IsNullOrEmpty(userName))
-                    {
-                        // 找不到部門 → 退回只看自己（比申請人姓名）
-                        baseQuery =
-                            from a in baseQuery
-                            join ap in _db.Applicants.AsNoTracking()
-                                on a.ApplicantId equals ap.ApplicantId
-                            where ap.Name == userName
-                            select a;
-                    }
-                    else
-                    {
-                        return Ok(Array.Empty<object>());
-                    }
-                }
-                else if (!string.IsNullOrEmpty(userName))
-                {
-                    // 沒有 userId 但有帳號名稱 → 退回只看自己
-                    baseQuery =
-                        from a in baseQuery
-                        join ap in _db.Applicants.AsNoTracking()
-                            on a.ApplicantId equals ap.ApplicantId
-                        where ap.Name == userName
-                        select a;
-                }
-                else
-                {
-                    return Ok(Array.Empty<object>());
-                }
-            }
-            else
-            {
-                // 一般使用者：只看自己
-                if (int.TryParse(uidStr, out var userId))
-                {
-                    var myApplicantId = await _db.Applicants
-                        .Where(a => a.UserId == userId)
-                        .Select(a => (int?)a.ApplicantId)
-                        .FirstOrDefaultAsync();
-
-                    if (myApplicantId.HasValue)
-                    {
-                        baseQuery = baseQuery.Where(a => a.ApplicantId == myApplicantId.Value);
-                    }
-                    else if (!string.IsNullOrEmpty(userName))
-                    {
-                        baseQuery =
-                            from a in baseQuery
-                            join ap in _db.Applicants.AsNoTracking()
-                                on a.ApplicantId equals ap.ApplicantId
-                            where ap.Name == userName
-                            select a;
-                    }
-                    else
-                    {
-                        return Ok(Array.Empty<object>());
-                    }
-                }
-                else if (!string.IsNullOrEmpty(userName))
-                {
-                    baseQuery =
-                        from a in baseQuery
-                        join ap in _db.Applicants.AsNoTracking()
-                            on a.ApplicantId equals ap.ApplicantId
-                        where ap.Name == userName
-                        select a;
-                }
-                else
-                {
-                    return Ok(Array.Empty<object>());
-                }
-            }
-
-            // ===== 日期篩選 =====
-            if (dateFrom.HasValue)
-                baseQuery = baseQuery.Where(a => a.UseStart >= dateFrom.Value.Date);
-
-            if (dateTo.HasValue)
-                baseQuery = baseQuery.Where(a => a.UseStart < dateTo.Value.Date.AddDays(1));
-
-            // ===== 關鍵字（可選）=====
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var k = q.Trim();
-                baseQuery =
-                    from a in baseQuery
-                    join ap in _db.Applicants.AsNoTracking()
-                        on a.ApplicantId equals ap.ApplicantId into apg
-                    from ap in apg.DefaultIfEmpty()
-                    where (a.Origin ?? "").Contains(k)
-                       || (a.Destination ?? "").Contains(k)
-                       || (a.ApplyReason ?? "").Contains(k)
-                       || (ap != null && (ap.Name ?? "").Contains(k))
-                    select a;
-            }
-
-            // ===== 投影成前端需要的欄位 =====
-            var list = await (
-                from a in baseQuery
-                join ap in _db.Applicants.AsNoTracking()
-                    on a.ApplicantId equals ap.ApplicantId into apg
-                from ap in apg.DefaultIfEmpty()
-                select new
-                {
-                    applyId = a.ApplyId,
-                    vehicleId = a.VehicleId,
-                    plateNo = a.Vehicle != null ? a.Vehicle.PlateNo : null,
-                    driverId = a.DriverId,
-                    driverName = a.Driver != null ? a.Driver.DriverName : null,
-
-                    applicantId = ap != null ? (int?)ap.ApplicantId : null,
-                    applicantName = ap != null ? ap.Name : null,
-                    applicantDept = ap != null ? ap.Dept : null,
-
-                    passengerCount = a.PassengerCount,
-                    useStart = a.UseStart,
-                    useEnd = a.UseEnd,
-                    origin = a.Origin,
-                    destination = a.Destination,
-
-                    tripType = a.TripType,            
-                    singleDistance = a.SingleDistance,      
-                    roundTripDistance = a.RoundTripDistance,
-                    materialName = a.MaterialName,
-                    status = a.Status,
-                    reasonType = a.ReasonType,
-                    applyReason = a.ApplyReason
-                }
-            )
-            .OrderByDescending(x => x.applyId)
-            .ToListAsync();
-
-            return Ok(list);
+            var list = await _carApplicationService.GetAll(dateFrom, dateTo, q, User);
+            return Ok(ApiResponse<List<CarApplicationDto>>.Ok(list, "查詢成功"));
         }
+
 
         #endregion
 
@@ -449,54 +248,61 @@ namespace Cars.Controllers
                 .Include(a => a.Driver)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(a => a.ApplyId == id);
-            if (app == null) return NotFound();
+
+            if (app == null)
+                return NotFound(ApiResponse.Fail<object>("找不到申請單"));
 
             var passengers = await _db.CarPassengers
                 .Where(p => p.ApplyId == id)
+                .Select(p => new CarPassengerDto
+                {
+                    PassengerId = p.PassengerId,
+                    ApplyId = p.ApplyId,
+                    Name = p.Name,
+                    DeptTitle = p.DeptTitle,
+                })
                 .ToListAsync();
 
-            // 🔗 找對應的 Applicant
             var applicant = await _db.Applicants
                 .AsNoTracking()
                 .FirstOrDefaultAsync(ap => ap.ApplicantId == app.ApplicantId);
 
-            return Ok(new
+            var result = new CarApplicationDetailDto
             {
-                app.ApplyId,
-                app.UseStart,
-                app.UseEnd,
-                app.Origin,
-                app.Destination,
-                app.PassengerCount,
-                app.TripType,
-                app.SingleDistance,
-                app.RoundTripDistance,
-                app.Status,
-                app.ReasonType,
-                app.ApplyReason,
-                materialName = app.MaterialName,
+                ApplyId = app.ApplyId,
+                UseStart = app.UseStart,
+                UseEnd = app.UseEnd,
+                Origin = app.Origin,
+                Destination = app.Destination,
+                PassengerCount = app.PassengerCount,
+                TripType = app.TripType,
+                SingleDistance = app.SingleDistance,
+                RoundTripDistance = app.RoundTripDistance,
+                Status = app.Status,
+                ReasonType = app.ReasonType,
+                ApplyReason = app.ApplyReason,
+                MaterialName = app.MaterialName,
 
-                // 車輛/駕駛
-                driverName = app.Driver != null ? app.Driver.DriverName : null,
-                driverId = app.DriverId,
-                plateNo = app.Vehicle != null ? app.Vehicle.PlateNo : null,
-                capacity = app.Vehicle?.Capacity,
-                vehicleId = app.VehicleId,
+                DriverId = app.DriverId,
+                DriverName = app.Driver?.DriverName,
+                VehicleId = app.VehicleId,
+                PlateNo = app.Vehicle?.PlateNo,
+                Capacity = app.Vehicle?.Capacity,
 
-                // 🔑 申請者資料：只從 Applicants 取
-                applicant = applicant == null ? null : new
+                Applicant = applicant == null ? null : new ApplicantDto
                 {
-                    applicant.ApplicantId,
-                    applicant.Name,
-                    applicant.Dept,
-                    applicant.Email,
-                    applicant.Ext,
-                    applicant.Birth
+                    ApplicantId = applicant.ApplicantId,
+                    Name = applicant.Name,
+                    Dept = applicant.Dept,
+                    Email = applicant.Email,
+                    Ext = applicant.Ext,
+                    Birth = applicant.Birth
                 },
 
-                passengers
-            });
+                Passengers = passengers
+            };
 
+            return Ok(ApiResponse.Ok(result, "查詢成功"));
         }
         #endregion
 
@@ -518,244 +324,91 @@ namespace Cars.Controllers
 
             // 最後刪掉申請單
             _db.CarApplications.Remove(app);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
-            try
-            {
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    // 500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
-                return Ok(new { message = "刪除成功" });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = "刪除失敗", detail = ex.Message });
-            }
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
+
+            return Ok(ApiResponse.Ok<object>(null, "刪除成功"));
         }
         #endregion
 
 
         #region 更新審核狀態
-        public class StatusDto { public string? Status { get; set; } }
+        public class StatusDto
+        {
+            public string? Status { get; set; }
+        }
 
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusDto dto)
         {
             if (dto == null || string.IsNullOrWhiteSpace(dto.Status))
-                return BadRequest("Status 不可為空");
+                return BadRequest(ApiResponse.Fail<object>("Status 不可為空"));
 
             var app = await _db.CarApplications.FirstOrDefaultAsync(x => x.ApplyId == id);
-            if (app == null) return NotFound();
+            if (app == null)
+                return NotFound(ApiResponse.Fail<object>("找不到申請單"));
 
             var newStatus = dto.Status.Trim();
 
             if (newStatus == "完成審核")
             {
-                // 找這張申請單最新一筆派工（無論有沒有駕駛）
+                // 找最新派工單
                 var dispatch = await _db.Dispatches
                     .Where(d => d.ApplyId == app.ApplyId)
                     .OrderByDescending(d => d.DispatchId)
                     .FirstOrDefaultAsync();
 
-                // 如果有派工 & 已指派駕駛，就把駕駛/車輛帶進來
+                // 如果有派工且已有駕駛，帶入駕駛/車輛
                 if (dispatch != null && dispatch.DriverId != null)
                 {
                     app.DriverId = dispatch.DriverId;
                     app.VehicleId = dispatch.VehicleId;
                 }
 
-                // 直接更新狀態
                 app.Status = "完成審核";
 
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!;
 
-                return Ok(new
+                return Ok(ApiResponse.Ok(new
                 {
-                    message = "已完成審核" + (dispatch == null ? "（尚未派駕駛）" : ""),
                     status = app.Status,
                     driverId = app.DriverId,
                     vehicleId = app.VehicleId
-                });
+                }, "已完成審核" + (dispatch == null ? "（尚未派駕駛）" : "")));
             }
 
-            // 其他狀態直接更新
+            // 其他狀態
             app.Status = newStatus;
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            if (!ok2) return err2!;
 
-            return Ok(new { message = "狀態已更新", status = app.Status });
+            return Ok(ApiResponse.Ok(new { status = app.Status }, "狀態已更新"));
         }
         #endregion
 
-        #region 過濾可用車輛與司機
-        // 過濾可用車輛（排除 使用中 / 維修中 / 該時段已被派工）
-        [HttpGet("/api/vehicles/available")]
-        public async Task<IActionResult> GetAvailableVehicles(DateTime from, DateTime to, int? capacity = null)
-        {
-            if (from == default || to == default || to <= from)
-                return BadRequest("時間區間不正確");
 
-            var q = _db.Vehicles.AsQueryable();
+        #region 過濾可用車輛與司機 (可能用不到)
 
-            // 只要「可用」的車
-            q = q.Where(v => (v.Status ?? "") == "可用");
 
-            // 載客量限制
-            if (capacity.HasValue)
-                q = q.Where(v => v.Capacity >= capacity.Value);
-
-            //  避開該時段已被派工的車 (Dispatches)
-            q = q.Where(v => !_db.Dispatches.Any(d =>
-                d.VehicleId == v.VehicleId &&
-                from < d.EndTime &&
-                d.StartTime < to));
-
-            //  避開該時段已經有申請單的車 (CarApplications)
-            q = q.Where(v => !_db.CarApplications.Any(a =>
-                a.VehicleId == v.VehicleId &&
-                from < a.UseEnd &&
-                a.UseStart < to));
-
-            var list = await q
-                .OrderBy(v => v.PlateNo)
-                .Select(v => new {
-                    v.VehicleId,
-                    v.PlateNo,
-                    v.Brand,
-                    v.Model,
-                    v.Capacity,
-                    v.Status
-                })
-                .ToListAsync();
-
-            return Ok(list);
-        }
-        //過濾可用司機
-        [HttpGet("/api/drivers/available")]
-        public async Task<IActionResult> GetAvailableDrivers(DateTime useStart, DateTime useEnd)
-        {
-            var today = DateTime.Today;
-
-            // 找出在該時段已經有派工的駕駛
-            var busyDrivers = await _db.Dispatches
-                .Where(d => d.StartTime < useEnd && d.EndTime > useStart) // 有重疊的時間
-                .Select(d => d.DriverId)
-                .ToListAsync();
-
-            // 1. 正常有出勤的司機
-            var drivers = await _db.Drivers
-                .Where(d => _db.Schedules.Any(s =>
-                    s.DriverId == d.DriverId &&
-                    s.WorkDate == today &&
-                    s.IsPresent == true) &&
-                    !busyDrivers.Contains(d.DriverId))  // 過濾掉已派工
-                .Select(d => new {
-                    d.DriverId,
-                    d.DriverName
-                })
-                .ToListAsync();
-
-            // 2. 今日有效的代理人
-            var agents = await _db.DriverDelegations
-                .Include(d => d.Agent)
-                .Where(d => d.StartDate.Date <= today && today <= d.EndDate.Date &&
-                            !busyDrivers.Contains(d.AgentDriverId)) // 過濾掉已派工
-                .Select(d => new {
-                    DriverId = d.AgentDriverId,
-                    DriverName = d.Agent.DriverName + " (代)"
-                })
-                .ToListAsync();
-
-            // 3. 合併 + 去重
-            var all = drivers
-                .Concat(agents)
-                .GroupBy(x => x.DriverId)
-                .Select(g => g.First())
-                .ToList();
-
-            return Ok(all);
-        }
-        // CarApplicationsController 內
-        public class AssignDto { public int? DriverId { get; set; } public int? VehicleId { get; set; } }
-
+        //找出可用司機和車輛
         [HttpPatch("{id}/assignment")]
         public async Task<IActionResult> UpdateAssignment(int id, [FromBody] AssignDto dto)
         {
             var app = await _db.CarApplications.FindAsync(id);
-            if (app == null) return NotFound();
+            if (app == null) return NotFound(ApiResponse<string>.Fail("找不到申請單"));
 
-            var from = app.UseStart; var to = app.UseEnd;
+            var from = app.UseStart;
+            var to = app.UseEnd;
 
-            // 驗證車在區間內可用（避免撞單）
+            // 驗證車在區間內可用
             if (dto.VehicleId.HasValue)
             {
                 var vUsed = await _db.Dispatches.AnyAsync(d =>
                     d.VehicleId == dto.VehicleId &&
                     d.ApplyId != id &&
                     from < d.EndTime && d.StartTime < to);
-                if (vUsed) return BadRequest("該車於此時段已被派用");
+                if (vUsed) return BadRequest(ApiResponse<string>.Fail("該車於此時段已被派用"));
             }
 
             // 驗證駕駛在區間內可用
@@ -765,57 +418,42 @@ namespace Cars.Controllers
                     d.DriverId == dto.DriverId &&
                     d.ApplyId != id &&
                     from < d.EndTime && d.StartTime < to);
-                if (dUsed) return BadRequest("該駕駛於此時段已有派工");
+                if (dUsed) return BadRequest(ApiResponse<string>.Fail("該駕駛於此時段已有派工"));
             }
 
+            // 更新 Application
             app.DriverId = dto.DriverId;
             app.VehicleId = dto.VehicleId;
 
-            // 同步 Dispatch（有就改，沒有就建）
+            // 同步 Dispatch
             var disp = await _db.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == id);
             if (disp == null && (dto.DriverId.HasValue || dto.VehicleId.HasValue))
             {
                 _db.Dispatches.Add(new Cars.Models.Dispatch
                 {
                     ApplyId = id,
-                    DriverId = dto.DriverId ?? 0,
-                    VehicleId = dto.VehicleId ?? 0,
-                    DispatchStatus = "執勤中",
+                    DriverId = dto.DriverId,
+                    VehicleId = dto.VehicleId,
+                    DispatchStatus = "待指派", 
                     StartTime = from,
                     EndTime = to,
                     CreatedAt = DateTime.Now
                 });
             }
-            else if (disp != null)
+            else if (disp != null && (dto.DriverId.HasValue || dto.VehicleId.HasValue))
             {
-                if (dto.DriverId.HasValue) disp.DriverId = dto.DriverId.Value;
-                if (dto.VehicleId.HasValue) disp.VehicleId = dto.VehicleId.Value;
+                disp.DispatchStatus = "已派車";
             }
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
-            return Ok(new { message = "指派已更新" });
+
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
+
+            return Ok(ApiResponse<string>.Ok("指派已更新"));
         }
         #endregion
-
-        #region 審核後自動派車
+        [Obsolete]
+        #region 審核後自動派車 (暫不使用)
         //完成審核自動派車
         [HttpPost("applications/{applyId:int}/approve-assign")]
         public async Task<IActionResult> ApproveAndAssign(
@@ -843,25 +481,8 @@ namespace Cars.Controllers
             if (app != null)
             {
                 app.Status = "完成審核";
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    // 500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!;
             }
 
             return Ok(new
@@ -933,7 +554,10 @@ namespace Cars.Controllers
             return Ok(new { message = "更新成功" });
         }
         #endregion
+
+        #region LINE專用申請單
         //LINE專用新增申請單
+        [AllowAnonymous]
         [HttpPost("auto-create")]
         public async Task<IActionResult> AutoCreate([FromQuery] string lineUserId, [FromBody] CarApplication input)
         {
@@ -957,8 +581,8 @@ namespace Cars.Controllers
                 ApplyReason = input.ApplyReason ?? "",
                 Origin = input.Origin ?? "公司",
                 Destination = input.Destination ?? "",
-                UseStart = input.UseStart != default ? input.UseStart : DateTime.Now,
-                UseEnd = input.UseEnd != default ? input.UseEnd : DateTime.Now.AddMinutes(30),
+                UseStart = input.UseStart != default ? input.UseStart : DateTime.UtcNow,
+                UseEnd = input.UseEnd != default ? input.UseEnd : DateTime.UtcNow.AddMinutes(30),
                 TripType = input.TripType ?? "single",
                 ApplicantId = applicant.ApplicantId,
                 Status = "待審核",
@@ -969,11 +593,12 @@ namespace Cars.Controllers
             };
 
             _db.CarApplications.Add(app);
-            await _db.SaveChangesAsync();
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
 
-            return Ok(app);
+            return Ok(new { message = "新增成功", app.ApplyId });
         }
-
+        #endregion
 
 
 

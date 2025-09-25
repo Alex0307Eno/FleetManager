@@ -1,14 +1,11 @@
 ﻿using Cars.Data;
-using DocumentFormat.OpenXml.InkML;
+using Cars.Features.Vehicles;
+using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [Route("Vehicles")]
@@ -16,7 +13,13 @@ namespace Cars.Controllers
     public class VehiclesController : Controller
     {
         private readonly ApplicationDbContext _db;
-        public VehiclesController(ApplicationDbContext db) => _db = db;
+        private readonly VehicleService _vehicleService;
+
+        public VehiclesController(ApplicationDbContext db, VehicleService vehicleService) 
+        {
+            _db = db;
+            _vehicleService = vehicleService;
+        } 
 
        
         #region 行車歷程清單
@@ -158,6 +161,35 @@ namespace Cars.Controllers
         }
         #endregion
 
+        #region 查詢可用車輛
+        // 查詢可用車輛（排除 使用中 / 維修中 / 該時段已被派工）
+        [HttpGet("/api/vehicles-available")]
+        public async Task<IActionResult> GetAvailableVehicles(
+         [FromQuery] DateTime from,
+         [FromQuery] DateTime to,
+         [FromQuery] int? capacity = null)
+        {
+            if (from == default || to == default)
+                return BadRequest(ApiResponse.Fail<object>("請提供有效的時間區間"));
+
+            if (to <= from)
+                return BadRequest(ApiResponse.Fail<object>("結束時間必須晚於開始時間"));
+
+            var list = await _vehicleService.GetAvailableVehiclesAsync(from, to, capacity);
+
+            return Ok(ApiResponse.Ok(list, "可用車輛清單取得成功"));
+            #endregion
+
+        }
+            [HttpGet("max-capacity")]
+            public async Task<IActionResult> GetMaxCapacity([FromQuery] DateTime from, [FromQuery] DateTime to)
+            {
+                if (from == default || to == default || from >= to)
+                    return BadRequest(new { message = "時間參數錯誤" });
+
+                var max = await _vehicleService.GetMaxAvailableCapacityAsync(from, to);
+                return Ok(new { max });
+            }
         
     }
 }

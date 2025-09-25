@@ -1,13 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Cars.Data;
+using Cars.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Cars.Data;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Cars.Models;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     public class AccountController : Controller
@@ -16,7 +15,7 @@ namespace Cars.Controllers
         public AccountController(ApplicationDbContext db) { _db = db; }
 
 
-        #region 個人資料       
+        #region 個人資料 (暫不使用)      
         [HttpGet]
         public async Task<IActionResult> Profile()
         {

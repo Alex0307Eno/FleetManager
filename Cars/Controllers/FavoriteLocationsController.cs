@@ -1,13 +1,11 @@
-﻿// Controllers/FavoriteLocationsController.cs
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [ApiController]

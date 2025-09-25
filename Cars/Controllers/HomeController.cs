@@ -1,9 +1,7 @@
-using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [Authorize(Roles = "Admin")]

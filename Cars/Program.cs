@@ -1,4 +1,7 @@
 ﻿using Cars.Data;
+using Cars.Features.CarApplications;
+using Cars.Features.Drivers;
+using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -28,6 +31,9 @@ namespace Cars
 
             // 其他服務
             builder.Services.AddScoped<AutoDispatcher>();
+            builder.Services.AddScoped<VehicleService>();
+            builder.Services.AddScoped<DriverService>();
+            builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddHttpClient();
 
             // MVC

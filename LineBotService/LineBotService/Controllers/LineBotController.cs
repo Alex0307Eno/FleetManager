@@ -1,5 +1,7 @@
 ﻿using Cars.Data;
+using Cars.Features.CarApplications;
 using Cars.Models;
+using isRock.LIFF;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -32,8 +34,9 @@ namespace LineBotDemo.Controllers
         private readonly HttpClient _http; private readonly string _apiBaseUrl;
         private Bot _bot;              // 全域 Bot 物件
         private string? _replyToken;   // 全域 replyToken
+        private readonly CarApplicationService _carAppService;
 
-        public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService)
+        public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService, CarApplicationService carAppService)
         {
             _http = httpFactory.CreateClient();
             _token = config["LineBot:ChannelAccessToken"];
@@ -42,10 +45,12 @@ namespace LineBotDemo.Controllers
             _config = config;
             _richMenuService = richMenuService;
             _bot = new Bot(_token);
+            _carAppService = carAppService;
+
 
         }
         #region 暫存方法
-        
+
         // 對話進度暫存
         private static readonly ConcurrentDictionary<string, BookingState> _flow = new();
 
@@ -91,7 +96,7 @@ namespace LineBotDemo.Controllers
 
 
                     
-                    var dbUser = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
+                    var dbUser = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                     if (dbUser == null)
                     {
                         // Step 1: 使用者輸入「綁定帳號」
@@ -175,7 +180,7 @@ namespace LineBotDemo.Controllers
                     {
                         if (msg == "是")
                         {
-                            var user = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
+                            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                             if (user == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您目前沒有綁定任何帳號。");
@@ -213,18 +218,18 @@ namespace LineBotDemo.Controllers
                             if (!string.IsNullOrEmpty(userId))
                             {
                                 // 查詢使用者角色（先看 Users 表）
-                                var role = _db.Users
+                                var role = await _db.Users
                                     .Where(u => u.LineUserId == userId)
                                     .Select(u => u.Role)
-                                    .FirstOrDefault();
+                                    .FirstOrDefaultAsync();
 
                                 // 如果沒有，嘗試從 LineUsers 表查
                                 if (string.IsNullOrEmpty(role))
                                 {
-                                    role = _db.Users
+                                    role = await _db.Users
                                            .Where(u => u.LineUserId == userId)
                                            .Select(u => u.Role)
-                                           .FirstOrDefault();
+                                           .FirstOrDefaultAsync();
                                 }
 
                                 // 沒有角色 → 預設 Applicant
@@ -246,7 +251,7 @@ namespace LineBotDemo.Controllers
 
 
                         // 1. 確保 LineUsers
-                        var lineUser = _db.LineUsers.FirstOrDefault(x => x.LineUserId == uid);
+                        var lineUser = await _db.LineUsers.FirstOrDefaultAsync(x => x.LineUserId == uid);
                         if (lineUser == null)
                         {
                             lineUser = new LineUser
@@ -295,8 +300,8 @@ namespace LineBotDemo.Controllers
                         {
                             int.TryParse(kv.GetValueOrDefault("page"), out var page);
                             if (page <= 0) page = 1;
-                            var adminDept = await GetAdminDeptAsync(uid, _db);
-                            var bubbleJson = MessageBuilder.BuildPendingListBubble(1, 5, adminDept, _db);
+                            var apps = await _carAppService.GetAll(DateTime.Today, DateTime.Today.AddDays(7), null, User);
+                            var bubbleJson = MessageBuilder.BuildPendingListBubble(page, 5, apps);
                             if (bubbleJson != null)
                             {
                                 await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
@@ -305,7 +310,6 @@ namespace LineBotDemo.Controllers
                             {
                                 bot.ReplyMessage(replyToken, "目前沒有待審核的申請單。");
                             }
-                            bot.ReplyMessageWithJSON(replyToken, $"[{bubbleJson}]");
                             return Ok();
                         }
 
@@ -313,7 +317,7 @@ namespace LineBotDemo.Controllers
                         if (action == "reviewApprove")
                         {
                             int.TryParse(kv.GetValueOrDefault("applyId"), out var applyId);
-                            var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                             if (app == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單。");
@@ -323,7 +327,7 @@ namespace LineBotDemo.Controllers
                             app.Status = "審核通過(待指派)";
                             if (!TrySave(replyToken)) continue;
 
-                            var selectDriverBubble = BuildDriverSelectBubble(applyId, _db);
+                            var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, _db);
                             bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
                             return Ok();
                         }
@@ -332,7 +336,7 @@ namespace LineBotDemo.Controllers
                         if (action == "reviewReject")
                         {
                             int.TryParse(kv.GetValueOrDefault("applyId"), out var applyId);
-                            var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                             if (app == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
@@ -359,7 +363,7 @@ namespace LineBotDemo.Controllers
                             int.TryParse(kv.GetValueOrDefault("driverId"), out var driverId);
                             var driverName = kv.GetValueOrDefault("driverName");
 
-                            var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                             if (app == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
@@ -372,7 +376,7 @@ namespace LineBotDemo.Controllers
 
                             bot.ReplyMessage(replyToken, $"✅ 已選擇駕駛：{driverName}");
 
-                            var carBubble = BuildCarSelectBubble(applyId, _db);
+                            var carBubble = MessageBuilder.BuildCarSelectBubble(applyId, _db);
                             bot.PushMessageWithJSON(uid, $"[{carBubble}]");
                             return Ok();
                         }
@@ -390,16 +394,16 @@ namespace LineBotDemo.Controllers
                                 return Ok();
                             }
 
-                            var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                            var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                             if (app == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到對應申請單");
                                 return Ok();
                             }
 
-                            var dispatch = _db.Dispatches
+                            var dispatch = await _db.Dispatches
                                 .OrderByDescending(d => d.DispatchId)
-                                .FirstOrDefault(d => d.ApplyId == applyId);
+                                .FirstOrDefaultAsync(d => d.ApplyId == applyId);
 
                             if (dispatch == null)
                             {
@@ -439,7 +443,7 @@ namespace LineBotDemo.Controllers
 
                             bot.ReplyMessage(replyToken, $"✅ 已選擇車輛：{plateNo}");
 
-                            var doneBubble = BuildDoneBubble(driverState.SelectedDriverName, plateNo);
+                            var doneBubble = MessageBuilder.BuildDoneBubble(driverState.SelectedDriverName, plateNo);
                             bot.PushMessageWithJSON(uid, $"[{doneBubble}]");
 
                             if (_applyToApplicant.TryGetValue(app.ApplyId, out var applicantUid))
@@ -454,15 +458,15 @@ namespace LineBotDemo.Controllers
                             }
 
                             // 從資料庫找出對應駕駛的 LineUserId
-                            var driverLineId = (from d in _db.Drivers
+                            var driverLineId = await (from d in _db.Drivers
                                                 join u in _db.Users on d.UserId equals u.UserId
                                                 where d.DriverId == app.DriverId && u.LineUserId != null && u.LineUserId != ""
-                                                select u.LineUserId).FirstOrDefault();
+                                                select u.LineUserId).FirstOrDefaultAsync();
 
 
                             if (!string.IsNullOrEmpty(driverLineId))
                             {
-                                var notice = BuildDriverDispatchBubble(app, driverState.SelectedDriverName, plateNo, km, minutes);
+                                var notice = MessageBuilder.BuildDriverDispatchBubble(app, driverState.SelectedDriverName, plateNo, km, minutes);
                                 bot.PushMessageWithJSON(driverLineId, $"[{notice}]");
                             }
 
@@ -477,7 +481,7 @@ namespace LineBotDemo.Controllers
                     {
                         var state = _flow.GetOrAdd(uid, _ => new BookingState());
                         // 全域訊息安全檢查
-                        if (!IsValidUserText(msg) || ContainsSqlMeta(msg))
+                        if (!InputValidator.IsValidUserText(msg) || InputValidator.ContainsSqlMeta(msg))
                         {
                             bot.ReplyMessage(replyToken, "輸入格式不正確，請重新輸入。");
                             continue;
@@ -485,30 +489,37 @@ namespace LineBotDemo.Controllers
                         // 管理員：查看待審核清單
                         if (msg == "待審核")
                         {
-                            // 角色確認（以 Users.LineUserId + Role 判斷）
+                            // 角色確認
                             var isAdmin = _db.Users.Any(u => u.LineUserId == uid && (u.Role == "Admin" || u.Role == "Manager"));
                             if (!isAdmin)
                             {
                                 bot.ReplyMessage(replyToken, "您沒有權限查看待審核清單。");
                                 continue;
                             }
-                            var adminDept = await GetAdminDeptAsync(uid, _db);
-                            // 第 1 頁
-                            var bubbleJson = MessageBuilder.BuildPendingListBubble(1, 5, adminDept, _db);
-                            if (bubbleJson != null)
+
+                            // 查詢資料
+                            var apps = await _carAppService.GetAll(DateTime.Today, DateTime.Today.AddDays(7), null, User);
+
+                            // 第 1 頁（page 預設值）
+                            int page = 1;
+                            var bubbleJson = MessageBuilder.BuildPendingListBubble(page, 5, apps);
+
+                            if (!string.IsNullOrEmpty(bubbleJson))
                             {
                                 await BotJson.ReplyAsync(_token, replyToken, bubbleJson);
                             }
                             else
                             {
-                                bot.ReplyMessageWithJSON(replyToken, $"[{bubbleJson}]");
+                                bot.ReplyMessage(replyToken, "目前沒有待審核的申請單。");
                             }
+
                             continue;
                         }
+
                         if (msg == "我的行程")
                         {
                             // 1. 找到目前使用者
-                            var user = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
+                            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                             if (user == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到您的帳號，請先完成綁定。");
@@ -519,7 +530,7 @@ namespace LineBotDemo.Controllers
                             bool hasResult = false;
 
                             // ===== A. 申請人身份 =====
-                            var applicant = _db.Applicants.FirstOrDefault(a => a.UserId == user.UserId);
+                            var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
                             if (applicant != null)
                             {
                                 var apps = _db.CarApplications
@@ -540,7 +551,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             // ===== B. 司機身份 =====
-                            var driver = _db.Drivers.FirstOrDefault(d => d.UserId == user.UserId);
+                            var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId);
                             if (driver != null)
                             {
                                 var dispatches = _db.Dispatches
@@ -577,7 +588,7 @@ namespace LineBotDemo.Controllers
                         // Step 1: 開始預約
                         if (msg.Contains("預約車輛"))
                         {
-                            var role = GetUserRole(uid);
+                            var role = await GetUserRole(uid);
                             if (role == "Driver")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有申請派車的權限，請聯絡管理員開通帳號");
@@ -691,7 +702,7 @@ namespace LineBotDemo.Controllers
                             !msg.EndsWith("人") && msg != "確認" && msg != "取消")
                         {
                             string reason, err;
-                            if (!IsValidReason(msg, out reason, out err))
+                            if (!InputValidator.IsValidReason(msg, out reason, out err))
                             {
                                 // 不通過就擋下，不往下個步驟
                                 bot.ReplyMessage(replyToken, err + " 請重新輸入（範例：公務出差、會議接送、訪視、搬運…）");
@@ -731,7 +742,7 @@ namespace LineBotDemo.Controllers
                             string.IsNullOrEmpty(state.Origin) &&
                             msg != "確認" && msg != "取消")
                         {
-                            if (!IsValidLocation(msg))
+                            if (!InputValidator.IsValidLocation(msg))
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 地點格式不正確，請重新輸入（例如：台北市中正區…）");
                                 continue;
@@ -756,7 +767,7 @@ namespace LineBotDemo.Controllers
                             string.IsNullOrEmpty(state.Destination) &&
                             msg != "確認" && msg != "取消")
                         {
-                            if (!IsValidLocation(msg))
+                            if (!InputValidator.IsValidLocation(msg))
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 地點格式不正確，請重新輸入（例如：台北市中正區…）");
                                 continue;
@@ -782,11 +793,11 @@ namespace LineBotDemo.Controllers
                             state.TripType = (msg == "單程") ? "single" : "round";
 
                             // 確認卡片
-                            var safeReserveTime = Safe(state.ReserveTime);
-                            var safeReason = Safe(state.Reason);
+                            var safeReserveTime = SafeText(state.ReserveTime);
+                            var safeReason = SafeText(state.Reason);
                             var safePax = state.PassengerCount ?? 1;
-                            var safeOrigin = Safe(state.Origin);
-                            var safeDest = Safe(state.Destination);
+                            var safeOrigin = SafeText(state.Origin);
+                            var safeDest = SafeText(state.Destination);
                             string confirmBubble = MessageBuilder.BuildConfirmBubble(state);
                             bot.ReplyMessageWithJSON(replyToken, $"[{confirmBubble}]");
 
@@ -805,7 +816,7 @@ namespace LineBotDemo.Controllers
                         // Step 8: 確認 → 存DB & 通知管理員
                         if (msg == "確認")
                         {
-                            var role = GetUserRole(uid);
+                            var role = await GetUserRole(uid);
                             if (role != "Applicant" && role != "Admin")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有建立派車申請的權限");
@@ -842,7 +853,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             // 先找到 User
-                            var user = _db.Users.FirstOrDefault(u => u.LineUserId == uid);
+                            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                             if (user == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到您的帳號，請先完成綁定。");
@@ -850,7 +861,7 @@ namespace LineBotDemo.Controllers
                             }
 
                             // 再找到 Applicant
-                            var applicant = _db.Applicants.FirstOrDefault(a => a.UserId == user.UserId);
+                            var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
                             if (applicant == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到申請人資料。");
@@ -880,9 +891,9 @@ namespace LineBotDemo.Controllers
                                 PassengerCount = state.PassengerCount ?? 1,
                                 TripType = state.TripType ?? "single",
                                 SingleDistance = (decimal)km,
-                                SingleDuration = ToHourMinuteString(minutes),
+                                SingleDuration = MessageBuilder.ToHourMinuteString(minutes),
                                 RoundTripDistance = (decimal)(km * 2),
-                                RoundTripDuration = ToHourMinuteString(minutes * 2),
+                                RoundTripDuration = MessageBuilder.ToHourMinuteString(minutes * 2),
                             };
 
                             var jsonBody = JsonConvert.SerializeObject(appInput);
@@ -952,7 +963,7 @@ namespace LineBotDemo.Controllers
                                 .Select(u => u.LineUserId)
                                 .ToList();
 
-                            var adminFlex = BuildAdminFlexBubble(created);
+                            var adminFlex = MessageBuilder.BuildAdminFlexBubble(created);
                             foreach (var aid in adminIds)
                                 bot.PushMessageWithJSON(aid, "[" + adminFlex + "]");
 
@@ -964,7 +975,7 @@ namespace LineBotDemo.Controllers
                         // ================= 管理員審核 =================
                         if (msg.StartsWith("同意申請") || msg.StartsWith("拒絕申請"))
                         {
-                            var role = GetUserRole(uid);
+                            var role = await GetUserRole(uid);
                             if (role != "Admin" && role != "Manager")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有審核的權限");
@@ -978,7 +989,7 @@ namespace LineBotDemo.Controllers
                                     continue;
                                 }
 
-                                var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                                var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                                 if (app == null)
                                 {
                                     bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
@@ -986,7 +997,7 @@ namespace LineBotDemo.Controllers
                                 }
 
                                 // 顯示「選擇駕駛人」卡片
-                                var selectDriverBubble = BuildDriverSelectBubble(applyId, _db);
+                                var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, _db);
                                 bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
                                 continue;
                             }
@@ -999,7 +1010,7 @@ namespace LineBotDemo.Controllers
                                     continue;
                                 }
 
-                                var app = _db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+                                var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
                                 if (app == null)
                                 {
                                     bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
@@ -1030,7 +1041,7 @@ namespace LineBotDemo.Controllers
                                 }
 
                                 // 找到駕駛的資料
-                                var driver = _db.Drivers.FirstOrDefault(d => d.UserId == dbUser.UserId);
+                                var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == dbUser.UserId);
                                 if (driver == null)
                                 {
                                     bot.ReplyMessage(replyToken, "⚠️ 找不到您的駕駛資料");
@@ -1041,13 +1052,13 @@ namespace LineBotDemo.Controllers
                                 var now = DateTime.Now;
 
                                 // 找出今天最新一張派車單（狀態為「已派車」但未開始）
-                                var dispatch = _db.Dispatches
+                                var dispatch =  await _db.Dispatches
                                     .Where(d => d.DriverId == driver.DriverId &&
                                                 d.DispatchStatus == "已派車" &&
                                                 d.StartTime.HasValue &&
                                                 d.StartTime.Value.Date == today)
                                     .OrderByDescending(d => d.DispatchId)
-                                    .FirstOrDefault();
+                                    .FirstOrDefaultAsync();
 
                                 if (dispatch == null)
                                 {
@@ -1072,7 +1083,7 @@ namespace LineBotDemo.Controllers
                                     continue;
                                 }
 
-                                var driver = _db.Drivers.FirstOrDefault(d => d.UserId == dbUser.UserId);
+                                var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == dbUser.UserId);
                                 if (driver == null)
                                 {
                                     bot.ReplyMessage(replyToken, "⚠️ 找不到您的駕駛資料");
@@ -1082,10 +1093,10 @@ namespace LineBotDemo.Controllers
                                 var now = DateTime.Now;
 
                                 // 檢查是否有執行中的任務
-                                var running = _db.Dispatches
+                                var running = await _db.Dispatches
                                     .Where(d => d.DriverId == driver.DriverId && d.DispatchStatus == "執行中")
                                     .OrderByDescending(d => d.DispatchId)
-                                    .FirstOrDefault();
+                                    .FirstOrDefaultAsync();
 
                                 if (running != null)
                                 {
@@ -1099,10 +1110,10 @@ namespace LineBotDemo.Controllers
                                 }
 
                                 // 沒有執行中的 → 檢查有沒有待開始的任務
-                                var pending = _db.Dispatches
+                                var pending = await _db.Dispatches
                                     .Where(d => d.DriverId == driver.DriverId && d.DispatchStatus == "已派車" && !d.StartTime.HasValue)
                                     .OrderByDescending(d => d.DispatchId)
-                                    .FirstOrDefault();
+                                    .FirstOrDefaultAsync();
 
                                 if (pending == null)
                                 {
@@ -1165,9 +1176,9 @@ namespace LineBotDemo.Controllers
 
         #region 檢查當下使用者角色
         // 共用方法：檢查角色
-        private string GetUserRole(string lineUserId)
+        private async Task<string> GetUserRole(string lineUserId)
         {
-            var user = _db.Users.FirstOrDefault(u => u.LineUserId == lineUserId);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
             return user?.Role ?? "";
         }
         #endregion
@@ -1254,227 +1265,7 @@ namespace LineBotDemo.Controllers
 
        
 
-        #region 通知
-
-        //申請人通知卡片
-        private static string BuildAdminFlexBubble(CarApplication app) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""派車申請"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"",
-              ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},        
-                {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }}
-              ]
-            }},
-            ""footer"": {{
-              ""type"": ""box"",
-              ""layout"": ""horizontal"",
-              ""contents"": [
-                {{ ""type"": ""button"", ""style"": ""secondary"", ""action"": {{ ""type"": ""message"", ""label"": ""拒絕"", ""text"": ""拒絕申請 {app.ApplyId}"" }} }},
-                {{ ""type"": ""button"", ""style"": ""primary"",   ""action"": {{ ""type"": ""message"", ""label"": ""同意"", ""text"": ""同意申請 {app.ApplyId}"" }} }}
-              ]
-            }}
-          }}
-        }}";
-        //選擇司機卡片
-        private static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
-        {
-            var now = DateTime.Now;
-
-            var drivers = db.Drivers
-                .Where(d =>!d.IsAgent &&
-                    //沒有正在出勤
-                    !db.Dispatches.Any(dis =>
-                        dis.DriverId == d.DriverId &&
-                        dis.DispatchStatus == "已派車" &&
-                        dis.StartTime <= now &&
-                        dis.EndTime >= now)
-
-                  
-                       
-                )
-                .Select(d => new { d.DriverId, d.DriverName })
-                .Take(5)
-                .ToList();
-
-
-            var btns = string.Join(",\n        ", drivers.Select(d =>
-                $@"{{
-            ""type"": ""button"",
-            ""action"": {{
-                ""type"": ""postback"",
-                ""label"": ""{d.DriverName}"",
-                ""data"": ""action=assignDriver&applyId={applyId}&driverId={d.DriverId}&driverName={d.DriverName}""
-            }}
-        }}"));
-
-            return $@"
-                    {{
-                      ""type"": ""flex"",
-                      ""altText"": ""選擇駕駛人"",
-                      ""contents"": {{
-                        ""type"": ""bubble"",
-                        ""body"": {{
-                          ""type"": ""box"",
-                          ""layout"": ""vertical"",
-                          ""contents"": [
-                            {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                            {btns}
-                          ]
-                        }}
-                      }}
-                    }}";
-        }
-        //選擇車輛卡片
-        private static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
-        {
-            var now = DateTime.Now;
-
-            // 過濾掉正在使用中的車輛
-            var cars = db.Vehicles
-                .Where(v => v.Status == "可用"&&
-                !db.Dispatches.Any(dis =>
-                    dis.VehicleId == v.VehicleId &&
-                    dis.DispatchStatus == "已派車" &&
-                    dis.StartTime <= now &&
-                    dis.EndTime >= now))
-                .Select(v => new { v.VehicleId, v.PlateNo })
-                .Take(5)
-                .ToList();
-
-            var btns = string.Join(",\n        ", cars.Select(c =>
-                $@"{{
-            ""type"": ""button"",
-            ""action"": {{
-                ""type"": ""postback"",
-                ""label"": ""{c.PlateNo}"",
-                ""data"": ""action=assignVehicle&applyId={applyId}&vehicleId={c.VehicleId}&plateNo={c.PlateNo}""
-            }}
-        }}"));
-
-            return $@"
-                    {{
-                      ""type"": ""flex"",
-                      ""altText"": ""選擇車輛"",
-                      ""contents"": {{
-                        ""type"": ""bubble"",
-                        ""body"": {{
-                          ""type"": ""box"",
-                          ""layout"": ""vertical"",
-                          ""contents"": [
-                            {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                            {btns}
-                          ]
-                        }}
-                      }}
-                    }}";
-        }
-
-        //通知申請人已安排駕駛人員
-        private static string BuildDoneBubble(string driverName, string carNo) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""已安排駕駛人員"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"",
-              ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""已安排駕駛人員"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 使用車輛：{carNo}"" }}
-              ]
-            }}
-          }}
-        }}";
-
-        // 駕駛—派車通知
-        private static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes)
-        {
-            // 根據行程類型決定顯示距離/時間
-            bool isRound = app.TripType == "round";
-
-            double showKm = isRound ? km * 2 : km;
-            double showMinutes = isRound ? minutes * 2 : minutes;
-
-            string distanceText = $"■ 距離：約 {showKm:F1} 公里";
-            string durationText = $"■ 車程：約 {ToHourMinuteString(showMinutes)}";
-            var safeApplyFor = Safe(app.ApplyFor);
-            var safeOrigin = Safe(app.Origin);
-            var safeDest = Safe(app.Destination);
-            return $@"
-            {{
-              ""type"": ""flex"",
-              ""altText"": ""派車通知"",
-              ""contents"": {{
-                ""type"": ""bubble"",
-                ""body"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""contents"": [
-                    {{ ""type"": ""text"", ""text"": ""🚗 派車通知"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 任務單號：{app.ApplyId}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 預約時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor ?? "未知"}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 駕駛人：{driverName}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 車輛：{carNo}"" }},
-                    {{ ""type"": ""text"", ""text"": ""{distanceText}"" }},
-                    {{ ""type"": ""text"", ""text"": ""{durationText}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 上車地點：{app.Origin ?? "公司"}"" }},
-                    {{ ""type"": ""text"", ""text"": ""■ 前往地點：{app.Destination}"" }},
-                    {{ ""type"": ""separator"", ""margin"": ""md"" }},
-                    {{ ""type"": ""text"", ""text"": ""請即刻前往指定地點，若有其他問題請撥02-12345678，謝謝!"",
-                       ""wrap"": true, ""size"": ""sm"", ""color"": ""#555555"", ""margin"": ""md"" }}
-                  ]
-                }}
-              }}
-            }}";
-        }
-        // 駕駛—開始行程確認
-        private static string BuildStartedBubble(Dispatch d) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""行程已開始"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"", ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""行程已開始"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""出發時間：{DateTime.Now:HH:mm}"" }}
-              ]
-            }}
-          }}
-        }}";
-
-        // 駕駛—完成行程確認
-        private static string BuildFinishedBubble(Dispatch d) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""行程已完成"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"", ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""行程已完成"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""結束時間：{DateTime.Now:HH:mm}"" }}
-              ]
-            }}
-          }}
-        }}";
-        #endregion
+        
 
         #region 轉換工具
         // 解析申請單 ID
@@ -1484,114 +1275,17 @@ namespace LineBotDemo.Controllers
             var parts = msg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             return parts.Length >= 2 && int.TryParse(parts[^1], out id);
         }
-        // 公里轉文字
-        private static string ToHourMinuteString(double minutes)
-        {
-            int totalMinutes = (int)Math.Round(minutes);
-            int hours = totalMinutes / 60;
-            int mins = totalMinutes % 60;
+        
 
-            if (hours > 0)
-                return $"{hours} 小時 {mins} 分鐘";
-            else
-                return $"{mins} 分鐘";
+        // 轉為安全的字串（避免特殊字元導致 JSON 格式錯誤）
+        private static string SafeText(string? raw, string fallback = "未知")
+        {
+            return string.IsNullOrWhiteSpace(raw) ? fallback : raw;
         }
+
         #endregion
 
-        #region 阻擋惡意攻擊
-
-        // ====== 用車事由驗證 ======
-        private static bool IsValidReason(string input, out string normalized, out string err)
-        {
-            normalized = (input ?? "").Trim();
-            err = "";
-
-            // 長度：2~30
-            if (normalized.Length < 2 || normalized.Length > 30)
-            {
-                err = "⚠️ 用車事由需為 2–30 字。";
-                return false;
-            }
-
-            // 禁止網址/腳本片段
-            if (Regex.IsMatch(normalized, @"https?://|www\.|<script|</script|javascript:", RegexOptions.IgnoreCase))
-            {
-                err = "⚠️ 用車事由不得包含網址或腳本字樣。";
-                return false;
-            }
-
-            // 僅允許：中英數、空白，以及常見標點（含全形）
-            if (!Regex.IsMatch(normalized, @"^[\p{L}\p{N}\p{Zs}\-—–_,.:;!?\(\)\[\]{}，。；：「」『』！？、（）【】]+$"))
-            {
-                err = "⚠️ 僅允許中英數與常用標點符號。";
-                return false;
-            }
-
-            return true;
-        }
-        // ====== 地點驗證 ======
-        private static bool IsValidLocation(string input)
-        {
-            if (string.IsNullOrWhiteSpace(input)) return false;
-            if (input.Length < 3 || input.Length > 50) return false;
-
-            // 黑名單關鍵字
-            string[] badWords = { "select", "insert", "update", "delete", "drop", "truncate", "exec", "union",
-                          "<script", "javascript:", "--", ";--", "/*", "*/" };
-            var lower = input.ToLowerInvariant();
-            if (badWords.Any(w => lower.Contains(w))) return false;
-
-            // 全數字 / 全英文
-            if (Regex.IsMatch(input, @"^\d+$")) return false;
-            if (Regex.IsMatch(input, @"^[a-zA-Z]+$")) return false;
-
-            // 必須包含至少一個中文（避免純亂碼）
-            if (!Regex.IsMatch(input, @"\p{IsCJKUnifiedIdeographs}")) return false;
-
-            // 允許字元：中英數 + 空白 + 常見標點
-            if (!Regex.IsMatch(input, @"^[\p{L}\p{N}\p{Zs},，.。\-]+$"))
-                return false;
-
-            return true;
-        }
-
-
-        // 允許的文字（白名單）＋長度限制
-        private static bool IsValidUserText(string s, int maxLen = 300)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return false;
-            if (s.Length > maxLen) return false;
-
-            // 允許：中英數、空白、URL 可能用到的安全分隔（: / . - _），以及常見中/英標點（含全形）
-            var pattern = @"^[\p{L}\p{N}\p{Zs}\-—–_.,:;/\(\)\[\]{}，。；：「」『』！？、（）【】@#\+&]+$";
-            return Regex.IsMatch(s, pattern);
-        }
-
-
-        // 粗略攔截疑似 SQL 關鍵片段（第二道防線：記錄/阻擋）
-        private static bool ContainsSqlMeta(string s)
-        {
-            var lower = (s ?? "").ToLowerInvariant();
-
-            // 只攔明顯惡意（保留你原本的關鍵字，並避免把一般字誤殺）
-            string[] hits = { "--", ";--", "/*", "*/", " xp_", " drop ", " truncate ", " insert ", " delete ", " update ", " exec ", " sp_" };
-            foreach (var h in hits)
-            {
-                if (lower.Contains(h)) return true;
-            }
-            return false;
-        }
-
-        // 安全輸出到 JSON 文字（避免把使用者輸入直接插入 Flex JSON）
-        private static string Safe(string? raw)
-        {
-            // 轉為安全 JSON 字面值再去除最外層引號 → 適合放到 text 欄位
-            var json = Newtonsoft.Json.JsonConvert.ToString(raw ?? "");
-            return json.Length >= 2 ? json.Substring(1, json.Length - 2) : "";
-        }
-
-
-        #endregion
+        
         // ====== 共用方法：嘗試儲存資料庫 ======
         private bool TrySave(string replyToken, string userMsg = "⚠️ 資料儲存失敗，請稍後再試")
         {

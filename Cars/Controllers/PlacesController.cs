@@ -1,13 +1,11 @@
 ﻿using Cars.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [ApiController]
     [Route("api/[controller]")]

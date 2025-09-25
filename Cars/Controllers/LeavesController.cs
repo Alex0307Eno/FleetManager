@@ -1,14 +1,11 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Http;
-using System;
-using System.Linq; 
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [ApiController]
@@ -95,7 +92,8 @@ namespace Cars.Controllers
             _db.Leaves.Add(leave);
             try
             {
-                await _db.SaveChangesAsync();
+                var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err1!; 
                 return Ok(new { message = "✅ 請假申請成功", id = leave.LeaveId });
             }
             catch (DbUpdateException ex)
@@ -208,7 +206,8 @@ namespace Cars.Controllers
                     _db.DriverDelegations.Add(deleg);
                 }
 
-                await _db.SaveChangesAsync();
+                var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err1!; 
                 await tx.CommitAsync(); //  全部成功才提交
 
                 var msg = status == "核准"
@@ -241,8 +240,8 @@ namespace Cars.Controllers
             if (agent == null) return BadRequest("代理人不存在或不可被指派");
 
             leave.AgentDriverId = agentDriverId;
-            await _db.SaveChangesAsync();
-
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!;
             return Ok(new { message = $"代理人已指派為 {agent.DriverName}" });
         }
 

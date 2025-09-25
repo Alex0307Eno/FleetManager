@@ -1,17 +1,15 @@
 ﻿using Cars.Data;
+using Cars.Features.Drivers;
 using Cars.Models;
+using Cars.Services;
 using DocumentFormat.OpenXml.InkML;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [Route("Drivers")]
@@ -19,7 +17,12 @@ namespace Cars.Controllers
     public class DriversController : Controller
     {
         private readonly ApplicationDbContext _db;
-        public DriversController(ApplicationDbContext db) => _db = db;
+        private readonly DriverService _driverService;
+        public DriversController(ApplicationDbContext db, DriverService driverService) 
+        {
+            _db = db;
+            _driverService = driverService;
+        } 
 
 
         #region 班表管理頁
@@ -214,25 +217,8 @@ namespace Cars.Controllers
                     }
                 }
 
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    // 500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
+                var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err1!; 
                 await tx.CommitAsync();
 
                 return Json(changes);
@@ -302,25 +288,8 @@ namespace Cars.Controllers
                     });
                 }
 
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    // 500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
+                var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err1!; 
                 await tx.CommitAsync();
                 return NoContent();
             }
@@ -546,25 +515,8 @@ namespace Cars.Controllers
             }
 
             _db.Drivers.Add(input);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return RedirectToAction(nameof(Index));
         }
 
@@ -614,25 +566,8 @@ namespace Cars.Controllers
             entity.EmergencyContactName = input.EmergencyContactName;
             entity.EmergencyContactPhone = input.EmergencyContactPhone;
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!;
             return RedirectToAction(nameof(Index));
         }
 
@@ -692,9 +627,9 @@ namespace Cars.Controllers
 
         #endregion
 
-      
 
 
+        #region 代理人清單
         //代理人清單
         [HttpGet("Agents")]
         public async Task<IActionResult> GetAgents([FromQuery] int? leaveId = null)
@@ -730,7 +665,22 @@ namespace Cars.Controllers
 
             return Ok(list);
         }
+        #endregion
 
+        #region 查詢可用司機
+        //查詢可用司機
+        [HttpGet("/api/drivers-available")]
+        public async Task<IActionResult> GetAvailableDrivers(
+        [FromQuery] DateTime useStart,
+        [FromQuery] DateTime useEnd)
+        {
+            if (useStart == default || useEnd == default || useEnd <= useStart)
+                return BadRequest(ApiResponse.Fail<object>("時間區間不正確"));
 
+            var list = await _driverService.GetAvailableDriversAsync(useStart, useEnd);
+
+            return Ok(ApiResponse.Ok(list, "可用駕駛清單取得成功"));
+        }
+        #endregion
     }
 }

@@ -1,10 +1,11 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [ApiController]
@@ -66,25 +67,8 @@ namespace Cars.Controllers
             var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == vehicleId);
             if (v == null) return NotFound();
             v.Status = status?.Trim();
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return NoContent();
         }
         #endregion
@@ -149,25 +133,8 @@ namespace Cars.Controllers
                 Note = dto.Note
             };
             _db.VehicleMaintenances.Add(entity);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "新增成功", id = entity.VehicleMaintenanceId });
         }
         [HttpPut("{id:int}")]
@@ -186,25 +153,8 @@ namespace Cars.Controllers
             m.Vendor = body.Vendor;
             m.Note = body.Note;
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return NoContent();
         }
         // 刪除
@@ -214,25 +164,8 @@ namespace Cars.Controllers
             var one = await _db.VehicleMaintenances.FindAsync(id);
             if (one == null) return NotFound();
             _db.VehicleMaintenances.Remove(one);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "已刪除" });
         }
         // === 報修申請 DTO ===
@@ -278,25 +211,8 @@ namespace Cars.Controllers
             if (v != null)
                 v.Status = "維修中";
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "報修已送出", id = entity.RepairRequestId });
         }
         //更新維修
@@ -314,25 +230,8 @@ namespace Cars.Controllers
             repair.Note = dto.Note;
             // 保持原有的 Status，不要強制改
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "updated" });
         }
 
@@ -365,25 +264,8 @@ namespace Cars.Controllers
             if (record == null) return NotFound();
 
             _db.VehicleRepairs.Remove(record);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "報修紀錄已刪除", id });
         }
         //維修完成更改狀態
@@ -394,25 +276,8 @@ namespace Cars.Controllers
             if (repair == null) return NotFound();
 
             repair.Status = status;
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "status updated" });
         }
         #endregion
@@ -472,25 +337,8 @@ namespace Cars.Controllers
             };
 
             _db.VehicleInspections.Add(m);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { id = m.InspectionId });
         }
 
@@ -509,25 +357,8 @@ namespace Cars.Controllers
             m.OdometerKm = dto.OdometerKm;
             m.Notes = dto.Notes;
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "updated" });
         }
 
@@ -538,25 +369,8 @@ namespace Cars.Controllers
             var m = await _db.VehicleInspections.FindAsync(id);
             if (m == null) return NotFound();
             _db.VehicleInspections.Remove(m);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "deleted" });
         }
         #endregion
@@ -624,25 +438,8 @@ namespace Cars.Controllers
             };
 
             _db.VehicleViolations.Add(m);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { id = m.ViolationId });
         }
 
@@ -663,25 +460,8 @@ namespace Cars.Controllers
             m.PaidDate = dto.PaidDate;
             m.Notes = dto.Notes;
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "updated" });
         }
 
@@ -692,25 +472,8 @@ namespace Cars.Controllers
             var m = await _db.VehicleViolations.FindAsync(id);
             if (m == null) return NotFound();
             _db.VehicleViolations.Remove(m);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err1!; 
             return Ok(new { message = "deleted" });
         }
         #endregion

@@ -520,6 +520,15 @@
               }
               return '未知錯誤';
             }
+
+            function toLocalIso(dt) {
+              if (!dt) return "";
+              const d = new Date(dt);
+              if (isNaN(d)) return "";
+              const pad = n => String(n).padStart(2, "0");
+              return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            }
+
             // 把任意距離字串轉成 number（decimal）或 null
             function toDecimalOrNull(s) {
               if (s == null) return null;
@@ -622,21 +631,28 @@
 
                     async function checkCapacity() {
           if (!useStart.value || !useEnd.value) return;
-          try {
-            const res = await axios.get("/api/vehicles/max-capacity", {
-              params: { from: useStart.value, to: useEnd.value }
-            });
-            maxCapacity.value = res.data.max || 0;
-
-            if (passengers.value.length >= maxCapacity.value && maxCapacity.value > 0) 
-            {
-              capacityError.value = `⚠️ 目前最多只能載 ${maxCapacity.value} 人`;
-            } else {
-              capacityError.value = "";
+                 try {
+          const res = await axios.get("/api/vehicles/max-capacity", {
+            params: {
+              from: toLocalIso(useStart.value),
+              to:   toLocalIso(useEnd.value)
             }
-          } catch (err) {
-            console.error("❌ checkCapacity error", err);
+          });
+
+          // 兼容：後端如果還是回 {max: 8} 就用 data.max
+          // 如果已經改成 ApiResponse.Ok({max: 8}) 就用 data.data.max
+          const max = res.data?.data?.max ?? res.data?.max ?? 0;
+          maxCapacity.value = max;
+
+          if (passengers.value.length >= max && max > 0) {
+            capacityError.value = `⚠️ 目前最多只能載 ${max} 人`;
+          } else {
+            capacityError.value = "";
           }
+        } catch (err) {
+          console.error("❌ checkCapacity error", err);
+        }
+
         }
         //裝載物料
         const materialName = ref("");
@@ -672,7 +688,7 @@
                 const fromStr = useStart.value;             // datetime-local 是本地無 Z
                 const toStr   = toLocalNaive(useEnd.value); // 轉成本地無 Z
 
-                const res = await axios.get('/api/vehicles/available', {
+                const res = await axios.get('/api/vehicles-available', {
                   params: {
                     from: fromStr,
                     to:   toStr,
@@ -681,7 +697,7 @@
                   withCredentials: true
                 });
 
-                if (!res.data || res.data.length === 0) {
+                if (!res.data?.data || res.data?.data.length === 0) {
                   alert("⚠ 當下沒有可用車輛，請調整時間或人數");
                 }
 
@@ -954,7 +970,7 @@
               origin, destination, tripType, applicant,materialName,
 
               // 申請者下拉
-              applicants, selectedApplicantId, chosenName, loadApplicants,
+              applicants, selectedApplicantId, chosenName, loadApplicants,loadApplicant,
 
               // 車輛
               vehicles, availableVehicles, assign, loadVehicles,

@@ -1,13 +1,12 @@
 ﻿using Cars.Data;
+using Cars.Dtos;
+using Cars.Features.DashBoard;
 using Cars.Models;
-using Cars.Services;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [Authorize]
     [ApiController]
@@ -35,12 +34,14 @@ namespace Cars.Controllers
             var pendingReviewCount = await _db.CarApplications.CountAsync(a =>
                 a.Status == "待審核" || a.Status == "審核中");
 
-            return Ok(new
+            var result = new
             {
                 scheduleTodayCount,
                 uncompleteCount,
                 pendingReviewCount
-            });
+            };
+
+            return Ok(ApiResponse<object>.Ok(result, "儀表板卡片統計成功"));
         }
         #endregion
 
@@ -50,38 +51,44 @@ namespace Cars.Controllers
         public async Task<IActionResult> TodaySchedule()
         {
             var today = DateTime.Today;
-            var now = DateTime.Now;
 
             var list = await (
                 from s in _db.Schedules
                 where s.WorkDate == today
                 join d in _db.Drivers on s.DriverId equals d.DriverId
 
-                // 代理對應（同日有效）
+                // 左連代理
                 join dg0 in _db.DriverDelegations
-                     .Where(g => g.StartDate.Date <= today && today <= g.EndDate.Date)
+                     .Where(g => g.StartDate <= today && today <= g.EndDate)
                      on s.DriverId equals dg0.PrincipalDriverId into dgs
                 from dg in dgs.DefaultIfEmpty()
+
                 join agent0 in _db.Drivers on dg.AgentDriverId equals agent0.DriverId into ags
                 from agent in ags.DefaultIfEmpty()
 
-                    // 顯示駕駛：有代理就換代理人
+                    // 若請假且有代理，顯示代理；否則顯示原駕駛
                 let showDriverId = (dg != null && agent != null && s.IsPresent == false) ? agent.DriverId : d.DriverId
                 let showDriverName = (dg != null && agent != null && s.IsPresent == false) ? (agent.DriverName + " (代)") : d.DriverName
 
-                // 這裡改成展開所有今日派工，不要 FirstOrDefault()
+                // 展開今日該駕駛的所有派工（允許沒有派工）
                 from dis in _db.Dispatches
-                    .Where(x => x.DriverId == showDriverId && x.StartTime.HasValue && x.StartTime.Value.Date == today)
+                    .Where(x => x.DriverId == showDriverId
+                                && x.StartTime.HasValue
+                                && x.StartTime.Value.Year == today.Year
+                                && x.StartTime.Value.Month == today.Month
+                                && x.StartTime.Value.Day == today.Day)
                     .DefaultIfEmpty()
 
                 join a0 in _db.CarApplications on dis.ApplyId equals a0.ApplyId into aa
                 from a in aa.DefaultIfEmpty()
+
                 join v0 in _db.Vehicles on dis.VehicleId equals v0.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
+
                 join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
 
-                    // 排序：有任務就用 StartTime，否則用班別預設時間
+                    // 排序 key（不能用 ?.，用三元運算子）
                 let sortTime =
                     (dis != null && dis.StartTime.HasValue)
                         ? dis.StartTime.Value
@@ -92,238 +99,137 @@ namespace Cars.Controllers
 
                 orderby sortTime, (dis != null ? dis.DispatchId : int.MaxValue)
 
-                select new
+                select new TodayScheduleDto
                 {
-                    scheduleId = s.ScheduleId,
-                    shift = s.Shift,
-                    driverId = showDriverId,
-                    driverName = showDriverName,
-                    hasDispatch = dis != null,
-                    startTime = dis != null ? dis.StartTime : null,
-                    endTime = dis != null ? dis.EndTime : null,
-                    route = (a != null ? ((a.Origin ?? "") + "-" + (a.Destination ?? "")) : ""),
-                    applicantName = ap != null ? ap.Name : null,
-                    applicantDept = ap != null ? ap.Dept : null,
-                    passengerCount = a != null ? a.PassengerCount : 0,
-                    plateNo = v != null ? v.PlateNo : null,
-                    tripDistance = (a != null
-                    ? (a.TripType == "單程" ? (a.SingleDistance ?? 0) : (a.RoundTripDistance ?? 0))
-                    : 0),
-                    attendance = s.IsPresent ? "正常" : "請假"   
+                    ScheduleId = s.ScheduleId,
+                    Shift = s.Shift,
+                    DriverId = showDriverId,
+                    DriverName = showDriverName,
+                    HasDispatch = (dis != null),
+                    StartTime = (dis != null ? dis.StartTime : (DateTime?)null),
+                    EndTime = (dis != null ? dis.EndTime : (DateTime?)null),
+                    Route = (a != null ? ((a.Origin ?? "") + "-" + (a.Destination ?? "")) : ""),
+                    ApplicantName = (ap != null ? ap.Name : null),
+                    ApplicantDept = (ap != null ? ap.Dept : null),
+                    PassengerCount = (a != null ? a.PassengerCount : 0),
+                    PlateNo = (v != null ? v.PlateNo : null),
+                    TripDistance = (a != null
+                                      ? (a.TripType == "單程"
+                                          ? (a.SingleDistance ?? 0)
+                                          : (a.RoundTripDistance ?? 0))
+                                      : 0),
+                    Attendance = (s.IsPresent ? "正常" : "請假")
                 }
             ).ToListAsync();
 
-            return Ok(list);
+            return Ok(ApiResponse<List<TodayScheduleDto>>.Ok(list, "今日班表查詢成功"));
         }
+
         #endregion
 
         #region 駕駛目前狀態
         //駕駛目前狀態
         [HttpGet("drivers/today-status")]
-        public async Task<IActionResult> DriversTodayStatus()
+        public async Task<ActionResult<ApiResponse<List<DriverStatusDto>>>> DriversTodayStatus()
+
         {
             var today = DateTime.Today;
             var now = DateTime.Now;
 
-            // 1) 司機即時狀態
-            var drivers = await _db.Drivers
-                .Select(d => new
-                {
-                    driverId = d.DriverId,
-                    driverName = d.DriverName,
-                    shift = _db.Schedules.Where(s => s.DriverId == d.DriverId && s.WorkDate == today)
-                                         .Select(s => s.Shift).FirstOrDefault(),
-                    isPresent = _db.Schedules.Any(s => s.DriverId == d.DriverId &&
-                                                       s.WorkDate == today &&
-                                                       s.IsPresent == true),
-                    isOnDuty = _db.Dispatches.Any(dis => dis.DriverId == d.DriverId && 
-                                     dis.DispatchStatus == "已派車"&&
-                                     dis.StartTime.HasValue &&
-                                     dis.StartTime.Value <= now &&
-                                     (!dis.EndTime.HasValue || dis.EndTime.Value >= now)),
-
-                    plateNo = (from dis in _db.Dispatches
-                               where dis.DriverId == d.DriverId &&
-                                     dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                     dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                               join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
-                               select v.PlateNo).FirstOrDefault(),
-                    applicantDept = (from dis in _db.Dispatches
-                                     where dis.DriverId == d.DriverId &&
-                                           dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                           dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                                     join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                                     join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
-                                     select ap.Dept).FirstOrDefault(),
-                    applicantName = (from dis in _db.Dispatches
-                                     where dis.DriverId == d.DriverId &&
-                                           dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                           dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                                     join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                                     join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
-                                     select ap.Name).FirstOrDefault(),
-                    passengerCount = (from dis in _db.Dispatches
-                                      where dis.DriverId == d.DriverId &&
-                                            dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                            dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                                      join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
-                                      select a.PassengerCount).FirstOrDefault(),
-                    startTime = (from dis in _db.Dispatches
-                                 where dis.DriverId == d.DriverId &&
-                                       dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                       dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                                 select dis.StartTime).FirstOrDefault(),
-                    endTime = (from dis in _db.Dispatches
-                               where dis.DriverId == d.DriverId &&
-                                     dis.StartTime.HasValue && dis.EndTime.HasValue &&
-                                     dis.StartTime.Value <= now && dis.EndTime.Value >= now
-                               select dis.EndTime).FirstOrDefault(),
-                    lastLongEnd = _db.Dispatches
-                    .Where(x => x.DriverId == d.DriverId
-                             && x.IsLongTrip
-                             && x.EndTime.HasValue
-                             && x.EndTime.Value.Date == today
-                             && x.EndTime.Value <= now)  // 只取已經結束的
-                    .OrderByDescending(x => x.EndTime)
-                    .Select(x => x.EndTime)
-                    .FirstOrDefault(),
-
-                    isAgent = d.IsAgent
-                })
-                .ToListAsync();
-
-            // 2) 代理映射（保留你原本的「同一被代理人取最新」）
-            var delegs = await (
-                from dg in _db.DriverDelegations.AsNoTracking()
-                where dg.StartDate.Date <= today && today <= dg.EndDate.Date
-                join agent in _db.Drivers on dg.AgentDriverId equals agent.DriverId
+            // === Step 1. 把每個駕駛 + 今天的班別 + 是否出勤查出來 ===
+            var baseDrivers = await (
+                from d in _db.Drivers.Where(d => d.IsAgent == false)
+                join s in _db.Schedules.Where(s => s.WorkDate == today) on d.DriverId equals s.DriverId into sg
+                from s in sg.DefaultIfEmpty()
                 select new
                 {
-                    dg.PrincipalDriverId,
-                    AgentDriverId = agent.DriverId,
-                    AgentName = agent.DriverName,
-                    agent.IsAgent,
-                    dg.CreatedAt
+                    d.DriverId,
+                    d.DriverName,
+                    Shift = s != null ? s.Shift : null,
+                    IsPresent = s != null && s.IsPresent
                 }
             ).ToListAsync();
 
+            // === Step 2. 查出每個駕駛目前的派工（正在執勤的那張單） ===
+            var dispatchesNow = await (
+                from dis in _db.Dispatches
+                where dis.StartTime.HasValue && dis.StartTime.Value <= now &&
+                      (!dis.EndTime.HasValue || dis.EndTime.Value >= now)
+                join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
+                join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
+                from v in vv.DefaultIfEmpty()
+                select new
+                {
+                    dis.DriverId,
+                    dis.StartTime,
+                    dis.EndTime,
+                    PlateNo = v.PlateNo,
+                    ap.Dept,
+                    ap.Name,
+                    a.PassengerCount
+                }
+            ).ToListAsync();
+
+            // Step 2: 改成 group，避免 DriverId 為 null 時爆掉
+            var dispatchByDriver = dispatchesNow
+                .Where(x => x.DriverId.HasValue) // 排除沒有 DriverId 的派工
+                .GroupBy(x => x.DriverId.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // === Step 3. 查代理人對應 ===
+            var delegs = await (
+                from dg in _db.DriverDelegations
+                where dg.StartDate.Date <= today && today <= dg.EndDate.Date
+                join agent in _db.Drivers on dg.AgentDriverId equals agent.DriverId
+                select new { dg.PrincipalDriverId, Agent = agent, dg.CreatedAt }
+            ).ToListAsync();
+
             var delegMap = delegs
-                .Where(x => x.IsAgent)
                 .GroupBy(x => x.PrincipalDriverId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First());
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First().Agent);
 
-            // 找出今天缺勤的被代理者
-            var absentPrincipals = await _db.Schedules
-                .Where(s => s.WorkDate == today && s.IsPresent == false)
-                .Select(s => s.DriverId)
-                .Distinct()
-                .ToListAsync();
-
-            // 今天「真的在頂替」的代理人id集合
-            var coveringAgentIds = delegMap
-                .Where(kv => absentPrincipals.Contains(kv.Key))
-                .Select(kv => kv.Value.AgentDriverId)
-                .ToHashSet();
-
-            // 建字典方便查代理人的即時資料
-            var byId = drivers.ToDictionary(x => x.driverId, x => x);
-
-            // 3) 組結果：缺勤的「被代理者」→ 用代理人的即時資料；避免重複顯示代理人
-            var result = new List<object>();
-            var usedAgents = new HashSet<int>();
-
-            foreach (var d in drivers)
+            // === Step 4. 組合結果 ===
+            var result = new List<DriverStatusDto>();
+            foreach (var d in baseDrivers)
             {
-                // 若此人是「被代理者」且缺勤，則用代理人取代顯示
-                if (!d.isPresent && delegMap.TryGetValue(d.driverId, out var proxy) && byId.TryGetValue(proxy.AgentDriverId, out var agentInfo))
+                bool isAgenting = false;
+                var driverId = d.DriverId;
+                var driverName = d.DriverName;
+
+                // 如果被代理，換成代理人
+                if (!d.IsPresent && delegMap.TryGetValue(d.DriverId, out var proxyAgent))
                 {
-                    // 判斷代理人的休息狀態（沿用你原本邏輯）
-                    bool isResting = false;
-                    DateTime? restUntil = null;
-                    int? restRemainMinutes = null;
-
-                    if (agentInfo.lastLongEnd.HasValue)
-                    {
-                        var until = agentInfo.lastLongEnd.Value.AddHours(1);
-                        if (now < until)
-                        {
-                            isResting = true;
-                            restUntil = until;
-                            restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
-                        }
-                    }
-
-                    var stateText = agentInfo.isOnDuty ? "執勤中" : (isResting ? "休息中" : "待命中");
-
-                    result.Add(new
-                    {
-                        driverId = agentInfo.driverId,
-                        driverName = $"{proxy.AgentName}(代)",
-                        shift = d.shift, // 用被代理者的班別呈現
-                        plateNo = agentInfo.plateNo,
-                        applicantDept = agentInfo.applicantDept,
-                        applicantName = agentInfo.applicantName,
-                        passengerCount = agentInfo.passengerCount,
-                        startTime = agentInfo.startTime,
-                        endTime = agentInfo.endTime,
-                        stateText,
-                        restUntil,
-                        restRemainMinutes,
-                        attendance = $"請假({d.driverName})"
-                    });
-
-                    usedAgents.Add(agentInfo.driverId);
-                    continue; 
-                }
-                if (d.isAgent && !d.isOnDuty && !coveringAgentIds.Contains(d.driverId))
-                    continue;
-
-                // 否則原樣顯示當事人（避免把已用過的代理人再顯示一次）
-                if (usedAgents.Contains(d.driverId)) continue;
-
-                bool isResting2 = false;
-                DateTime? restUntil2 = null;
-                int? restRemainMinutes2 = null;
-
-                if (d.lastLongEnd.HasValue)
-                {
-                    var until2 = d.lastLongEnd.Value.AddHours(1);
-                    if (now < until2)
-                    {
-                        isResting2 = true;
-                        restUntil2 = until2;
-                        restRemainMinutes2 = (int)Math.Ceiling((until2 - now).TotalMinutes);
-                    }
+                    isAgenting = true;
+                    driverId = proxyAgent.DriverId;
+                    driverName = $"{proxyAgent.DriverName}(代)";
                 }
 
-                var stateText2 = d.isOnDuty ? "執勤中" : (isResting2 ? "休息中" : "待命中");
-                var attendance2 = d.isPresent ? "正常" : "請假";
+                var dispatch = dispatchByDriver.ContainsKey(driverId) ? dispatchByDriver[driverId] : null;
 
-                result.Add(new
+                result.Add(new DriverStatusDto
                 {
-                    d.driverId,
-                    d.driverName,
-                    d.shift,
-                    d.plateNo,
-                    d.applicantDept,
-                    d.applicantName,
-                    d.passengerCount,
-                    d.startTime,
-                    d.endTime,
-                    stateText = stateText2,
-                    restUntil = restUntil2,
-                    restRemainMinutes = restRemainMinutes2,
-                    attendance = attendance2
+                    DriverId = driverId,
+                    DriverName = driverName ?? "-",
+                    Shift = d.Shift,
+                    PlateNo = dispatch?.PlateNo,
+                    ApplicantDept = dispatch?.Dept,
+                    ApplicantName = dispatch?.Name,
+                    PassengerCount = dispatch?.PassengerCount,
+                    StartTime = dispatch?.StartTime,
+                    EndTime = dispatch?.EndTime,
+                    StateText = dispatch != null ? "執勤中" : "待命中",
+                    Attendance = isAgenting ? $"請假({d.DriverName ?? "-"})" : (d.IsPresent ? "正常" : "請假")
                 });
             }
 
-            return Ok(result);
 
+            return Ok(ApiResponse<List<DriverStatusDto>>.Ok(result, "今日駕駛狀態查詢成功"));
         }
 
         //駕駛目前狀態(休息中)
         [HttpGet("vehicles/today-status")]
-        public async Task<IActionResult> VehiclesTodayStatus()
+        public async Task<ActionResult<ApiResponse<List<DriverBreakingStatusDto>>>> DriverBreakingStatus()
         {
             var now = DateTime.Now;
 
@@ -333,10 +239,8 @@ namespace Cars.Controllers
                     v.VehicleId,
                     v.PlateNo,
                     v.Status, // 原車況（可用/維修中…）
-
-                    // 最近一筆派工（不限今日）：拿來判斷是否剛從長差回來
                     last = _db.Dispatches
-                        .Where(d => d.VehicleId == v.VehicleId && d.EndTime != null)
+                        .Where(d => d.VehicleId == v.VehicleId && d.EndTime.HasValue)
                         .OrderByDescending(d => d.EndTime)
                         .Select(d => new { d.EndTime, d.IsLongTrip })
                         .FirstOrDefault()
@@ -345,7 +249,6 @@ namespace Cars.Controllers
 
             var result = list.Select(x =>
             {
-                var vehicleState = x.Status; // 仍保留原車況
                 bool isResting = false;
                 DateTime? restUntil = null;
                 int? restRemainMinutes = null;
@@ -361,28 +264,27 @@ namespace Cars.Controllers
                     }
                 }
 
-                // 顯示專用狀態字（不覆蓋原車況）：休息中 / 執勤中 / 待命中
                 var uiState = isResting ? "休息中" : "待命中";
 
-                return new
+                return new DriverBreakingStatusDto
                 {
-                    x.VehicleId,
-                    x.PlateNo,
-                    vehicleState = x.Status, // 原系統車況
-                    uiState,                 // 儀表板顯示用狀態
-                    restUntil,
-                    restRemainMinutes
+                    VehicleId = x.VehicleId,
+                    PlateNo = x.PlateNo,
+                    VehicleState = x.Status,
+                    UiState = uiState,
+                    RestUntil = restUntil,
+                    RestRemainMinutes = restRemainMinutes
                 };
-            });
+            }).ToList();
 
-            return Ok(result);
+            return Ok(ApiResponse<List<DriverBreakingStatusDto>>.Ok(result, "駕駛休息中狀態查詢成功"));
         }
         #endregion
 
         #region 今日未完成任務
         //  未完成派工
         [HttpGet("dispatch/uncomplete")]
-        public async Task<IActionResult> Uncomplete()
+        public async Task<ActionResult<ApiResponse<List<UncompleteDispatchDto>>>> Uncomplete()
         {
             var today = DateTime.Today;
 
@@ -395,12 +297,10 @@ namespace Cars.Controllers
                 from drv in drvj.DefaultIfEmpty()
                 join v in _db.Vehicles on d.VehicleId equals v.VehicleId into vj
                 from v in vj.DefaultIfEmpty()
-                where (d.DispatchStatus != "已完成"
-                      || d.DriverId == null
-                      || d.VehicleId == null
-                      || d.DispatchStatus == "待派車")
-                     && a.UseStart.Date == today   
-                     && a.UseEnd >= DateTime.Now   
+                where a.UseStart.Date == today
+                     && a.UseEnd >= DateTime.Now
+                     && (d.DispatchStatus != "已完成" || d.DriverId == null || d.VehicleId == null)
+
 
                 orderby a.UseStart,
                 a.UseEnd,             
@@ -426,37 +326,30 @@ namespace Cars.Controllers
                 })
                 .ToListAsync();
 
-            var data = raw.Select(x => new
-            {
-                useDate = x.UseStart.ToString("yyyy-MM-dd"),
-                useTime = $"{x.UseStart:HH:mm}-{x.UseEnd:HH:mm}",
-                route = x.Route,
-                applyReason = x.ApplyReason,
-                applicantName = x.ApplicantName,
-                passengerCount = x.PassengerCount,
+            var data = raw.Select(x => new UncompleteDispatchDto(
+                x.UseStart.ToString("yyyy-MM-dd"),
+                $"{x.UseStart:HH:mm}-{x.UseEnd:HH:mm}",
+                x.Route,
+                x.ApplyReason,
+                x.ApplicantName,
+                x.PassengerCount,
+                FormatDistance(x.TripType, x.SingleDistance, x.RoundTripDistance),
+                FormatDuration(x.TripType, x.SingleDuration, x.RoundTripDuration),
+                x.Status,
+                x.DispatchStatus,
+                x.DriverName,
+                x.PlateNo
+            )).ToList();
 
-                tripDistance = x.TripType == "單程"
-                ? (x.SingleDistance.HasValue ? x.SingleDistance.Value + " 公里" : "")
-                : (x.RoundTripDistance.HasValue ? x.RoundTripDistance.Value + " 公里" : ""),
 
-                tripDuration = x.TripType == "單程"
-                    ? (!string.IsNullOrEmpty(x.SingleDuration) ? x.SingleDuration + " 分鐘" : "")
-                    : (!string.IsNullOrEmpty(x.RoundTripDuration) ? x.RoundTripDuration + " 分鐘" : ""),
-
-                status = x.Status,
-                dispatchStatus = x.DispatchStatus,
-                driverName = x.DriverName,
-                plateNo = x.PlateNo
-            });
-
-            return Ok(data);
+            return ApiResponse<List<UncompleteDispatchDto>>.Ok(data);
         }
         #endregion
 
         #region 今日待審核申請
         //  待審核申請
         [HttpGet("applications/pending")]
-        public async Task<IActionResult> PendingApps()
+        public async Task<ActionResult<ApiResponse<List<PendingAppDto>>>> PendingApps()
         {
             var today = DateTime.Today;
 
@@ -478,7 +371,6 @@ namespace Cars.Controllers
                     ApplicantName = ap != null ? ap.Name : null,   
                     a.PassengerCount,
                     a.TripType,
-
                     a.VehicleId,
                     a.SingleDistance,
                     a.RoundTripDistance,
@@ -488,29 +380,37 @@ namespace Cars.Controllers
                 }
             ).ToListAsync();
 
-            var data = raw.Select(a => new
-            {
-                applyId = a.ApplyId,
-                useDate = a.UseStart.ToString("yyyy-MM-dd"),
-                useTime = $"{a.UseStart:HH:mm}-{a.UseEnd:HH:mm}",
-                route = (a.Origin ?? "") + "-" + (a.Destination ?? ""),
-                applyReason = a.ApplyReason,
-                applicantName = a.ApplicantName,
-                passengerCount = a.PassengerCount,
+            var data = raw.Select(a => new PendingAppDto(
+                                  a.ApplyId,
+                                  a.UseStart.ToString("yyyy-MM-dd"),
+                                  $"{a.UseStart:HH:mm}-{a.UseEnd:HH:mm}",
+                                  (a.Origin ?? "") + "-" + (a.Destination ?? ""),
+                                  a.ApplyReason,
+                                  a.ApplicantName,
+                                  a.PassengerCount,
+                                  FormatDistance(a.TripType, a.SingleDistance, a.RoundTripDistance),
+                                  FormatDuration(a.TripType, a.SingleDuration, a.RoundTripDuration),
+                                  a.Status
+                              )).ToList();
 
-                tripDistance = a.TripType == "單程"
-                ? (a.SingleDistance.HasValue ? a.SingleDistance.Value + " 公里" : "")
-                : (a.RoundTripDistance.HasValue ? a.RoundTripDistance.Value + " 公里" : ""),
-
-                tripDuration = a.TripType == "單程"
-                    ? (!string.IsNullOrEmpty(a.SingleDuration) ? a.SingleDuration + " 分鐘" : "")
-                    : (!string.IsNullOrEmpty(a.RoundTripDuration) ? a.RoundTripDuration + " 分鐘" : ""),
-
-                status = a.Status
-            });
-
-            return Ok(data);
+            return ApiResponse<List<PendingAppDto>>.Ok(data);
             #endregion
+        }
+
+        /// <summary>依照單程/來回，格式化距離</summary>
+        private static string FormatDistance(string tripType, decimal? single, decimal? round)
+        {
+            return tripType == "單程"
+                ? (single.HasValue ? $"{single.Value} 公里" : "")
+                : (round.HasValue ? $"{round.Value} 公里" : "");
+        }
+
+        /// <summary>依照單程/來回，格式化時間</summary>
+        private static string FormatDuration(string tripType, string? single, string? round)
+        {
+            return tripType == "單程"
+                ? (!string.IsNullOrEmpty(single) ? $"{single} 分鐘" : "")
+                : (!string.IsNullOrEmpty(round) ? $"{round} 分鐘" : "");
         }
     }
 }

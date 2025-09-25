@@ -1,13 +1,7 @@
-﻿using Cars.Models;
-using Cars.Services;
-using Microsoft.AspNetCore.Authorization;
+﻿using Cars.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Newtonsoft.Json.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [ApiController]
     [Route("api/[controller]")]

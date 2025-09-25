@@ -1,8 +1,7 @@
 ﻿using Cars.Data;
 using Microsoft.AspNetCore.Mvc;
-using System.Linq;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [ApiController]
     [Route("api/[controller]")]

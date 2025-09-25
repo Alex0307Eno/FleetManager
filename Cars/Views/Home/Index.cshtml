@@ -591,7 +591,7 @@
         };
 
               // ===== 資料載入 =====
-              async function get(url){ const res = await axios.get(url); return res.data; }
+              async function get(url){ const res = await axios.get(url); return res.data.data; }
               async function loadAll(){
                 try{
                   const [s,u,p,ds] = await Promise.all([
@@ -776,7 +776,7 @@
                 hasMapsKey, myLoc, locating, locError,
                 // 地圖卡片
                 driverCards,
-                // 左下角：駕駛狀態（新增）
+                // 左下角：駕駛狀態
                 driverStatus, openFleetStatus
               };
             }

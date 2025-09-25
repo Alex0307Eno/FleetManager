@@ -281,7 +281,7 @@
           params.q = filters.value.q.trim();
         }
             const res = await axios.get('/api/carApplications', { params });
-            const arr = Array.isArray(res.data) ? res.data : [];
+            const arr = Array.isArray(res.data?.data) ? res.data.data : [];
             rows.value = arr.map(shapeRow);
             console.log("API回傳", res.data);
 
@@ -417,7 +417,7 @@
         const viewRow = async (r) => {
         try {
         const res = await axios.get(`/api/carApplications/${r.applyId}`);
-        viewing.value = res.data; // { app, passengers }
+        viewing.value = res.data?.data || null;
         } catch (err) {
         alert('讀取失敗');
         }
@@ -443,23 +443,23 @@
             });
         
             // 若改為「完成審核」→ 立刻自動派車
-            if (newStatus.value === '完成審核') {
-              const params = {
-                passengerCount: editing.value.passengerCount ?? 0
-              };
-              try {
-                const res2 = await axios.post(
-                  `/api/carApplications/applications/${editing.value.applyId}/approve-assign`,
-                  null,
-                  { params }
-                );
-                alert(res2.data?.message || '審核完成並已自動派車');
-              } catch (err) {
-                // 自動派車失敗時回報，但狀態仍已更新成完成審核，管理員可再重試或改派
-                const msg = err?.response?.data?.message || '自動派車失敗，請稍後再試或改派車輛';
-                alert(`❌ ${msg}`);
-              }
-            }
+            // if (newStatus.value === '完成審核') {
+            //   const params = {
+            //     passengerCount: editing.value.passengerCount ?? 0
+            //   };
+            //   try {
+            //     const res2 = await axios.post(
+            //       `/api/carApplications/${editing.value.applyId}/approve-assign`,
+            //       null,
+            //       { params }
+            //     );
+            //     alert(res2.data?.message || '審核完成並已自動派車');
+            //   } catch (err) {
+            //     自動派車失敗時回報，但狀態仍已更新成完成審核，管理員可再重試或改派
+            //     const msg = err?.response?.data?.message || '自動派車失敗，請稍後再試或改派車輛';
+            //     alert(`❌ ${msg}`);
+            //   }
+            // }
         
             editing.value = null;
             await loadData(); // 重新載入列表（更新駕駛/車牌/狀態）

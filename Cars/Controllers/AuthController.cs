@@ -1,15 +1,12 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using DocumentFormat.OpenXml.Spreadsheet;
+using Cars.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
     [ApiController]
     [Route("api/[controller]")]
@@ -90,25 +87,8 @@ namespace Cars.Controllers
                         {
                             var tracked = await _db.Users.FirstAsync(x => x.UserId == u.UserId);
                             tracked.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-                            try
-                            {
-                                await _db.SaveChangesAsync();
-                            }
-                            catch (DbUpdateConcurrencyException ex)
-                            {
-                                // 資料被別人改過 → 可以提示用戶重試
-                                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                            }
-                            catch (DbUpdateException ex)
-                            {
-                                // 一般資料庫錯誤
-                                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                            }
-                            catch (Exception ex)
-                            {
-                                //500 錯誤
-                                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                            }
+                            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+                            if (!ok2) return err2!;
                             matched = u;
                             break;
                         }
@@ -126,25 +106,8 @@ namespace Cars.Controllers
                 var entityOk = await _db.Users.FirstAsync(u => u.UserId == matched.UserId);
                 entityOk.FailedLoginCount = 0;
                 entityOk.LockoutEnd = null;
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    //500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
+                var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err1!;
                 // 7) Cookie 登入
                 var claims = new List<Claim>
         {

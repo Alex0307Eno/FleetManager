@@ -374,7 +374,12 @@
 
               // === 核心資料 ===
               const rows = ref([])
+              const records = ref([]);
               const lastUpdated = ref(new Date().toLocaleString())
+              // 把 ApiResponse 包裝拆掉：優先取 res.data.data，否則取 res.data
+              const apiData = (res) => (res?.data && typeof res.data === 'object' && 'data' in res.data)
+              ? res.data.data
+              : res.data;
 
               // === 共乘併單相關 state ===
               const showMergeModal = ref(false);
@@ -686,13 +691,13 @@
                   const toIso   = isoLocal(app.useEnd ?? r.useEnd);
 
                   const [driversRes, vehiclesRes] = await Promise.all([
-                    axios.get('/api/drivers/available', { params: { useStart: fromIso, useEnd: toIso } }),
-                    axios.get('/api/vehicles/available', { params: { from: fromIso, to: toIso, capacity: cap || undefined } })
-                  ]);
+                       axios.get('/api/drivers-available', { params: { useStart: fromIso, useEnd: toIso } }),
+                       axios.get('/api/vehicles-available', { params: { from: fromIso, to: toIso, capacity: cap || undefined } })
+                     ]);
 
-
-                  availDrivers.value = driversRes.data || [];
-                  availVehicles.value = vehiclesRes.data || [];
+                        availDrivers.value = Array.isArray(apiData(driversRes)) ? apiData(driversRes) : [];
+                        availVehicles.value = Array.isArray(apiData(vehiclesRes)) ? apiData(vehiclesRes) : [];
+                        await reload();
                 } catch (err) {
                   console.error("讀取可用人車失敗：", err);
                   alert("讀取可用人車失敗");

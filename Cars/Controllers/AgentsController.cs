@@ -1,18 +1,12 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using DocumentFormat.OpenXml.InkML;
+using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace Cars.Controllers
+namespace Cars.ApiControllers
 {
-    [Authorize]
     [Route("Agents")]
     [Authorize(Roles = "Admin")]
     public class AgentsController : Controller
@@ -94,13 +88,9 @@ namespace Cars.Controllers
         }
         #endregion
 
-
-
-
         #region 新增代理人
 
         [HttpGet]
-        [ValidateAntiForgeryToken]
         public IActionResult Create()
         {
             return View(new Driver { IsAgent = true });
@@ -151,7 +141,6 @@ namespace Cars.Controllers
             return View(agent);
         }
 
-        [HttpPost]
         [HttpPost("Edit/{id:int}")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Driver agent)
@@ -160,36 +149,12 @@ namespace Cars.Controllers
 
             if (ModelState.IsValid)
             {
-                try
-                {
                     agent.IsAgent = true;
                     _db.Update(agent);
-                    try
-                    {
-                        await _db.SaveChangesAsync();
-                    }
-                    catch (DbUpdateConcurrencyException ex)
-                    {
-                        // 資料被別人改過 → 可以提示用戶重試
-                        return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                    }
-                    catch (DbUpdateException ex)
-                    {
-                        // 一般資料庫錯誤
-                        return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                    }
-                    catch (Exception ex)
-                    {
-                        //500 錯誤
-                        return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                    }
+                    var (ok, err1) = await _db.TrySaveChangesAsync(this);
+                    if (!ok) return err1!; 
                     return RedirectToAction("Index");
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!_db.Drivers.Any(e => e.DriverId == id)) return NotFound();
-                    throw;
-                }
+
             }
             return View(agent);
         }
