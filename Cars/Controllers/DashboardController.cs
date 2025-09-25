@@ -134,6 +134,7 @@ namespace Cars.ApiControllers
         {
             var today = DateTime.Today;
             var now = DateTime.Now;
+            var oneHourAgo = now.AddHours(-1);
 
             // === Step 1. 駕駛基本資料 + 今日班別 ===
             var baseDrivers = await (
@@ -149,16 +150,16 @@ namespace Cars.ApiControllers
                 }
             ).AsNoTracking().ToListAsync();
 
-            // === Step 2. 當前派工（正在執勤的那張，挑最貼近現在的一筆） ===
+            // === Step 2. 當前派工（正在執勤的） ===
             var dispatchesNow = await (
                 from dis in _db.Dispatches
                 where dis.StartTime.HasValue && dis.StartTime.Value <= now &&
-                      (!dis.EndTime.HasValue || dis.EndTime.Value >= now)
+                      (!dis.EndTime.HasValue || dis.EndTime.Value >= now) &&
+                      dis.DriverId != null
                 join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
-                where dis.DriverId != null
                 select new
                 {
                     dis.DriverId,
@@ -191,14 +192,17 @@ namespace Cars.ApiControllers
                 .GroupBy(x => x.PrincipalDriverId)
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First().Agent);
 
-            // === Step 4. 查每個駕駛今天最後一筆長差，用來計算休息中 ===
-            var longTripEnds = await (
+            // === Step 4. 查「最近一小時內結束」的任務 ===
+            var endedWithinHour = await (
                 from dis in _db.Dispatches
-                where dis.IsLongTrip && dis.EndTime.HasValue && dis.EndTime.Value <= now && dis.EndTime.Value.Date == today
+                where dis.EndTime.HasValue &&
+                      dis.EndTime.Value <= now &&
+                      dis.EndTime.Value >= oneHourAgo &&
+                      dis.DriverId != null
                 select new { dis.DriverId, dis.EndTime }
             ).AsNoTracking().ToListAsync();
 
-            var lastLongEndByDriver = longTripEnds
+            var lastEndByDriver = endedWithinHour
                 .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.Max(z => z.EndTime!.Value));
 
@@ -223,31 +227,30 @@ namespace Cars.ApiControllers
                     ? dispatchByDriver[driverId]
                     : null;
 
-                // === 狀態判斷 ===
+                // 狀態判斷
                 bool isResting = false;
                 DateTime? restUntil = null;
                 int? restRemainMinutes = null;
                 string stateText;
 
-                // 有派工 → 執勤中
                 if (dispatch != null)
                 {
                     stateText = "執勤中";
                 }
-                else
+                else if (lastEndByDriver.TryGetValue(driverId, out var lastEnd))
                 {
-                    // 沒派工 → 看是否剛跑完長差
-                    if (lastLongEndByDriver.TryGetValue(driverId, out var lastEnd))
+                    var until = lastEnd.AddHours(1);
+                    if (now < until)
                     {
-                        var until = lastEnd.AddHours(1);
-                        if (now < until)
-                        {
-                            isResting = true;
-                            restUntil = until;
-                            restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
-                        }
+                        isResting = true;
+                        restUntil = until;
+                        restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
                     }
                     stateText = isResting ? "休息中" : "待命中";
+                }
+                else
+                {
+                    stateText = "待命中";
                 }
 
                 result.Add(new DriverStatusDto
