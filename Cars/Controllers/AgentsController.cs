@@ -1,15 +1,14 @@
 ﻿using Cars.Data;
-using Cars.Models;
-using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cars.ApiControllers
 {
-    [Route("Agents")]
+    [ApiController]
+    [Route("api/agents")]
     [Authorize(Roles = "Admin")]
-    public class AgentsController : Controller
+    public class AgentsController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
 
@@ -18,17 +17,14 @@ namespace Cars.ApiControllers
             _db = db;
         }
 
-
-
-        #region 代理紀錄
-        // 代理紀錄 
-        [HttpGet("Records")]
+        // === 代理紀錄 (JSON) ===
+        [HttpGet("records")]
         public async Task<IActionResult> Records()
         {
             var q = await _db.DriverDelegations
                 .AsNoTracking()
-                .Include(d => d.Agent)        
-                .Include(d => d.Principal)    
+                .Include(d => d.Agent)
+                .Include(d => d.Principal)
                 .OrderByDescending(d => d.StartDate)
                 .Select(d => new
                 {
@@ -40,39 +36,35 @@ namespace Cars.ApiControllers
                     reason = d.Reason,
                     period = ToRocPeriod(d.StartDate, d.EndDate),
                     tripCount = _db.v_DispatchOrders
-                .Where(v => v.DriverId == d.AgentDriverId
-                         && v.UseStart >= d.StartDate.Date
-                         && v.UseStart < d.EndDate.Date.AddDays(1))
-                .Count(),
-
+                        .Where(v => v.DriverId == d.AgentDriverId
+                                 && v.UseStart >= d.StartDate.Date
+                                 && v.UseStart < d.EndDate.Date.AddDays(1))
+                        .Count(),
                     distanceKm = _db.v_DispatchOrders
-                .Where(v => v.DriverId == d.AgentDriverId
-                         && v.UseStart >= d.StartDate.Date
-                         && v.UseStart < d.EndDate.Date.AddDays(1))
-                .Sum(v => v.TripDistance ?? 0m)
+                        .Where(v => v.DriverId == d.AgentDriverId
+                                 && v.UseStart >= d.StartDate.Date
+                                 && v.UseStart < d.EndDate.Date.AddDays(1))
+                        .Sum(v => v.TripDistance ?? 0m)
                 })
                 .ToListAsync();
 
-            return Json(q);
+            return Ok(q);
         }
-        #endregion
 
-        #region 代理人基本資料
-
-        //代理人員基本資料
+        // === 代理人基本資料 (JSON) ===
         [HttpGet("profiles")]
         public async Task<IActionResult> Profiles()
         {
             var list = await _db.Drivers
                 .AsNoTracking()
-                .Where(d => d.IsAgent)              
+                .Where(d => d.IsAgent)
                 .OrderBy(d => d.DriverName)
                 .ToListAsync();
 
             var result = list.Select(d => new
             {
-                driverId = d.DriverId,                    
-                name = d.DriverName,                
+                driverId = d.DriverId,
+                name = d.DriverName,
                 nationalId = d.NationalId,
                 birthRoc = d.BirthDate.HasValue ? ToRocDate(d.BirthDate.Value) : "",
                 household = d.HouseholdAddress,
@@ -84,104 +76,23 @@ namespace Cars.ApiControllers
                     .Where(s => !string.IsNullOrWhiteSpace(s)))
             });
 
-            return Json(result);
-        }
-        #endregion
-
-        #region 新增代理人
-
-        [HttpGet]
-        public IActionResult Create()
-        {
-            return View(new Driver { IsAgent = true });
+            return Ok(result);
         }
 
-        [HttpPost]
-        [Route("Create")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Driver agent)
-        {
-            if (ModelState.IsValid)
-            {
-                agent.IsAgent = true;
-                _db.Add(agent);
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    // 資料被別人改過 → 可以提示用戶重試
-                    return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-                }
-                catch (DbUpdateException ex)
-                {
-                    // 一般資料庫錯誤
-                    return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-                }
-                catch (Exception ex)
-                {
-                    //500 錯誤
-                    return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-                }
-                return RedirectToAction("Index");
-            }
-            return View(agent);
-        }
-        #endregion
-
-        #region 編輯代理人
-
-        [HttpGet("Edit/{id:int}")]
-
-        public async Task<IActionResult> Edit(int id)
-        {
-            var agent = await _db.Drivers.FirstOrDefaultAsync(d => d.DriverId == id && d.IsAgent == true);
-            if (agent == null) return NotFound();
-            return View(agent);
-        }
-
-        [HttpPost("Edit/{id:int}")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, Driver agent)
-        {
-            if (id != agent.DriverId) return BadRequest();
-
-            if (ModelState.IsValid)
-            {
-                    agent.IsAgent = true;
-                    _db.Update(agent);
-                    var (ok, err1) = await _db.TrySaveChangesAsync(this);
-                    if (!ok) return err1!; 
-                    return RedirectToAction("Index");
-
-            }
-            return View(agent);
-        }
-        #endregion
-
-        #region 轉換工具
-        //小工具 
+        // 工具
         private static string ToRocDate(DateTime dt)
             => $"{dt.Year - 1911}/{dt.Month:00}/{dt.Day:00}";
 
         private static string ToRocPeriod(DateTime start, DateTime end)
         {
             var rocY = start.Year - 1911;
-            var s = string.Format("{0}/{1:00}/{2:00}", rocY, start.Month, start.Day);
+            var s = $"{rocY}/{start.Month:00}/{start.Day:00}";
 
-            string e;
-            if (start.Year == end.Year)
-            {
-                e = string.Format("{0:00}/{1:00}", end.Month, end.Day);
-            }
-            else
-            {
-                var rocY2 = end.Year - 1911;
-                e = string.Format("{0}/{1:00}/{2:00}", rocY2, end.Month, end.Day);
-            }
+            string e = (start.Year == end.Year)
+                ? $"{end.Month:00}/{end.Day:00}"
+                : $"{end.Year - 1911}/{end.Month:00}/{end.Day:00}";
+
             return s + "-" + e;
         }
-        #endregion
     }
 }

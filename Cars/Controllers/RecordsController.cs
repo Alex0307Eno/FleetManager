@@ -154,7 +154,7 @@ namespace Cars.ApiControllers
                 .Join(_db.Dispatches,
                       l => l.ChildDispatchId,
                       d => d.DispatchId,
-                      (l, d) => new { l.ParentDispatchId, d.CarApply.PassengerCount })
+                      (l, d) => new { l.ParentDispatchId, d.CarApplication.PassengerCount })
                 .GroupBy(x => x.ParentDispatchId)
                 .Select(g => new
                 {
@@ -299,7 +299,7 @@ namespace Cars.ApiControllers
                 .AsNoTracking()
                 .Include(x => x.Vehicle)
                 .Include(x => x.Driver)
-                .Include(x => x.CarApply)
+                .Include(x => x.CarApplication)
                 .ThenInclude(ca => ca.Applicant)
                 .FirstOrDefaultAsync(x => x.DispatchId == id);
 
@@ -322,13 +322,13 @@ namespace Cars.ApiControllers
                 d.CreatedAt,
                 Driver = d.Driver?.DriverName,
                 PlateNo = d.Vehicle?.PlateNo,
-                Applicant = d.CarApply?.Applicant?.Name,
-                ReasonType = d.CarApply?.ReasonType,
-                Reason = d.CarApply?.ApplyReason,
-                Origin = d.CarApply?.Origin,
-                Destination = d.CarApply?.Destination,
-                Seats = d.CarApply?.PassengerCount,
-                Status = d.CarApply?.Status
+                Applicant = d.CarApplication?.Applicant?.Name,
+                ReasonType = d.CarApplication?.ReasonType,
+                Reason = d.CarApplication?.ApplyReason,
+                Origin = d.CarApplication?.Origin,
+                Destination = d.CarApplication?.Destination,
+                Seats = d.CarApplication?.PassengerCount,
+                Status = d.CarApplication?.Status
             });
         }
         #endregion
@@ -364,8 +364,8 @@ namespace Cars.ApiControllers
                 app.Status = "完成審核"; // 這邊可以依照你的流程改，若只要改派車狀態可省略
             }
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!;
+            var (ok,err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
             _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
 
@@ -423,8 +423,8 @@ namespace Cars.ApiControllers
 
             // 4️刪掉母單本身
             _db.Dispatches.Remove(row);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             Console.WriteLine($"[Console] Delete OK: {id}");
             _logger.LogInformation("Delete OK: {Id}", id);
 
@@ -444,7 +444,7 @@ namespace Cars.ApiControllers
         {
             var parent = await _db.Dispatches
                 .Include(d => d.Vehicle)
-                .Include(d => d.CarApply)
+                .Include(d => d.CarApplication)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DispatchId == parentId);
 
@@ -452,7 +452,7 @@ namespace Cars.ApiControllers
             if (parent.Vehicle == null) return BadRequest("母單尚未指派車輛，無法併單");
 
             var capacity = parent.Vehicle.Capacity ?? 0;
-            var mainSeats = parent.CarApply?.PassengerCount ?? 0;
+            var mainSeats = parent.CarApplication?.PassengerCount ?? 0;
 
             var usedByLinks = await (
                 from l in _db.DispatchLinks
@@ -488,7 +488,7 @@ namespace Cars.ApiControllers
             _db.DispatchLinks.Add(link);
             // 找子單的 Dispatch + CarApplication
             var childDispatch = await _db.Dispatches
-                .Include(d => d.CarApply)
+                .Include(d => d.CarApplication)
                 .FirstOrDefaultAsync(d => d.DispatchId == childDispatchId);
 
             if (childDispatch != null)
@@ -498,14 +498,14 @@ namespace Cars.ApiControllers
                 childDispatch.VehicleId = parent.VehicleId;
 
                 // 📄 同步更新 CarApplication
-                if (childDispatch.CarApply != null)
+                if (childDispatch.CarApplication != null)
                 {
-                    childDispatch.CarApply.DriverId = parent.DriverId;
-                    childDispatch.CarApply.VehicleId = parent.VehicleId;
+                    childDispatch.CarApplication.DriverId = parent.DriverId;
+                    childDispatch.CarApplication.VehicleId = parent.VehicleId;
                 }
             }
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "併入成功", remainingAfter = remaining - seatsWanted });
         }
 
@@ -531,8 +531,8 @@ namespace Cars.ApiControllers
                 child.DriverId = null;
                 child.VehicleId = null;
             }
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "已取消併單" });
         }
         #endregion
@@ -570,14 +570,14 @@ namespace Cars.ApiControllers
         {
             var parent = await _db.Dispatches
                 .Include(d => d.Vehicle)
-                .Include(d => d.CarApply)
+                .Include(d => d.CarApplication)
                 .FirstOrDefaultAsync(d => d.DispatchId == dispatchId);
 
             if (parent == null)
                 return NotFound("派車單不存在");
 
             var capacity = parent.Vehicle?.Capacity ?? 0;
-            var mainSeats = parent.CarApply?.PassengerCount ?? 0;
+            var mainSeats = parent.CarApplication?.PassengerCount ?? 0;
 
             // 已併入子單的人數
             var usedByLinks = await (

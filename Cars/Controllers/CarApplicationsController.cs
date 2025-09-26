@@ -108,8 +108,8 @@ namespace Cars.ApiControllers
 
             // === 7) 先存「申請單」
             _db.CarApplications.Add(model);
-            var (ok1, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok1) return err1!;
+            var (ok,err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
 
             // 8) 乘客寫入
             if (dto.Passengers?.Any() == true)
@@ -126,8 +126,6 @@ namespace Cars.ApiControllers
                 ApplyId = model.ApplyId,
                 DriverId = null,
                 VehicleId = null,
-                StartTime = model.UseStart,
-                EndTime = model.UseEnd,
                 CreatedAt = DateTime.Now,
                 DispatchStatus = "待指派"
             };
@@ -148,49 +146,7 @@ namespace Cars.ApiControllers
 
 
         }
-        // 建立派車單
-        [AllowAnonymous]
-        [HttpPost("{applyId}/dispatch")]
-
-        public async Task<IActionResult> CreateDispatch(int applyId)
-        {
-            var app = await _db.CarApplications.FindAsync(applyId);
-            if (app == null)
-                return NotFound(new { success = false, message = "找不到申請單" });
-
-            if (app.UseStart == default || app.UseEnd == default)
-                return BadRequest(new { success = false, message = "申請單時間無效，無法建立派工" });
-
-            // 檢查是否已經有派車單
-            var exists = await _db.Dispatches.AnyAsync(d => d.ApplyId == applyId);
-            if (exists)
-                return Conflict(new { success = false, message = "已經有派車單存在" });
-
-            var dispatch = new Cars.Models.Dispatch
-            {
-                ApplyId = applyId,
-                DriverId = null,
-                VehicleId = null,
-                DispatchStatus = "待指派",
-                StartTime = app.UseStart,
-                EndTime = app.UseEnd,
-                CreatedAt = DateTime.Now
-            };
-
-            _db.Dispatches.Add(dispatch);
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-            var dto = new DispatchDto(
-                dispatch.DispatchId,
-                dispatch.ApplyId,
-                dispatch.StartTime,
-                dispatch.EndTime,
-                dispatch.DispatchStatus
-            );
-
-            return Ok(ApiResponse<DispatchDto>.Ok(dto, "派車單建立成功"));
-
-        }
+        
 
         
 
@@ -379,7 +335,7 @@ namespace Cars.ApiControllers
         }
         #endregion
 
-
+        [Obsolete]
         #region 過濾可用車輛與司機 (可能用不到)
 
 
@@ -490,7 +446,7 @@ namespace Cars.ApiControllers
 
 
         #endregion
-
+        [Obsolete]
         #region 更新申請單(無功能)
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] CarApplication model)
@@ -589,6 +545,46 @@ namespace Cars.ApiControllers
             if (!ok) return err!;
 
             return Ok(new { message = "新增成功", app.ApplyId });
+        }
+
+        // 建立派車單
+        [AllowAnonymous]
+        [HttpPost("{applyId}/dispatch")]
+
+        public async Task<IActionResult> CreateDispatch(int applyId)
+        {
+            var app = await _db.CarApplications.FindAsync(applyId);
+            if (app == null)
+                return NotFound(new { success = false, message = "找不到申請單" });
+
+            if (app.UseStart == default || app.UseEnd == default)
+                return BadRequest(new { success = false, message = "申請單時間無效，無法建立派工" });
+
+            // 檢查是否已經有派車單
+            var exists = await _db.Dispatches.AnyAsync(d => d.ApplyId == applyId);
+            if (exists)
+                return Conflict(new { success = false, message = "已經有派車單存在" });
+
+            var dispatch = new Cars.Models.Dispatch
+            {
+                ApplyId = applyId,
+                DriverId = null,
+                VehicleId = null,
+                DispatchStatus = "待指派",
+                CreatedAt = DateTime.Now
+            };
+
+            _db.Dispatches.Add(dispatch);
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
+            var dto = new DispatchDto(
+                dispatch.DispatchId,
+                dispatch.ApplyId,
+                dispatch.DispatchStatus
+            );
+
+            return Ok(ApiResponse<DispatchDto>.Ok(dto, "派車單建立成功"));
+
         }
         #endregion
 

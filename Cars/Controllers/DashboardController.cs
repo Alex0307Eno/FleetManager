@@ -93,7 +93,7 @@ namespace Cars.ApiControllers
                     (dis != null && dis.StartTime.HasValue)
                         ? dis.StartTime.Value
                         : (s.Shift == "早" ? today.AddHours(8)
-                         : s.Shift == "中" ? today.AddHours(12)
+                         : s.Shift == "午" ? today.AddHours(12)
                          : s.Shift == "晚" ? today.AddHours(18)
                          : today.AddHours(23).AddMinutes(59))
 

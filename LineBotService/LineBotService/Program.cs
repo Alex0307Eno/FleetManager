@@ -23,6 +23,9 @@ namespace LineBotService
             builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddScoped<VehicleService>();
             builder.Services.AddScoped<DriverService>();
+            builder.Services.AddScoped<DispatchService>();
+            builder.Services.Configure<RichMenuOptions>(builder.Configuration.GetSection("RichMenus"));
+
 
 
 

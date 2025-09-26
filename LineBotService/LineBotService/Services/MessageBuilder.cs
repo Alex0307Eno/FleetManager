@@ -285,7 +285,8 @@ namespace LineBotService.Services
         #region 通知
 
         //申請人通知卡片
-        public static string BuildAdminFlexBubble(CarApplication app) => $@"
+        public static string BuildAdminFlexBubble(CarApplication app) =>
+            $@"
         {{
           ""type"": ""flex"",
           ""altText"": ""派車申請"",
@@ -296,7 +297,7 @@ namespace LineBotService.Services
               ""layout"": ""vertical"",
               ""contents"": [
                 {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplyFor}"" }},        
+                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.Applicant?.Name}"" }},        
                 {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
                 {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
                 {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},

@@ -2,10 +2,12 @@
     ViewData["Title"] = "駕駛員管理 > 代理人員";
     Layout = "_Layout";
 }
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-      <link href="~/css/Driver/Agent.css" rel="stylesheet" />
+
+<link href="~/css/Driver/Agent.css" rel="stylesheet" />
 <div class="topbar">
     <div class="muted" style="margin-bottom:12px;">駕駛員管理 <span style="color:#fff;">&gt;</span> <b>代理人員</b></div>
     <div class="d-flex gap-2">
@@ -127,66 +129,79 @@
           });
         });
 
-        // ------- 代理紀錄（你原本的 fetch，這裡放簡化版） -------
-                (function loadRecords(){
-          fetch('/Agents/Records', { cache:'no-store' })
-            .then(r => r.json())
-            .then(rows => {
-              const tb = document.getElementById('tbody-records'); tb.innerHTML='';
-              rows.forEach(r => {
-                const tr = document.createElement('tr');
-                tr.innerHTML =
-                  `<td>${show(r.agentName)}</td>
-                   <td>${show(r.period)}</td>
-                   <td>${show(r.principalName)}</td>
-                   <td>${show(r.reason)}</td>
-                   <td>${r.tripCount}</td>
-                   <td>${r.distanceKm}</td>
-                   <td class="td-actions">
-                      <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
-                        <i class="fa-regular fa-eye"></i>
-                      </a>
-                   </td>`;
-                tb.appendChild(tr);
-              });
-              // 儲存資料在全域，讓 viewRecord 可以查
-              window._recordCache = rows;
-            });
-        })();
+        // ------- 代理紀錄 -------
+        (function loadRecords() {
+            axios.get('/api/Agents/Records', { headers: { 'Cache-Control': 'no-cache' } })
+              .then(res => {
+                const rows = res.data;
+                const tb = document.getElementById('tbody-records');
+                tb.innerHTML = '';
 
+                rows.forEach(r => {
+                  const tr = document.createElement('tr');
+                  tr.innerHTML =
+                    `<td>${show(r.agentName)}</td>
+                     <td>${show(r.period)}</td>
+                     <td>${show(r.principalName)}</td>
+                     <td>${show(r.reason)}</td>
+                     <td>${r.tripCount}</td>
+                     <td>${r.distanceKm}</td>
+                     <td class="td-actions">
+                        <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
+                          <i class="fa-regular fa-eye"></i>
+                        </a>
+                     </td>`;
+                  tb.appendChild(tr);
+                });
+
+                // 儲存資料在全域，讓 viewRecord 可以查
+                window._recordCache = rows;
+              })
+              .catch(err => {
+                console.error(err);
+                alert("讀取紀錄失敗");
+              });
+          })();
 
         // ------- ✅ 代理人員基本資料（lazy load） -------
-                function loadProfiles(){
-          fetch('/Agents/Profiles', { cache:'no-store' })
-            .then(r => r.json())
-            .then(rows => {
-              const tb = document.getElementById('tbody-profiles'); tb.innerHTML='';
-              rows.forEach(r => {
-                const tr = document.createElement('tr');
-                tr.innerHTML =
-                  `<td>${show(r.name)}</td>
-                   <td>${show(r.nationalId)}</td>
-                   <td>${show(r.birthRoc)}</td>
-                   <td>${show(r.household)}</td>
-                   <td>${show(r.contact)}</td>
-                   <td>${show(r.phone, true)}</td>
-                   <td>${show(r.mobile)}</td>
-                   <td>${show(r.emergency)}</td>
-                   <td class="td-actions">
-                      <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
-                        <i class="fa-regular fa-eye"></i>
-                      </a>
+        function loadProfiles() {
+           axios.get('/api/Agents/Profiles', { headers: { 'Cache-Control': 'no-cache' } })
+             .then(res => {
+               const rows = res.data;
+               const tb = document.getElementById('tbody-profiles');
+               tb.innerHTML = '';
 
-                      <a class="icon-btn edit" title="編輯" href="/Agents/Edit/${r.driverId}">
-                        <i class="fa-regular fa-pen-to-square"></i>
-                      </a>
-                   </td>`;
-                tb.appendChild(tr);
-              });
-              profilesLoaded = true;
-            });
-        }
-                function viewRecord(id){
+               rows.forEach(r => {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML =
+                   `<td>${show(r.name)}</td>
+                    <td>${show(r.nationalId)}</td>
+                    <td>${show(r.birthRoc)}</td>
+                    <td>${show(r.household)}</td>
+                    <td>${show(r.contact)}</td>
+                    <td>${show(r.phone, true)}</td>
+                    <td>${show(r.mobile)}</td>
+                    <td>${show(r.emergency)}</td>
+                    <td class="td-actions">
+                       <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
+                         <i class="fa-regular fa-eye"></i>
+                       </a>
+                       <a class="icon-btn edit" title="編輯" href="/Agents/Edit/${r.driverId}">
+                         <i class="fa-regular fa-pen-to-square"></i>
+                       </a>
+                    </td>`;
+                 tb.appendChild(tr);
+               });
+
+               profilesLoaded = true;
+             })
+             .catch(err => {
+               console.error(err);
+               alert("讀取 Profiles 失敗");
+             });
+         }                
+         //代理人紀錄
+        function viewRecord(id){
           const rows = window._recordCache || [];
           const data = rows.find(x => x.id === id);
           if(!data) return alert("找不到資料");
@@ -205,13 +220,13 @@
           document.getElementById("record-modal").style.display = "none";
         }
 
-
-                function viewProfile(id){
-          fetch(`/Agents/Profiles`, { cache:'no-store' })
-            .then(r=>r.json())
-            .then(rows=>{
-              const data = rows.find(x=>x.id===id);
-              if(!data) return alert("找不到資料");
+        //代理人基本資料
+         function viewProfile(id) {
+          axios.get('/api/Agents/Profiles', { headers: { 'Cache-Control': 'no-cache' } })
+            .then(res => {
+              const rows = res.data;
+              const data = rows.find(x => x.id === id);
+              if (!data) return alert("找不到資料");
 
               document.getElementById("m-name").textContent      = data.name || '—';
               document.getElementById("m-nid").textContent       = data.nationalId || '—';
@@ -222,7 +237,11 @@
               document.getElementById("m-mobile").textContent    = data.mobile || '—';
               document.getElementById("m-emergency").textContent = data.emergency || '—';
 
-              document.getElementById("profile-modal").style.display="flex";
+              document.getElementById("profile-modal").style.display = "flex";
+            })
+            .catch(err => {
+              console.error(err);
+              alert("載入資料失敗");
             });
         }
 

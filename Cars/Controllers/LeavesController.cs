@@ -87,8 +87,8 @@ namespace Cars.ApiControllers
             _db.Leaves.Add(leave);
             try
             {
-                var (ok, err1) = await _db.TrySaveChangesAsync(this);
-                if (!ok) return err1!; 
+                var (ok,err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!; 
                 return Ok(new { message = "✅ 請假申請成功", id = leave.LeaveId });
             }
             catch (DbUpdateException ex)
@@ -192,8 +192,8 @@ namespace Cars.ApiControllers
                     _db.DriverDelegations.Add(deleg);
                 }
 
-                var (ok, err1) = await _db.TrySaveChangesAsync(this);
-                if (!ok) return err1!; 
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!; 
                 await tx.CommitAsync(); //  全部成功才提交
 
                 var msg = status == "核准"
@@ -225,8 +225,8 @@ namespace Cars.ApiControllers
             if (agent == null) return BadRequest("代理人不存在或不可被指派");
 
             leave.AgentDriverId = agentDriverId;
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!;
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             return Ok(new { message = $"代理人已指派為 {agent.DriverName}" });
         }
         #endregion

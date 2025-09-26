@@ -1,56 +1,75 @@
-﻿using Cars.Models;
+﻿using Cars.Data;
+using Cars.Models;
+using Cars.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Controllers
 {
-    [Authorize]
-    [Route("agents")]
+    [Authorize(Roles = "Admin")]
+    [Route("Agents")]
     public class AgentsController : Controller
     {
+        private readonly ApplicationDbContext _db;
+
+        public AgentsController(ApplicationDbContext db)
+        {
+            _db = db;
+        }
+
+        // === MVC: 頁面 ===
         [HttpGet("Index")]
-        public IActionResult Index()
+        public IActionResult Index() 
         {
             return View();
         }
 
-        [HttpGet("form")]
-        public IActionResult _AgentForm()
-        {
-            return PartialView("_AgentForm");
-        }
 
-        [HttpGet("create")]
+        [HttpGet("Create")]
         public IActionResult Create()
         {
-            return View();
+            return View(new Driver { IsAgent = true });
         }
 
-        [HttpPost("create")]
+        [HttpPost("Create")]
         [ValidateAntiForgeryToken]
-        public IActionResult Create(Driver model)
+        public async Task<IActionResult> Create(Driver agent)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            // 儲存資料...
-            return RedirectToAction("Index");
+            if (ModelState.IsValid)
+            {
+                agent.IsAgent = true;
+                _db.Add(agent);
+                var (ok,err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!;
+                return RedirectToAction("Index");
+            }
+            return View(agent);
         }
 
-        [HttpGet("edit/{id:int}")]
-        public IActionResult Edit(int id)
+        [HttpGet("Edit/{id:int}")]
+        public async Task<IActionResult> Edit(int id)
         {
-            // 讀取資料...
-            return View();
+            var agent = await _db.Drivers.FirstOrDefaultAsync(d => d.DriverId == id && d.IsAgent);
+            if (agent == null) return NotFound();
+            return View(agent);
         }
 
-        [HttpPost("edit/{id:int}")]
+        [HttpPost("Edit/{id:int}")]
         [ValidateAntiForgeryToken]
-        public IActionResult Edit(int id, Driver model)
+        public async Task<IActionResult> Edit(int id, Driver agent)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (id != agent.DriverId) return BadRequest();
 
-            // 更新資料...
-            return RedirectToAction("Index");
+            if (ModelState.IsValid)
+            {
+                agent.IsAgent = true;
+                _db.Update(agent);
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!;
+                return RedirectToAction("Index");
+            }
+            return View(agent);
         }
     }
 }

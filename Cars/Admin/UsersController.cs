@@ -1,11 +1,9 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using Cars.Data;
+using Cars.Models;
+using Cars.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
-using Cars.Data;
-using Cars.Models;
 
 namespace Cars.Areas.Admin.Controllers
 {
@@ -51,7 +49,7 @@ namespace Cars.Areas.Admin.Controllers
         #endregion
 
         #region admin 新增使用者
-        [ValidateAntiForgeryToken]
+        [HttpGet]
         public IActionResult Create()
         {
             return View(new UserVm());
@@ -83,26 +81,8 @@ namespace Cars.Areas.Admin.Controllers
             };
 
             _db.Users.Add(user);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                //500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
-
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             TempData["ok"] = "使用者已建立";
             return RedirectToAction(nameof(Index));
         }
@@ -126,7 +106,6 @@ namespace Cars.Areas.Admin.Controllers
             return View(vm);
         }
 
-        // POST: /Admin/Users/Edit/5
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, UserVm vm)
         {
@@ -156,25 +135,8 @@ namespace Cars.Areas.Admin.Controllers
                 u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(vm.Password);
             }
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                //500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             TempData["ok"] = "使用者已更新";
             return RedirectToAction(nameof(Index));
         }
@@ -188,25 +150,8 @@ namespace Cars.Areas.Admin.Controllers
             if (u == null) return NotFound();
 
             _db.Users.Remove(u);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                //500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             TempData["ok"] = "使用者已刪除";
             return RedirectToAction(nameof(Index));
         }
@@ -220,25 +165,8 @@ namespace Cars.Areas.Admin.Controllers
             if (u == null) return NotFound();
 
             u.IsActive = !u.IsActive;
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                //500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             TempData["ok"] = u.IsActive ? "已啟用" : "已停用";
             return RedirectToAction(nameof(Index));
         }
@@ -258,25 +186,8 @@ namespace Cars.Areas.Admin.Controllers
             }
 
             u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                //500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             TempData["ok"] = "密碼已重設";
             return RedirectToAction(nameof(Edit), new { id });
         }

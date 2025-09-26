@@ -70,7 +70,7 @@
                                         <button class="icon-btn view" title="檢視" @@click="viewDriver(d.driverId)">
                                             <i class="fa-solid fa-eye"></i>
                                         </button>
-                                        <a :href="`/Drivers/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
+                                        <a :href="`/api/Drivers/Edit/${d.driverId}`" class="icon-btn edit" title="編輯">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </a>
                                     </div>
@@ -148,7 +148,7 @@
 
             async function load(){
               try{
-                const res = await axios.get('/Drivers/Records')
+                const res = await axios.get('/api/Drivers/Records')
                 drivers.value = res.data || []
               }catch(e){
                 console.error("載入失敗", e)
@@ -159,7 +159,7 @@
 
         async function viewDriver(id){
           try{
-            const res = await axios.get(`/Drivers/Details/${id}`)  // API 回傳 JSON
+            const res = await axios.get(`/api/Drivers/Details/${id}`)  // API 回傳 JSON
             currentDriver.value = res.data
             viewModalOpen.value = true
           }catch(e){
@@ -170,7 +170,7 @@
         async function toggleAttendance(d) {
           const present = !!d.isPresentToday;
           try {
-            await axios.post('/Drivers/SetAttendanceToday', {
+            await axios.post('/api/Drivers/SetAttendanceToday', {
               driverId: d.driverId,
               isPresent: present,
               reason: present ? null : '請假'

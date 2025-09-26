@@ -457,7 +457,7 @@
         // ==== 載資料 ====
         async function loadDrivers() {
           try {
-            const res = await axios.get('/Drivers/Records');
+            const res = await axios.get('/api/Drivers/Records');
             drivers.value = res.data || [];
           } catch (err) {
             console.error("讀取駕駛失敗:", err);
@@ -466,13 +466,13 @@
         }
         async function loadAgents() {
           try {
-            const res = await axios.get('/Agents/profiles');
+            const res = await axios.get('/api/Agents/profiles');
             agents.value = res.data || [];
           } catch { agents.value = []; }
         }
         async function loadSchedules() {
           try {
-            const res = await axios.get('/Drivers/Schedule/Events', { params: { year: yearAD.value, month: month.value }});
+            const res = await axios.get('/api/Drivers/Schedule/Events', { params: { year: yearAD.value, month: month.value }});
             schedules.value = Array.isArray(res.data) ? res.data : [];
             console.log("=== SCHEDULES ===", schedules.value);  
 
@@ -619,15 +619,15 @@
         d.setMonth(d.getMonth() - 1)
         current.value = d
         await loadSchedules()
-        selectedOption.value = month.value   // 🔑 重設月份
+        selectedOption.value = month.value   //  重設月份
       } else if (viewMode.value === "week") {
         d.setDate(d.getDate() - 7)
         current.value = d
-        selectedOption.value = findWeekIndexOf(d)  // 🔑 重設週數
+        selectedOption.value = findWeekIndexOf(d)  //  重設週數
       } else if (viewMode.value === "day") {
         d.setDate(d.getDate() - 1)
         current.value = d
-        selectedOption.value = d.getDate()   // 🔑 重設日期
+        selectedOption.value = d.getDate()   //  重設日期
       }
     }
 
@@ -637,15 +637,15 @@
         d.setMonth(d.getMonth() + 1)
         current.value = d
         await loadSchedules()
-        selectedOption.value = month.value   // 🔑 重設月份
+        selectedOption.value = month.value   //  重設月份
       } else if (viewMode.value === "week") {
         d.setDate(d.getDate() + 7)
         current.value = d
-        selectedOption.value = findWeekIndexOf(d)  // 🔑 重設週數
+        selectedOption.value = findWeekIndexOf(d)  //  重設週數
       } else if (viewMode.value === "day") {
         d.setDate(d.getDate() + 1)
         current.value = d
-        selectedOption.value = d.getDate()   // 🔑 重設日期
+        selectedOption.value = d.getDate()   //  重設日期
       }
     }
 
@@ -714,7 +714,7 @@
           };
 
           try {
-            const res = await axios.post('/Drivers/Schedule/BulkSet', payload);
+            const res = await axios.post('/api/Drivers/Schedule/BulkSet', payload);
             // 後端回傳我建議是：[{date, shift, lineCode, driverId, driverName}]
                 // 成功後
             const changes = Array.isArray(res.data) ? res.data : [];
@@ -864,7 +864,7 @@
     }
                     async function loadDayDispatches() {
       try {
-        const res = await axios.get('/Drivers/Schedule/DayDispatches', {
+        const res = await axios.get('/api/Drivers/Schedule/DayDispatches', {
          params: { date: current.value.toISOString().slice(0,10) } 
         });
         dayDispatches.value = Array.isArray(res.data) ? res.data : []; 
@@ -879,7 +879,7 @@
           if (!days.length) return;
           const reqs = days.map(d => {
             const date = toYMD(d.jsDate);
-            return axios.get('/Drivers/Schedule/DayDispatches', { params: { date } })
+            return axios.get('/api/Drivers/Schedule/DayDispatches', { params: { date } })
               .then(r => ({ date, rows: r.data || [] }))
               .catch(() => ({ date, rows: [] }));
           });
@@ -891,7 +891,7 @@
         // 右側代理人
         async function openAgentModal() {
           try {
-            const res = await axios.get('/agents/profiles');
+            const res = await axios.get('/api/agents/profiles');
             agents.value = res.data;
             agentModalOpen.value = true;
           } catch (err) {

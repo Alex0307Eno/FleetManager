@@ -12,19 +12,38 @@ namespace Cars.Features.Drivers
         {
             var today = DateTime.Today;
 
-            // 查出已經在該時段有派工的 DriverIds
+            // 1. 查出已經在該時段有派工的 DriverIds
             var busyDrivers = await _db.Dispatches
                 .Where(d => d.StartTime < useEnd && d.EndTime > useStart)
                 .Select(d => d.DriverId)
                 .ToListAsync();
 
-            // 1. 當日正常出勤的司機
+            // 2. 查出每個駕駛最新完成的派工
+            var lastTrips = await _db.Dispatches
+                .Where(d => d.EndTime != null)
+                .GroupBy(d => d.DriverId)
+                .Select(g => new {
+                    DriverId = g.Key,
+                    LastEndTime = g.Max(x => x.EndTime)
+                })
+                .ToListAsync();
+
+            // 3. 找出休息不足 1 小時的駕駛
+            var restNotEnough = lastTrips
+                .Where(t => useStart < t.LastEndTime.Value.AddHours(1))
+                .Select(t => t.DriverId)
+                .ToList();
+
+            // 合併要排除的駕駛
+            var excludedDrivers = busyDrivers.Concat(restNotEnough).Distinct().ToList();
+
+            // 4. 當日正常出勤的司機
             var drivers = await _db.Drivers
                 .Where(d => _db.Schedules.Any(s =>
-                    s.DriverId == d.DriverId &&
-                    s.WorkDate == today &&
-                    s.IsPresent == true) &&
-                    !busyDrivers.Contains(d.DriverId))
+                            s.DriverId == d.DriverId &&
+                            s.WorkDate == today &&
+                            s.IsPresent == true) &&
+                            !excludedDrivers.Contains(d.DriverId))
                 .Select(d => new {
                     d.DriverId,
                     d.DriverName,
@@ -32,11 +51,11 @@ namespace Cars.Features.Drivers
                 })
                 .ToListAsync();
 
-            // 2. 當日有效的代理人
+            // 5. 當日有效的代理人
             var agents = await _db.DriverDelegations
                 .Include(d => d.Agent)
                 .Where(d => d.StartDate.Date <= today && today <= d.EndDate.Date &&
-                            !busyDrivers.Contains(d.AgentDriverId))
+                            !excludedDrivers.Contains(d.AgentDriverId))
                 .Select(d => new {
                     DriverId = d.AgentDriverId,
                     d.Agent.DriverName,
@@ -44,7 +63,7 @@ namespace Cars.Features.Drivers
                 })
                 .ToListAsync();
 
-            // 3. 合併 + 去重
+            // 6. 合併 + 去重
             var all = drivers
                 .Concat(agents)
                 .GroupBy(x => x.DriverId)

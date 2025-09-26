@@ -1,5 +1,5 @@
-﻿@{
-    ViewData["Title"] = "用車申請";
+﻿﻿@{
+ViewData["Title"] = "用車申請";
 }
 <head>
     <link href="/css/Dispatch/CarApply.css" rel="stylesheet" />
@@ -14,110 +14,90 @@
 <body>
     <div id="app" class="container" v-cloak>
         <form id="car-form">
-            <!-- 🚗 查詢區 (永遠顯示) -->
+           
             <div class="section">
                 <div class="section-hd">
                     <div>用車申請</div>
-                    <small>
-                        <label style="margin-right:12px"><input type="radio" value="self" v-model="applyFor" /> 本人申請</label>
-                        <label><input type="radio" value="other" v-model="applyFor" /> 代他人申請</label>
-                    </small>
-                    <div v-if="applyFor==='other'" class="form-row" style="margin-top:8px;">
-                        <label style="width:100px;">選擇申請人</label>
-                        <select v-model.number="selectedApplicantId" class="form-control" style="flex:1;">
-                            <option disabled :value="null">請選擇申請人</option>
-                            <option v-for="a in applicants" :key="a.applicantId" :value="a.applicantId">
-                                {{ a.name }}（{{ a.dept || '—' }}）
-                            </option>
-                        </select>
-                    </div>
                 </div>
-                
+            </div>
 
-            <!-- 其他表單內容 (查詢後才顯示) -->
-            <div >
-                <!-- 用車申請（申請人 + 車輛卡） -->
-                <div class="section-bd">
-                    <div class="grid-2">
-                        <!-- 左側：申請人卡 + 欄位 -->
-                        <div>
-                            <div class="card profile" style="margin-bottom:12px">
-                                <div class="avatar">👤</div>
-                                <div>
-                                    <div style="font-weight:700; font-size:18px">
-                                        {{ applicant.name }}
-                                        <span class="muted" style="font-weight:500">
-                                            ({{ applicant.birth ? applicant.birth.substring(0,10) : '' }})
-                                        </span>
-                                    </div>
-                                    <div class="kv"><span class="label">單位</span><span class="val">{{ applicant.dept }}</span></div>
-                                    <div class="kv"><span class="label">分機</span><span class="val">{{ applicant.ext }}</span></div>
-                                    <div class="kv"><span class="label">Email</span><span class="val">{{ applicant.email }}</span></div>
-                                </div>
-                            </div>
 
-                            <div class="grid-3">
-                                <div>
-                                    <label>車輛類別 *</label>
-                                    <select v-model="vehicleType">
-                                        <option value="汽車">汽車</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>事由 *</label>
-                                    <select v-model="purposeType">
-                                        <option value="公務車(不可選車)">公務車(不可選車)</option>
-                                        @* <option value="公務車(可選車)">公務車(可選車)</option> *@
-                                    </select>
-                                </div>
+                <div>
+                    <!-- 用車申請（申請人 + 車輛卡） -->
+                    <div class="section-bd">
+                        <div class="grid-2">
+                            <!-- 左側：申請人卡 + 欄位 -->
+                            <div>
+                                
 
-                                <!-- 只有選「公務車(可選車)」時才出現車輛下拉 -->
-                                <div v-if="purposeType === '公務車(可選車)'">
-                                    <label>車輛 *</label>
-                                    <select v-model="assign.vehicleId">
-                                        <option :value="null">（未選擇）</option>
-                                        <option v-for="v in availableVehicles"
-                                                :key="v.vehicleId"
-                                                :value="v.vehicleId">
-                                            {{ v.plateNo }} ({{ v.capacity }}人座)
-                                        </option>
-                                    </select>
-                                    <small class="muted">駕駛依班表自動指派，車輛由你挑選</small>
-                                </div>
-                            </div>
-
-                            
-
-                            <div class="grid-1" style="margin-top:12px">
-                                <div class="row-combined">
-                                    <div style="flex:0 0 180px;">
-                                        <label>事由類型</label>
-                                        <select v-model="reasonType" style="width:100%">
-                                            <option value="公務用">公務用</option>
+                                <div class="grid-3">
+                                    <div>
+                                        <label>車輛類別 *</label>
+                                        <select v-model="vehicleType">
+                                            <option value="汽車">汽車</option>
                                         </select>
                                     </div>
-                                    <div style="flex:1; margin-left:12px;">
-                                        <label>用車事由</label>
-                                        <input type="text" placeholder="簡述申請原因" v-model="applyReason" style="width:100%" />
+                                    <div>
+                                        <label>事由 *</label>
+                                        <select v-model="purposeType">
+                                            <option value="公務車(不可選車)">公務車(不可選車)</option>
+                                            @* <option value="公務車(可選車)">公務車(可選車)</option> *@
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label>裝載物料品名</label>
+                                        <input class="form-control" v-model="materialName" placeholder="例如：木材 / 鋼筋 / 文件" />
+
+                                    </div>
+
+                                    <!-- 只有選「公務車(可選車)」時才出現車輛下拉 -->
+                                    <div v-if="purposeType === '公務車(可選車)'">
+                                        <label>車輛 *</label>
+                                        <select v-model="assign.vehicleId">
+                                            <option :value="null">（未選擇）</option>
+                                            <option v-for="v in availableVehicles"
+                                                    :key="v.vehicleId"
+                                                    :value="v.vehicleId">
+                                                {{ v.plateNo }} ({{ v.capacity }}人座)
+                                            </option>
+                                        </select>
+                                        <small class="muted">駕駛依班表自動指派，車輛由你挑選</small>
+                                    </div>
+                                </div>
+
+
+
+                                <div class="grid-1" style="margin-top:12px">
+                                    <div class="row-combined">
+                                        <div style="flex:0 0 180px;">
+                                            <label>事由類型</label>
+                                            <select v-model="reasonType" style="width:100%">
+                                                <option value="公務用">公務用</option>
+                                            </select>
+                                        </div>
+                                    
+                                        <div style="flex:1; margin-left:12px;">
+                                            <label>用車事由</label>
+                                            <input type="text" placeholder="簡述申請原因" v-model="applyReason" style="width:100%" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- 右側：車輛資訊摘要卡 -->
-                        <div class="vehicle-card">
-                            <div class="vehicle-icon">🚗</div>
-                            <div>
-                                <div style="font-weight:700">{{ vehicleType }}<br>{{ purposeType }}</div>
-                                <div class="muted" style="margin-top:6px">
-                                    將於 <b>{{ fmtDateTimeLocal(useStart) }}</b> 出車，<br />
-                                    預計 <b>{{ fmtDateTimeLocal(useEnd) }}</b> 歸還。
+                            <!-- 右側：車輛資訊摘要卡 -->
+                            <div class="vehicle-card">
+                                <div class="vehicle-icon">🚗</div>
+                                <div>
+                                    <div style="font-weight:700">{{ vehicleType }}<br>{{ purposeType }}</div>
+                                    <div class="muted" style="margin-top:6px">
+                                        將於 <b>{{ fmtDateTimeLocal(useStart) }}</b> 出車，<br />
+                                        預計 <b>{{ fmtDateTimeLocal(useEnd) }}</b> 歸還。
+                                    </div>
+                                    <div style="margin-top:8px"><a href="javascript:void(0)">more →</a></div>
                                 </div>
-                                <div style="margin-top:8px"><a href="javascript:void(0)">more →</a></div>
                             </div>
                         </div>
                     </div>
-                </div>
                     <div class="d-flex justify-content-between">
                         <div style="width:45%;">
                             <label>起始時間 *</label>
@@ -209,7 +189,12 @@
                                 <span>{{ x + 1 }}</span>
                             </div>
                             <div class="col-4">
-                                <input type="text" v-model="p.name" class="form-control" placeholder="姓名">
+                            <input type="text"
+                                   v-model="p.name"
+                                   class="form-control"
+                                   placeholder="姓名"
+                                   @@input ="p.name = p.name.replace(/[0-9]/g, '')">
+
                             </div>
                             <div class="col-4">
                                 <input type="text" v-model="p.deptTitle" class="form-control" placeholder="單位與職稱">
@@ -230,31 +215,25 @@
                             <div class="col-auto">
                                 <button type="button"
                                         class="btn btn-primary"
-                                        @@click ="addPassenger"
+                                        @@click="addPassenger"
                                         :disabled="!canAddPassenger">
                                     新增乘客
                                 </button>
                             </div>
                         </div>
-                        <div class="row mb-2 align-items-end">
-                            <div class="col-3">
-                                <label>裝載物料品名</label>
-                                <input class="form-control" v-model="materialName" placeholder="例如：木材 / 鋼筋 / 文件" />
+                        
+                    </div>
 
-                            </div>
-                        </div>
+                    <!-- 動作列 -->
+                    <div class="actions" style="margin-top:16px">
+                        <a asp-action="Dispatch" asp-controller="Dispatches"
+                           class="btn"
+                           style="background:#6b7280; color:#fff; border-color:#6b7280;">
+                            返回清單
+                        </a>
+                        <button type="button" class="btn btn-primary" @@click="onSubmit">送出申請</button>
+                    </div>
                 </div>
-
-                <!-- 動作列 -->
-                <div class="actions" style="margin-top:16px" >
-                    <a asp-action="Dispatch" asp-controller="Dispatches"
-                       class="btn"
-                       style="background:#6b7280; color:#fff; border-color:#6b7280;">
-                        返回清單
-                    </a>
-                    <button type="button" class="btn btn-primary" @@click="onSubmit">送出申請</button>
-                </div>
-            </div>
         </form>
     </div>
 
@@ -273,213 +252,208 @@
         function endToken(which){ placeSessionTokens[which] = null; }
     </script>
     <script>
-        // 解析 "(lat,lng)" 或 "lat,lng"
-        function parseLatLngText(text){
-          if (!text) return null;
-          const s = String(text).trim().replace(/[()]/g, "").replace(/[，\s]+/g, ",");
-          const parts = s.split(",");
-          if (parts.length !== 2) return null;
-          const lat = Number(parts[0]), lng = Number(parts[1]);
-          if (!isFinite(lat) || !isFinite(lng)) return null;
-          if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-          return { lat, lng };
-        }
-           //sessionToken 每次新的輸入流程時更新
-        let sessionToken = null;
-        function newSessionToken() {
-          sessionToken = crypto.randomUUID(); // 產生唯一 token
-        }
-        // 下拉選單（1 秒防抖、含鍵盤操作）
-        function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 1000) {
-          const input = document.getElementById(inputId);
-          const drop  = document.getElementById(dropdownId);
-          if (!input || !drop) return;
-
-          document.body.appendChild(drop);
-
-          // === 新增：Session Token 管理 ===
-          let sessionToken = null;
-          const ensureToken = () => (sessionToken ??= (crypto?.randomUUID?.() || String(Date.now())+Math.random()));
-          const endSession = () => { sessionToken = null; }; // 選取完成或長時間不操作後重置
-
-          function positionDropdown() {
-            const rect = input.getBoundingClientRect();
-            drop.style.position = "absolute";
-            drop.style.top  = rect.bottom + window.scrollY + "px";
-            drop.style.left = rect.left + window.scrollX + "px";
-            drop.style.width = rect.width + "px";
-          }
-
-          let timer = null;
-          function showLoading(){ drop.innerHTML = '<div class="ac-empty">搜尋中…</div>'; drop.style.display='block'; positionDropdown(); }
-          function showEmpty(msg='找不到建議'){ drop.innerHTML = `<div class="ac-empty">${msg}</div>`; drop.style.display='block'; positionDropdown(); }
-          function hide(){ drop.style.display='none'; drop.innerHTML=''; }
-
-          function render(items, onPick){
-            drop.innerHTML = '';
-            if (!items || !items.length){ showEmpty(); return; }
-            items.forEach((it, idx)=>{
-              const div = document.createElement('div');
-              div.className = 'ac-item' + (idx===0? ' active' : '');
-              div.textContent = it.text;
-              div.dataset.id = it.id || '';
-              div.addEventListener('mousedown', (e)=>{ e.preventDefault(); onPick(it); });
-              drop.appendChild(div);
-            });
-            drop.style.display = 'block';
-            positionDropdown();
-          }
-
-          function moveActive(dir){
-            const items = Array.from(drop.querySelectorAll('.ac-item'));
-            if (!items.length) return;
-            let idx = items.findIndex(x=>x.classList.contains('active'));
-            idx = (idx + dir + items.length) % items.length;
-            items.forEach(x=>x.classList.remove('active'));
-            items[idx].classList.add('active');
-          }
-
-          async function pick(item){
-            // === 新增：選取後打 Place Details（同一個 sessionToken）===
-            try{
-              if (item.id) {
-                const url = `/api/places/details/${encodeURIComponent(item.id)}?sessionToken=${encodeURIComponent(sessionToken||'')}`;
-                const res = await fetch(url);
-                const data = await res.json();
-
-                const name = data?.displayName?.text || item.text || '';
-                input.value = name; // 寫回輸入框
-                hide();
-                console.log('token', sessionToken)
-                // 把座標與顯示文字回傳給外面（Vue v-model）
-                const lat = data?.location?.latitude ?? data?.location?.lat ?? null;
-                const lng = data?.location?.longitude ?? data?.location?.lng ?? null;
-                if (typeof callback === 'function') {
-                  callback({ id: data?.id || item.id, text: name, lat, lng, raw: data });
-                }
-              } else {
-                // 沒 placeId（例如是「(lat,lng)」輸入），直接回傳
-                input.value = item.text;
-                hide();
-                if (typeof callback === 'function') callback(item);
-              }
-            } finally {
-              // 重要：這次 session 結束，重置 token
-              endSession();
-              // 讓 v-model 也收到 change
-              input.dispatchEvent(new Event('change', { bubbles:true }));
+            // 解析 "(lat,lng)" 或 "lat,lng"
+            function parseLatLngText(text){
+              if (!text) return null;
+              const s = String(text).trim().replace(/[()]/g, "").replace(/[，\s]+/g, ",");
+              const parts = s.split(",");
+              if (parts.length !== 2) return null;
+              const lat = Number(parts[0]), lng = Number(parts[1]);
+              if (!isFinite(lat) || !isFinite(lng)) return null;
+              if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+              return { lat, lng };
             }
-          }
+            // 下拉選單（1 秒防抖、含鍵盤操作）
+            function attachPlacesAutocomplete(inputId, dropdownId, callback, idleMs = 1000) {
+              const input = document.getElementById(inputId);
+              const drop  = document.getElementById(dropdownId);
+              if (!input || !drop) return;
 
-          function pickActive(){ const el = drop.querySelector('.ac-item.active'); if (!el) return; pick({ id: el.dataset.id || '', text: el.textContent }); }
+              document.body.appendChild(drop);
 
-          input.addEventListener('focus', ()=>{ ensureToken(); positionDropdown(); });
-
-          input.addEventListener('input', ()=>{
-            const q = input.value.trim();
-            clearTimeout(timer);
-            hide();
-            if (!q || q.length < 3) return; // 至少 3 字
-            timer = setTimeout(async ()=>{
-              // 允許輸入 "(lat,lng)" 直填
-              const parsed = parseLatLngText(q);
-              if (parsed){ hide(); if (typeof callback==='function'){ callback({ id:'', text:q, lat:parsed.lat, lng:parsed.lng }); } return; }
-
-              showLoading();
-              try {
-                ensureToken();
-             if (!window.sessionToken) {
-             window.sessionToken = crypto.randomUUID(); // 或其他方式產生唯一字串
-             }
-
-             console.log('token', window.sessionToken);
-                const res = await fetch('/api/places/autocomplete', {
-                  method:'POST',
-                  headers:{ 'Content-Type':'application/json' },
-                            body: JSON.stringify({ input: q, sessionToken, regionCode: "TW","locationRestriction": {
-                   "rectangle": {
-                     "low": { "latitude": 21.8, "longitude": 119.3 },   // 台灣西南角
-                     "high": { "latitude": 25.3, "longitude": 122.1 }   // 台灣東北角
-                   }
-                 } })
-                });
-                const raw = await res.text();
-                let data; try { data = JSON.parse(raw); } catch{ data = null; }
-
-                if (!res.ok){
-                  drop.innerHTML = `<div class='ac-empty'>⚠ 服務錯誤：HTTP ${res.status}</div>`;
-                  drop.style.display = 'block'; positionDropdown(); return;
-                }
-
-                const items = (data?.suggestions||[]).map(s=>{
-                  const pp = s.placePrediction;
-                  const text = pp?.text?.text || '';
-                  const id   = pp?.placeId || '';
-                  return text ? { id, text } : null;
-                }).filter(Boolean);
-
-                render(items, pick);
-              } catch(err){
-                console.error('[places autocomplete] 例外：', err);
-                showEmpty('⚠ 連線異常，請稍後再試');
+              function moveActive(dir){
+                const items = Array.from(drop.querySelectorAll('.ac-item'));
+                if (!items.length) return;
+                let idx = items.findIndex(x=>x.classList.contains('active'));
+                idx = (idx + dir + items.length) % items.length;
+                items.forEach(x=>x.classList.remove('active'));
+                items[idx].classList.add('active');
               }
-            }, idleMs);
-          });
+           
 
-          input.addEventListener('keydown', (e)=>{
-            if (e.key==='Enter'){ e.preventDefault(); if (drop.style.display==='block'){ pickActive(); } return false; }
-            if (e.key==='ArrowDown'){ e.preventDefault(); moveActive(+1); }
-            else if (e.key==='ArrowUp'){ e.preventDefault(); moveActive(-1); }
-            else if (e.key==='Escape'){ hide(); }
-          });
+            // === 新增：Session Token 管理 ===
+        let sessionToken = null;
+        const ensureToken = () => {
+          if (!sessionToken) {
+            sessionToken = crypto.randomUUID();
+            console.log(`[${inputId}] 建立新 sessionToken:`, sessionToken);
+          }
+          return sessionToken;
+        };
+        const endSession = () => {
+          console.log(`[${inputId}] sessionToken 結束:`, sessionToken);
+          sessionToken = null;
+        };
 
-          document.addEventListener('click', (e)=>{ if (!drop.contains(e.target) && e.target!==input) hide(); });
+         function positionDropdown() {
+                const rect = input.getBoundingClientRect();
+                drop.style.position = "absolute";
+                drop.style.top  = rect.bottom + window.scrollY + "px";
+                drop.style.left = rect.left + window.scrollX + "px";
+                drop.style.width = rect.width + "px";
+              }
 
-          input.addEventListener('blur', ()=>{ /* 也可加個延遲再 endSession()，看 UX 需求 */ });
-          window.addEventListener('resize', positionDropdown);
-          window.addEventListener('scroll', positionDropdown);
+              let timer = null;
+              function showLoading(){ drop.innerHTML = '<div class="ac-empty">搜尋中…</div>'; drop.style.display='block'; positionDropdown(); }
+              function showEmpty(msg='找不到建議'){ drop.innerHTML = `<div class="ac-empty">${msg}</div>`; drop.style.display='block'; positionDropdown(); }
+              function hide(){ drop.style.display='none'; drop.innerHTML=''; }
+
+              function render(items, onPick){
+                drop.innerHTML = '';
+                if (!items || !items.length){ showEmpty(); return; }
+                items.forEach((it, idx)=>{
+                  const div = document.createElement('div');
+                  div.className = 'ac-item' + (idx===0? ' active' : '');
+                  div.textContent = it.text;
+                  div.dataset.id = it.id || '';
+                  div.addEventListener('mousedown', (e)=>{ e.preventDefault(); onPick(it); });
+                  drop.appendChild(div);
+                });
+                drop.style.display = 'block';
+                positionDropdown();
+              }
+
+                    async function pick(item){
+          try{
+            if (item.id) {
+              const token = ensureToken();
+              console.log(`[${inputId}] 發送 details 請求，token:`, token);
+
+              const url = `/api/places/details/${encodeURIComponent(item.id)}?sessionToken=${encodeURIComponent(token)}`;
+              const res = await fetch(url);
+              console.log(`[${inputId}] details status:`, res.status);
+
+              const data = await res.json();
+              console.log(`[${inputId}] details body:`, data);
+
+              const name = data?.displayName?.text || item.text || '';
+              input.value = name;
+              hide();
+
+              const lat = data?.location?.latitude ?? null;
+              const lng = data?.location?.longitude ?? null;
+              if (typeof callback === 'function') {
+                callback({ id: data?.id || item.id, text: name, lat, lng, addr: data?.formattedAddress, raw: data });
+              }
+            } else {
+              input.value = item.text;
+              hide();
+              if (typeof callback === 'function') callback(item);
+            }
+          } finally {
+            endSession(); // 選完就結束
+            input.dispatchEvent(new Event('change', { bubbles:true }));
+          }
         }
-    
-    let singleDurationSec = 0;       // 單程秒數
-                let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
 
-                function toLocalDateTimeString(date) {
-          const pad = n => String(n).padStart(2, "0");
-          return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-        }
+               function pickActive(){ const el = drop.querySelector('.ac-item.active'); if (!el) return; pick({ id: el.dataset.id || '', text: el.textContent }); }
 
-        //日期正規化
-                function fmtDateTimeLocal(dtStr) {
-          if (!dtStr) return "—";
-          const d = new Date(dtStr);
-          if (isNaN(d.getTime())) return "—";
-          const pad = n => String(n).padStart(2, "0");
-          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
+        input.addEventListener('focus', ()=>{ ensureToken(); positionDropdown(); });
 
-        function recalcArrival() {
-          const startInput = document.getElementById("UseStart").value;
-          if (!startInput) return;
+        input.addEventListener('input', ()=>{
+          const q = input.value.trim();
+          clearTimeout(timer);
+          hide();
+          if (!q || q.length < 3) return;
+          timer = setTimeout(async ()=>{
+            ensureToken();
+            showLoading();
+            try {
+              console.log(`[${inputId}] autocomplete 請求，token:`, sessionToken);
 
-          const start = new Date(startInput);
-          if (isNaN(start.getTime())) return;
+              const res = await fetch('/api/places/autocomplete', {
+                method:'POST',
+                headers:{ 'Content-Type':'application/json' },
+                body: JSON.stringify({ input: q, sessionToken })
+              });
 
-          const tripType = document.getElementById("TripType").value;
-          const secs = (tripType === "來回") ? roundTripDurationSec : singleDurationSec;
-          if (!secs || secs <= 0) return;
-        }
-        // 初始化：避免重複綁定
-        function initPlacesAutocompleteDebounced(bindings = {}, opts = {}){
-          if (window.__AC_DEBOUNCED_INITED__) return; window.__AC_DEBOUNCED_INITED__ = true;
-          const idleMs = Number.isFinite(opts.idleMs) ? opts.idleMs : 1000;
-          const safeAttach = (inputId, dropdownId, onPick)=>{
-            const input = document.getElementById(inputId), drop = document.getElementById(dropdownId);
-            if (!input || !drop) return;
-            attachPlacesAutocomplete(inputId, dropdownId, onPick, idleMs);
-          };
-          safeAttach('orig','ac-orig', (p)=>{ if (typeof bindings.onOrigin==='function') bindings.onOrigin(p); else { const el=document.getElementById('orig'); if (el) el.value=p.text; window.origin=p.text; } });
-          safeAttach('dest','ac-dest', (p)=>{ if (typeof bindings.onDestination==='function') bindings.onDestination(p); else { const el=document.getElementById('dest'); if (el) el.value=p.text; window.destination=p.text; } });
-        }
+              console.log(`[${inputId}] autocomplete status:`, res.status);
+              const data = await res.json();
+              console.log(`[${inputId}] autocomplete result:`, data);
+
+              const items = (data?.suggestions||[]).map(s=>{
+                const pp = s.placePrediction;
+                const text = pp?.text?.text || '';
+                const id   = pp?.placeId || '';
+                return text ? { id, text } : null;
+              }).filter(Boolean);
+
+              render(items, pick);
+            } catch(err){
+              console.error(`[${inputId}] autocomplete error:`, err);
+              showEmpty('⚠ 連線異常，請稍後再試');
+            }
+          }, idleMs);
+        });
+
+        input.addEventListener('keydown', (e)=>{
+          if (e.key==='Enter'){ e.preventDefault(); if (drop.style.display==='block'){ pickActive(); } return false; }
+          if (e.key==='ArrowDown'){ e.preventDefault(); moveActive(+1); }
+          else if (e.key==='ArrowUp'){ e.preventDefault(); moveActive(-1); }
+          else if (e.key==='Escape'){ hide(); }
+        });
+            function newSessionToken() {
+              sessionToken = crypto.randomUUID(); // 產生唯一 token
+            }
+            
+
+              document.addEventListener('click', (e)=>{ if (!drop.contains(e.target) && e.target!==input) hide(); });
+
+              input.addEventListener('blur', ()=>{ /* 也可加個延遲再 endSession()，看 UX 需求 */ });
+              window.addEventListener('resize', positionDropdown);
+              window.addEventListener('scroll', positionDropdown);
+            }
+
+                    let singleDurationSec = 0;       // 單程秒數
+                    let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
+
+                    function toLocalDateTimeString(date) {
+              const pad = n => String(n).padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            }
+
+            //日期正規化
+                    function fmtDateTimeLocal(dtStr) {
+              if (!dtStr) return "—";
+              const d = new Date(dtStr);
+              if (isNaN(d.getTime())) return "—";
+              const pad = n => String(n).padStart(2, "0");
+              return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+
+            function recalcArrival() {
+              const startInput = document.getElementById("UseStart").value;
+              if (!startInput) return;
+
+              const start = new Date(startInput);
+              if (isNaN(start.getTime())) return;
+
+              const tripType = document.getElementById("TripType").value;
+              const secs = (tripType === "來回") ? roundTripDurationSec : singleDurationSec;
+              if (!secs || secs <= 0) return;
+            }
+            // 初始化：避免重複綁定
+            function initPlacesAutocompleteDebounced(bindings = {}, opts = {}){
+              if (window.__AC_DEBOUNCED_INITED__) return; window.__AC_DEBOUNCED_INITED__ = true;
+              const idleMs = Number.isFinite(opts.idleMs) ? opts.idleMs : 1000;
+              const safeAttach = (inputId, dropdownId, onPick)=>{
+                const input = document.getElementById(inputId), drop = document.getElementById(dropdownId);
+                if (!input || !drop) return;
+                attachPlacesAutocomplete(inputId, dropdownId, onPick, idleMs);
+              };
+              safeAttach('orig','ac-orig', (p)=>{ if (typeof bindings.onOrigin==='function') bindings.onOrigin(p); else { const el=document.getElementById('orig'); if (el) el.value=p.text; window.origin=p.text; } });
+              safeAttach('dest','ac-dest', (p)=>{ if (typeof bindings.onDestination==='function') bindings.onDestination(p); else { const el=document.getElementById('dest'); if (el) el.value=p.text; window.destination=p.text; } });
+            }
     </script>
     <script>
         console.log("✅ JS 載入測試：檔案已執行");
@@ -549,14 +523,8 @@
             const now = new Date();
 
             // 申請人模式 & 下拉
-            const applyFor = ref("self"); // self / other
-            const applicants = ref([]);
-            const selectedApplicantId = ref(null);
-            const chosenName = computed(() => {
-              if (applyFor.value !== 'other') return null;
-              const a = applicants.value.find(x => x.applicantId === selectedApplicantId.value);
-              return a ? a.name : null;
-            });
+            const applyFor = ref("self"); // self 
+            
 
             // 表單欄位
             const vehicleType  = ref("汽車");
@@ -567,7 +535,7 @@
             const origin = ref("");
             const destination = ref("");
             const tripType = ref("round"); // single / round
-
+            const materialName = ref("");
             // 申請者（本人）資訊
             const applicant = reactive({ name:'', birth:'', dept:'', ext:'', email:'' });
 
@@ -611,7 +579,7 @@
               syncPassengerCount();
               await checkCapacity();
             }
-            
+
             async function removePassenger(i) {
               passengers.value.splice(i, 1);
               syncPassengerCount();
@@ -632,15 +600,14 @@
                     async function checkCapacity() {
           if (!useStart.value || !useEnd.value) return;
                  try {
-          const res = await axios.get("/api/vehicles/max-capacity", {
+          const res = await axios.get("/api/max-capacity", {
             params: {
               from: toLocalIso(useStart.value),
               to:   toLocalIso(useEnd.value)
             }
           });
 
-          // 兼容：後端如果還是回 {max: 8} 就用 data.max
-          // 如果已經改成 ApiResponse.Ok({max: 8}) 就用 data.data.max
+          //最大載客量
           const max = res.data?.data?.max ?? res.data?.max ?? 0;
           maxCapacity.value = max;
 
@@ -654,33 +621,9 @@
         }
 
         }
-        //裝載物料
-        const materialName = ref("");
-
-         
-
+        
             // ----- 載入 API -----
-            async function loadApplicant(){
-              try{
-                const res = await axios.get('/api/applicants/me', { withCredentials: true });
-                Object.assign(applicant, res.data || {});
-              }catch(err){
-                console.error('載入申請人失敗', err);
-              }
-            }
-
-            async function loadApplicants(){
-              try{
-                const res = await axios.get('/api/carapplications/applicants', { withCredentials: true });
-                applicants.value = Array.isArray(res.data) ? res.data : [];
-                if (!selectedApplicantId.value && applicants.value.length) {
-                  selectedApplicantId.value = applicants.value[0].applicantId;
-                }
-              }catch(e){
-                console.error('載入申請者清單失敗', e);
-                applicants.value = [];
-              }
-            }
+           
 
             async function loadVehicles() {
               if (!useStart.value || !useEnd.value) return;
@@ -737,10 +680,7 @@
               if (!ok) assign.vehicleId = list[0]?.vehicleId ?? null;
             });
 
-            watch(applyFor, (val) => {
-              if (val === 'other' && applicants.value.length === 0) loadApplicants();
-              if (val === 'self') selectedApplicantId.value = null;
-            });
+            
 
            // 監聽乘客數變化也自動檢查
             watch(passengers, () => {
@@ -841,7 +781,7 @@
           const pax = (passengers.value || []).filter(p => p && p.name && p.name.trim());
           console.log("👥 passengers:", pax);
 
-         
+
 
           const payload = {
             applyFor: applyFor.value,
@@ -863,10 +803,7 @@
             vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
             status: '待審核'
           };
-          if (applyFor.value === 'other' && selectedApplicantId.value) {
-            payload.applicantId = selectedApplicantId.value;
-          }
-
+          
           console.log("📦 payload (application):", payload);
 
           const dto = {
@@ -893,7 +830,7 @@
 
             let msg;
             if (typeof data === "string") {
-              msg = data;   
+              msg = data;
             } else {
               msg =
                 data?.message ||
@@ -913,7 +850,7 @@
         }
 
             // ----- 初始化 -----
-                            onMounted(() => {
+        onMounted(() => {
           const pad = n => String(n).padStart(2, "0");
           const formatRoc = (date) => {
             const rocYear = date.getFullYear() - 1911;
@@ -939,7 +876,7 @@
 
           const endPicker = flatpickr("#useEnd", {
             enableTime: true,
-            clickOpens: false,   
+            clickOpens: false,
             dateFormat: "Y-m-d H:i",
             altInput: true,
             altFormat: "Y-m-d H:i",
@@ -957,19 +894,27 @@
           document.getElementById("calendarEnd").addEventListener("click", () => {
             endPicker.open();
           });
+          initPlacesAutocompleteDebounced({
+          onOrigin: (p) => {
+            console.log("🚩 Origin picked:", p);
+            window.origin = p.text;
+          },
+          onDestination: (p) => {
+            console.log("🚩 Destination picked:", p);
+            window.destination = p.text;
+          }
         });
+    });
+              
 
 
 
-            
+
             return {
               // 基本
               applyFor, vehicleType, purposeType,
               passengerCount, useStart, useEnd, reasonType, applyReason,
               origin, destination, tripType, applicant,materialName,
-
-              // 申請者下拉
-              applicants, selectedApplicantId, chosenName, loadApplicants,loadApplicant,
 
               // 車輛
               vehicles, availableVehicles, assign, loadVehicles,

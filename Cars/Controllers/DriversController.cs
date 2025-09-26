@@ -11,8 +11,9 @@ using System.Security.Claims;
 
 namespace Cars.ApiControllers
 {
+    [ApiController]
     [Authorize]
-    [Route("Drivers")]
+    [Route("api/[controller]")]
 
     public class DriversController : Controller
     {
@@ -202,8 +203,8 @@ namespace Cars.ApiControllers
                     }
                 }
 
-                var (ok, err1) = await _db.TrySaveChangesAsync(this);
-                if (!ok) return err1!; 
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!; 
                 await tx.CommitAsync();
 
                 return Json(changes);
@@ -261,8 +262,8 @@ namespace Cars.ApiControllers
                     });
                 }
 
-                var (ok, err1) = await _db.TrySaveChangesAsync(this);
-                if (!ok) return err1!; 
+                var (ok, err) = await _db.TrySaveChangesAsync(this);
+                if (!ok) return err!; 
                 await tx.CommitAsync();
                 return NoContent();
             }
@@ -483,8 +484,8 @@ namespace Cars.ApiControllers
             }
 
             _db.Drivers.Add(input);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return RedirectToAction(nameof(Index));
         }
 
@@ -496,7 +497,7 @@ namespace Cars.ApiControllers
             return View(d);
         }
 
-        // POST: /Drivers/Edit/5
+        
         [HttpPost("Edit/{id:int}")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("DriverId,DriverName,NationalId,BirthDate,HouseholdAddress,ContactAddress,Phone,Mobile,EmergencyContactName,EmergencyContactPhone")] Driver input)
@@ -534,8 +535,8 @@ namespace Cars.ApiControllers
             entity.EmergencyContactName = input.EmergencyContactName;
             entity.EmergencyContactPhone = input.EmergencyContactPhone;
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!;
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
             return RedirectToAction(nameof(Index));
         }
 

@@ -181,7 +181,8 @@ namespace Cars.ApiControllers
             #endregion
 
         }
-            [HttpGet("max-capacity")]
+        //查詢車輛座位數上限
+        [HttpGet("/api/max-capacity")]
             public async Task<IActionResult> GetMaxCapacity([FromQuery] DateTime from, [FromQuery] DateTime to)
             {
                 if (from == default || to == default || from >= to)

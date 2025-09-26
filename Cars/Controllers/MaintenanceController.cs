@@ -68,8 +68,8 @@ namespace Cars.ApiControllers
             var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == vehicleId);
             if (v == null) return NotFound();
             v.Status = status?.Trim();
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok,err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return NoContent();
         }
         #endregion
@@ -122,8 +122,8 @@ namespace Cars.ApiControllers
                 Note = dto.Note
             };
             _db.VehicleMaintenances.Add(entity);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "新增成功", id = entity.VehicleMaintenanceId });
         }
         [HttpPut("{id:int}")]
@@ -142,8 +142,8 @@ namespace Cars.ApiControllers
             m.Vendor = body.Vendor;
             m.Note = body.Note;
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return NoContent();
         }
         // 刪除
@@ -153,8 +153,8 @@ namespace Cars.ApiControllers
             var one = await _db.VehicleMaintenances.FindAsync(id);
             if (one == null) return NotFound();
             _db.VehicleMaintenances.Remove(one);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "已刪除" });
         }
         
@@ -190,8 +190,8 @@ namespace Cars.ApiControllers
             if (v != null)
                 v.Status = "維修中";
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "報修已送出", id = entity.RepairRequestId });
         }
         //更新維修
@@ -209,8 +209,8 @@ namespace Cars.ApiControllers
             repair.Note = dto.Note;
             // 保持原有的 Status，不要強制改
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "updated" });
         }
 
@@ -243,8 +243,8 @@ namespace Cars.ApiControllers
             if (record == null) return NotFound();
 
             _db.VehicleRepairs.Remove(record);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "報修紀錄已刪除", id });
         }
         //維修完成更改狀態
@@ -255,8 +255,8 @@ namespace Cars.ApiControllers
             if (repair == null) return NotFound();
 
             repair.Status = status;
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "status updated" });
         }
         #endregion
@@ -307,8 +307,8 @@ namespace Cars.ApiControllers
             };
 
             _db.VehicleInspections.Add(m);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { id = m.InspectionId });
         }
 
@@ -327,8 +327,8 @@ namespace Cars.ApiControllers
             m.OdometerKm = dto.OdometerKm;
             m.Notes = dto.Notes;
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "updated" });
         }
 
@@ -339,8 +339,8 @@ namespace Cars.ApiControllers
             var m = await _db.VehicleInspections.FindAsync(id);
             if (m == null) return NotFound();
             _db.VehicleInspections.Remove(m);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "deleted" });
         }
         #endregion
@@ -396,8 +396,8 @@ namespace Cars.ApiControllers
             };
 
             _db.VehicleViolations.Add(m);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { id = m.ViolationId });
         }
 
@@ -418,8 +418,8 @@ namespace Cars.ApiControllers
             m.PaidDate = dto.PaidDate;
             m.Notes = dto.Notes;
 
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "updated" });
         }
 
@@ -430,8 +430,8 @@ namespace Cars.ApiControllers
             var m = await _db.VehicleViolations.FindAsync(id);
             if (m == null) return NotFound();
             _db.VehicleViolations.Remove(m);
-            var (ok, err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err1!; 
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!; 
             return Ok(new { message = "deleted" });
         }
         #endregion

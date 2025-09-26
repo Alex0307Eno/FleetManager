@@ -12,14 +12,12 @@ namespace LineBotDemo.Services
         private static readonly Dictionary<string, string> RoleAliases = new(StringComparer.OrdinalIgnoreCase)
         {
             // 正式鍵 → 本來在 appsettings 中的鍵
-            ["driver"] = "Driver",
-            ["admin"] = "Admin",
-            ["applicant"] = "Applicant",
-            // 別名
+            ["Driver"] = "Driver",
+            ["Admin"] = "Admin",
+            ["Applicant"] = "Applicant",
             
-            ["申請人"] = "Applicant",
-            ["駕駛"] = "Driver",
-            ["管理員"] = "Admin"
+           
+
         };
 
         public string? GetRichMenuIdByRole(string roleInput)

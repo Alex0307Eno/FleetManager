@@ -26,7 +26,7 @@ namespace Cars.Models
 
         // 導覽屬性
         [ForeignKey("ApplyId")]
-        public CarApplication CarApply { get; set; }                // 申請單導覽屬性
+        public CarApplication CarApplication { get; set; }                // 申請單導覽屬性
         public virtual Vehicle? Vehicle { get; set; }               // 車輛導覽屬性
         public virtual Driver? Driver { get; set; }                 // 司機導覽屬性
 

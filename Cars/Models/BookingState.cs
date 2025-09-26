@@ -4,6 +4,9 @@
     {
         public string? ReserveTime { get; set; }
         public string? ArrivalTime { get; set; }
+        public bool WaitingForManualDeparture { get; set; }
+        public bool WaitingForManualArrival { get; set; }
+
         public string? Reason { get; set; }
         public int? PassengerCount { get; set; }
         public string? Origin { get; set; }

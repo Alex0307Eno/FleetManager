@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Cars.Controllers  // ✅ 建議放在 Controllers 命名空間
+namespace Cars.Controllers  
 {
-    [Authorize] // ✅ 可以直接加在 Controller 層級，全部 Action 都會驗證
+    [Authorize] 
     public class DriversController : Controller
     {
         // 駕駛排班
@@ -21,17 +21,17 @@ namespace Cars.Controllers  // ✅ 建議放在 Controllers 命名空間
         // 駕駛表單（部分檢視）
         public IActionResult _DriverForm()
         {
-            return PartialView(); // ✅ 改成 PartialView
+            return PartialView(); 
         }
 
-        // 建立駕駛（GET: /Drivers/Create）
+        // 建立駕駛
         [HttpGet]
         public IActionResult Create()
         {
             return View();
         }
 
-        // 編輯駕駛（GET: /Drivers/Edit/5）
+        // 編輯駕駛
         [HttpGet]
         public IActionResult Edit(int id)
         {

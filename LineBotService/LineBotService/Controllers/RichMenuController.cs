@@ -51,6 +51,28 @@ namespace LineBotDemo.Controllers
             return Ok(await _service.CreateRichMenuAsync(json));
         }
 
+        [HttpPost("finish-driver")]
+        public async Task<IActionResult> FinishDriverMenu()
+        {
+            string json = @"{
+              ""size"": { ""width"": 2500, ""height"": 843 },
+              ""selected"": false,
+              ""name"": ""DriverFinishMenu"",
+              ""chatBarText"": ""查看功能選單"",
+              ""areas"": [
+                {
+                  ""bounds"": { ""x"": 0, ""y"": 0, ""width"": 1250, ""height"": 843 },
+                  ""action"": { ""type"": ""message"", ""text"": ""我的行程"" }
+                },
+                {
+                  ""bounds"": { ""x"": 1250, ""y"": 0, ""width"": 1250, ""height"": 843 },
+                  ""action"": { ""type"": ""message"", ""text"": ""結束行程"" }
+                }
+              ]
+            }";
+            return Ok(await _service.CreateRichMenuAsync(json));
+        }
+
         /// <summary>
         /// 建立管理員選單 (AdminMenu)
         /// </summary>

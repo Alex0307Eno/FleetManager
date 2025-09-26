@@ -157,7 +157,7 @@ createApp({
     async function fetchMonth(){
       const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), 1);
       const end   = new Date(anchor.value.getFullYear(), anchor.value.getMonth()+1, 1);
-      const res = await axios.get('/Drivers/MySchedule/Events', { params: { start: start.toISOString(), end: end.toISOString() } });
+      const res = await axios.get('/api/Drivers/MySchedule/Events', { params: { start: start.toISOString(), end: end.toISOString() } });
       Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
       (res.data || []).forEach(ev=>{
         const k = dateKey(ev.start);
@@ -168,7 +168,7 @@ createApp({
     async function fetchWeek(){
       const s = mondayOfWeek(anchor.value);  // ★用「週一」
       const e = new Date(s); e.setDate(s.getDate()+7);   // 半開 [s, e)
-      const res = await axios.get('/Drivers/MySchedule/Events', { params: { start: s.toISOString(), end: e.toISOString() } });
+      const res = await axios.get('/api/Drivers/MySchedule/Events', { params: { start: s.toISOString(), end: e.toISOString() } });
       Object.keys(eventsMap).forEach(k => delete eventsMap[k]);
       (res.data || []).forEach(ev=>{
         const k = dateKey(ev.start);
