@@ -1,9 +1,9 @@
 ﻿using Cars.Data;
 using Cars.Features.CarApplications;
+using Cars.Migrations;
 using Cars.Models;
-using Cars.Services;
 using DocumentFormat.OpenXml.Bibliography;
-using isRock.LIFF;
+using DocumentFormat.OpenXml.Spreadsheet;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -14,7 +14,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
 using System.Text;
-using System.Text.RegularExpressions;
 
 
 
@@ -434,8 +433,7 @@ namespace LineBotDemo.Controllers
                             dispatch.DriverId = driverState.SelectedDriverId ?? 0;
                             dispatch.VehicleId = vehicleId;
                             dispatch.DispatchStatus = "已派車";
-                            dispatch.StartTime = DateTime.Now;
-                            dispatch.EndTime = app.UseEnd;
+                            
 
                             double km = 0, minutes = 0;
                             try
@@ -535,11 +533,12 @@ namespace LineBotDemo.Controllers
 
                             continue;
                         }
+                        var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
+                        var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId);
 
                         if (msg == "我的行程")
                         {
                             // 1. 找到目前使用者
-                            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                             if (user == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 找不到您的帳號，請先完成綁定。");
@@ -571,15 +570,13 @@ namespace LineBotDemo.Controllers
                             }
 
                             // ===== B. 司機身份 =====
-                            var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId);
                             if (driver != null)
                             {
                                 var dispatches = _db.Dispatches
                                     .Include(d => d.CarApplication)
-                                    .Include(d => d.Vehicle) 
+                                    .Include(d => d.Vehicle)
                                     .Where(d => d.DriverId == driver.DriverId &&
-                                                d.StartTime.HasValue &&
-                                                d.StartTime.Value.Date == today)
+                                           d.CarApplication.UseStart.Date == today)
                                     .ToList();
 
 
@@ -587,26 +584,15 @@ namespace LineBotDemo.Controllers
                                 {
                                     var lines = dispatches.Select(d =>
                                         $"📝 派車單 {d.DispatchId}\n" +
-                                        $"⏰ {d.StartTime:HH:mm} - {d.EndTime:HH:mm}\n" +
+                                        $"⏰ {d.CarApplication.UseStart:HH:mm} - {d.CarApplication.UseEnd:HH:mm}\n" +
                                         $"🚗 {d.CarApplication.Origin} → {d.CarApplication.Destination}");
                                     var reply = "📌 您今天的派車任務：\n\n" + string.Join("\n\n", lines);
                                     bot.ReplyMessage(replyToken, reply);
                                     hasResult = true;
                                 }
 
-                                if (msg == "開始行程")
-                                {
-                                    var result = await _dispatchService.StartTripAsync(driver.DriverId, uid);
-                                    bot.ReplyMessage(replyToken, result);
-                                    continue;
-                                }
+                              
 
-                                if (msg == "結束行程")
-                                {
-                                    var result = await _dispatchService.EndTripAsync(driver.DriverId, uid);
-                                    bot.ReplyMessage(replyToken, result);
-                                    continue;
-                                }
                             }
 
                             // ===== C. 兩者皆非 =====
@@ -617,7 +603,63 @@ namespace LineBotDemo.Controllers
 
                             continue;
                         }
-                       
+                        // ==== 頂層處理：開始/結束行程 ====
+                        if (msg == "開始行程" || msg == "結束行程")
+                        {
+
+                            if (driver == null)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 您不是駕駛身分或尚未綁定。");
+                                return Ok();
+                            }
+
+                            if (msg == "開始行程")
+                            {
+                                DispatchService.DriverInputState.Waiting[uid] = $"StartOdometer:{driver.DriverId}";
+                                bot.ReplyMessage(replyToken, "請輸入出發時的里程數 (公里)：");
+                                return Ok();
+                            }
+                            else // 結束行程
+                            {
+                                DispatchService.DriverInputState.Waiting[uid] = $"EndOdometer:{driver.DriverId}";
+                                bot.ReplyMessage(replyToken, "請輸入回程的里程數 (公里)：");
+                                return Ok();
+                            }
+                        }
+                        // ==== 優先處理：是否在等里程數輸入 ====
+                        if (LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryGetValue(uid, out var mode))
+                        {
+                            if (!int.TryParse(msg, out var odo) || odo < 0)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 請輸入正整數的里程數（公里），例如：12345");
+                                return Ok();
+                            }
+
+                            // 取得 user/driver
+                            if (driver == null)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 找不到駕駛身分，請先完成綁定。");
+                                LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
+                                return Ok();
+                            }
+
+                            if (mode.StartsWith("StartOdometer:"))
+                            {
+                                await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, $"✅ 已記錄出發里程：{odo} km\n行程已開始。");
+                            }
+                            else if (mode.StartsWith("EndOdometer:"))
+                            {
+                                await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, $"✅ 已記錄回程里程：{odo} km\n行程已完成。");
+                            }
+
+                            LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
+                            return Ok();
+                        }
+
+
+
 
                         // Step 1: 開始預約
                         if (msg.Contains("預約車輛"))
@@ -1169,13 +1211,6 @@ namespace LineBotDemo.Controllers
         }
 
         #endregion
-
-       
-        
-
-       
-
-        
 
         #region 轉換工具
         // 解析申請單 ID

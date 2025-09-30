@@ -40,6 +40,10 @@ namespace Cars.Models
 
         public string? LongShort { get; set; }            // 長差 / 短差 標記（依里程判定）
 
+        public int? OdometerStart { get; set; }         // 出發時里程數
+        public int? OdometerEnd { get; set; }           // 返回時里程數
+
+
         public int? ChildDispatchId { get; set; }         // 若為併單：紀錄子單的 DispatchId（否則為 null）
     }
 }

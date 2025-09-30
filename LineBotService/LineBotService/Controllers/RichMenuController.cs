@@ -174,37 +174,60 @@ namespace LineBotDemo.Controllers
             var result = await _service.UnbindUserAsync(userId);
             return Ok(result);
         }
+        // RichMenuController.cs
         [HttpPost("force-bind/{account}")]
-        public async Task<IActionResult> ForceBind(string account)
+        public async Task<IActionResult> ForceBind(string account, bool unbindFirst = false)
         {
-            // 從 DB 抓使用者
+            // 1) 找使用者（支援帳號或內部 UserId）
             var user = await _db.Users
-                .Where(u => u.Account == account || u.UserId.ToString() == account)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(u => u.Account == account || u.UserId.ToString() == account);
 
             if (user == null)
-            {
-                return NotFound($"❌ 找不到帳號 {account}");
-            }
+                return NotFound("❌ 找不到帳號 " + account);
 
             if (string.IsNullOrEmpty(user.LineUserId))
-            {
-                return BadRequest($"⚠️ 使用者 {account} 沒有綁定 LineUserId");
-            }
+                return BadRequest("⚠️ 此使用者尚未綁定 LineUserId");
 
-            // 取得角色，沒有就預設 Applicant
-            var role = string.IsNullOrEmpty(user.Role) ? "Applicant" : user.Role;
+            // 2) 讀取角色，沒有就當 Applicant
+            var rawRole = string.IsNullOrEmpty(user.Role) ? "Applicant" : user.Role;
 
-            // 綁定 RichMenu
-            var result = await _service.BindUserToRoleAsync(user.LineUserId, role);
+            // 3) 角色別名正規化
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Admin", "Admin" }, { "Manager", "Admin" },
+        { "Driver", "Driver" }, 
+        { "Applicant", "Applicant" }
+    };
+            string role;
+            if (!map.TryGetValue(rawRole, out role))
+                role = "Applicant"; // 不識別一律回退
+
+            // 4) 由角色拿到對應 RichMenuId（你已有此服務）
+            var richMenuId = _service.GetRichMenuIdByRole(role);
+            if (string.IsNullOrEmpty(richMenuId))
+                return NotFound("❌ 設定檔缺少對應 RichMenuId，角色：" + role);
+
+            // 5) 可選：先解除既有個別綁定，避免殘留
+            string unbindResult = null;
+            if (unbindFirst)
+                unbindResult = await _service.UnbindUserAsync(user.LineUserId);
+
+            // 6) 綁定到正確選單
+            var bindResult = await _service.BindToUserAsync(user.LineUserId, richMenuId);
 
             return Ok(new
             {
                 account = user.Account,
-                role,
-                result
+                lineUserId = user.LineUserId,
+                rawRole = rawRole,
+                normalizedRole = role,
+                targetRichMenuId = richMenuId,
+                unbindFirst = unbindFirst,
+                unbindResult = unbindResult,
+                bindResult = bindResult
             });
         }
+
         [HttpPost("upload-image/{richMenuId}")]
         public async Task<IActionResult> UploadImage(string richMenuId, IFormFile file)
         {

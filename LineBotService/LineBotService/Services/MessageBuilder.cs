@@ -470,39 +470,7 @@ namespace LineBotService.Services
               }}
             }}";
         }
-        // 駕駛—開始行程確認
-        private static string BuildStartedBubble(Dispatch d) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""行程已開始"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"", ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""行程已開始"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""出發時間：{DateTime.Now:HH:mm}"" }}
-              ]
-            }}
-          }}
-        }}";
-
-        // 駕駛—完成行程確認
-        private static string BuildFinishedBubble(Dispatch d) => $@"
-        {{
-          ""type"": ""flex"",
-          ""altText"": ""行程已完成"",
-          ""contents"": {{
-            ""type"": ""bubble"",
-            ""body"": {{
-              ""type"": ""box"", ""layout"": ""vertical"",
-              ""contents"": [
-                {{ ""type"": ""text"", ""text"": ""行程已完成"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""結束時間：{DateTime.Now:HH:mm}"" }}
-              ]
-            }}
-          }}
-        }}";
+       
         #endregion
         // 轉為安全的字串（避免特殊字元導致 JSON 格式錯誤）
         private static string SafeJson(string? raw)

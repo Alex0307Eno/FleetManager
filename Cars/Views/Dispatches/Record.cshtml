@@ -87,6 +87,8 @@
                                 <th style="width:100px">審核狀態</th>
                                 <th style="width:120px">駕駛員</th>
                                 <th style="width:90px">車輛</th>
+                                <th style="width:90px">出發前里程數</th>
+                                <th style="width:90px">回場後里程數</th>
                                 @if (User.IsInRole("Admin"))
                                 {
                                     <th style="width:140px">功能</th>
@@ -146,6 +148,11 @@
                                         {{ r.plate || '未指派' }}
                                     </span>
                                 </td>
+                                
+                                <td class="mono">{{ fmtNum(r.odometerStart) }}</td>
+                                
+                                <td class="mono">{{ fmtNum(r.odometerEnd) }}</td>
+
 
 
                                 
@@ -613,6 +620,7 @@
               }
 
               // 工具
+              const fmtNum = v => (v == null || v === '') ? '-' : String(v);
               const pad = n => String(n).padStart(2, '0')
               const rocDate = (d) => {
                 const x = new Date(d); if (isNaN(x)) return ''
@@ -757,8 +765,8 @@
              }
 
               const exportCsv = () => {
-                const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','狀態','駕駛','車牌','長短差'];
-                const rowsForCsv = Array.isArray(shown.value) ? shown.value : [];
+              const headers = ['用車日期','用車時間','目的地','事由','申請人','人數','里程','出發里程','回場里程','狀態','駕駛','車牌','長短差'];
+              const rowsForCsv = Array.isArray(shown.value) ? shown.value : [];
                 const Q = s => `"${String(s ?? '').replaceAll('"', '""')}"`;
                 const lines = rowsForCsv.map(r => [
                   rocDate(r.useStart),
@@ -768,6 +776,8 @@
                   r.applicant ?? '',
                   r.seats ?? '',
                   r.km ?? '',
+                  r.odometerStart ?? '',
+                  r.odometerEnd ?? '',
                   statusText(r.status),
                   r.driver ?? '',
                   r.plate ?? '',
@@ -846,7 +856,9 @@
                   driverId: x.driverId ?? null,
                   plate: x.plate ?? x.plateNo ?? x.PlateNo ?? '',
                   vehicleId: x.vehicleId ?? null,
-                  longShort: x.longShort ?? (Math.random() > 0.5 ? '長差' : '短差')
+                  longShort: x.longShort ?? (Math.random() > 0.5 ? '長差' : '短差'),
+                  odometerStart: x.odometerStart ?? x.OdometerStart ?? null,
+                  odometerEnd:   x.odometerEnd   ?? x.OdometerEnd   ?? null,
                 }
               }
 
@@ -886,7 +898,7 @@
                 // 更新時間
                 lastUpdated,
                 // 工具
-                rocDate, timeSpan, fmtKm, statusText, statusClass, canEdit,
+                fmtNum,rocDate, timeSpan, fmtKm, statusText, statusClass, canEdit,
                 // 狀態
                 viewing, editing, currentDriver, currentVehicle,
                 selectedDriverId, selectedVehicleId, availDrivers, availVehicles,

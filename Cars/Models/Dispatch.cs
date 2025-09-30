@@ -18,6 +18,10 @@ namespace Cars.Models
         public string DispatchStatus { get; set; }                  // 派車單狀態
 
         public bool IsLongTrip { get; set; }                        // 是否長途
+
+        public int? OdometerStart { get; set; }          // 出發時里程數
+
+        public int? OdometerEnd { get; set; }             // 回程時里程數
         // 時間
         public DateTime? StartTime { get; set; }                    // 實際出發時間
         public DateTime? EndTime { get; set; }                      // 實際結束時間

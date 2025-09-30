@@ -46,7 +46,7 @@ ViewData["Title"] = "用車申請";
                                     </div>
                                     <div>
                                         <label>裝載物料品名</label>
-                                        <input class="form-control" v-model="materialName" placeholder="例如：木材 / 鋼筋 / 文件" />
+                                        <input class="form-control" v-model="materialName" placeholder="例如： 文件" />
 
                                     </div>
 
@@ -541,8 +541,7 @@ ViewData["Title"] = "用車申請";
 
             // 時間
             const useStart = ref(toLocalDateTimeString(now));
-            const useEnd = ref(toLocalDateTimeString(new Date(now.getTime() + 60*60*1000))); // 預設 +1 小時
-
+            const useEnd = ref("");
 
             const arrivalDisplay = computed(() => {
               if (!useStart.value) return "";
@@ -551,7 +550,7 @@ ViewData["Title"] = "用車申請";
               const secs = (tripType.value === "round") ? roundTripDurationSec : singleDurationSec;
               if (!secs) return "";
               const arrival = new Date(start.getTime() + secs * 1000);
-              useEnd.value = toLocalDateTimeString(arrival); // 同步後端用結束時間
+              
               return `${arrival.getFullYear()}/${pad(arrival.getMonth()+1)}/${pad(arrival.getDate())} ${pad(arrival.getHours())}:${pad(arrival.getMinutes())}`;
             });
 
@@ -728,9 +727,8 @@ ViewData["Title"] = "用車申請";
             // 推估結束時間 + 載入可用車輛
             const start = new Date(useStart.value);
             if (!isNaN(start)) {
-              const secs = (tripType.value === 'round') ? roundTripDurationSec : singleDurationSec;
-              const arrival = new Date(start.getTime() + secs * 1000);
-              useEnd.value = toLocalDateTimeString(arrival);
+             
+           
               await loadVehicles();
             }
           } catch (err) {
@@ -881,7 +879,6 @@ ViewData["Title"] = "用車申請";
             altInput: true,
             altFormat: "Y-m-d H:i",
             formatDate: (date) => formatRoc(date),
-            defaultDate: new Date(),
             onChange: (dates) => {
               if (dates.length) useEnd.value = dates[0].toISOString();
             }

@@ -72,7 +72,9 @@ namespace Cars.ApiControllers
                     DriverId = r != null ? r.DriverId : (int?)null,
                     DriverName = r != null ? r.DriverName : null,
                     VehicleId = v != null ? v.VehicleId : (int?)null,
-                    PlateNo = v != null ? v.PlateNo : null
+                    PlateNo = v != null ? v.PlateNo : null,
+                    d.OdometerStart,
+                    d.OdometerEnd
                 };
 
             if (User.IsInRole("Driver"))
@@ -189,9 +191,10 @@ namespace Cars.ApiControllers
                      a.TripType,
                      a.SingleDistance,
                      a.RoundTripDistance,
-                     d.DispatchStatus
+                     d.DispatchStatus,
+                     d.OdometerStart,
+                     d.OdometerEnd
                  }).ToListAsync();
-            _logger.LogDebug("linkDetails count={Count}", linkDetails.Count);
             //母單
                
 
@@ -245,6 +248,8 @@ namespace Cars.ApiControllers
                     VehicleId = x.VehicleId,
                     LongShort = longShort,
                     ChildDispatchId = null, // 主單沒有 ChildDispatchId
+                    OdometerStart = x.OdometerStart,
+                    OdometerEnd = x.OdometerEnd
                 });
 
 
@@ -276,7 +281,9 @@ namespace Cars.ApiControllers
                         DriverId = x.DriverId,
                         Plate = x.PlateNo,
                         VehicleId = x.VehicleId,
-                        LongShort = ls2
+                        LongShort = ls2,
+                        OdometerStart = x.OdometerStart,
+                        OdometerEnd = x.OdometerEnd
                     });
                 }
             }

@@ -11,12 +11,13 @@ namespace LineBotDemo.Services
         private readonly Dictionary<string, string> _roleToMenu;   // 讀自 appsettings
         private static readonly Dictionary<string, string> RoleAliases = new(StringComparer.OrdinalIgnoreCase)
         {
-            // 正式鍵 → 本來在 appsettings 中的鍵
+            // 正式鍵
             ["Driver"] = "Driver",
             ["Admin"] = "Admin",
             ["Applicant"] = "Applicant",
-            
-           
+            ["Manager"] = "Admin",
+
+
 
         };
 

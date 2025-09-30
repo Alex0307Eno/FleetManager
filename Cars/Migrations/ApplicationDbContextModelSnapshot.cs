@@ -89,6 +89,9 @@ namespace Cars.Migrations
                     b.Property<int?>("DriverId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsLongTrip")
+                        .HasColumnType("bit");
+
                     b.Property<string>("MaterialName")
                         .HasColumnType("nvarchar(max)");
 
@@ -137,9 +140,6 @@ namespace Cars.Migrations
 
                     b.Property<string>("VehicleType")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("isLongTrip")
-                        .HasColumnType("bit");
 
                     b.HasKey("ApplyId");
 
@@ -205,6 +205,12 @@ namespace Cars.Migrations
 
                     b.Property<bool>("IsLongTrip")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("OdometerEnd")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OdometerStart")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime2");
@@ -572,6 +578,71 @@ namespace Cars.Migrations
                     b.HasKey("LineUserId");
 
                     b.ToTable("LineUsers");
+                });
+
+            modelBuilder.Entity("Cars.Models.Record", b =>
+                {
+                    b.Property<int>("DispatchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DispatchId"));
+
+                    b.Property<string>("Applicant")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ChildDispatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Driver")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("DriverId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Km")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("LongShort")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Plate")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReasonType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Route")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("Seats")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TripType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UseEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UseStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("DispatchId");
+
+                    b.ToTable("Records");
                 });
 
             modelBuilder.Entity("Cars.Models.ResolvedSchedule", b =>
@@ -987,7 +1058,7 @@ namespace Cars.Migrations
 
             modelBuilder.Entity("Cars.Models.Dispatch", b =>
                 {
-                    b.HasOne("Cars.Models.CarApplication", "CarApply")
+                    b.HasOne("Cars.Models.CarApplication", "CarApplication")
                         .WithMany("DispatchOrders")
                         .HasForeignKey("ApplyId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1001,7 +1072,7 @@ namespace Cars.Migrations
                         .WithMany("DispatchOrders")
                         .HasForeignKey("VehicleId");
 
-                    b.Navigation("CarApply");
+                    b.Navigation("CarApplication");
 
                     b.Navigation("Driver");
 
