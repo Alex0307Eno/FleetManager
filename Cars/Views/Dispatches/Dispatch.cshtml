@@ -1,5 +1,9 @@
-﻿@{
+﻿@using Cars.ViewModels
+
+@model List<CarApplication>
+@{
     ViewData["Title"] = "派車單";
+
 }
 
 <head>
@@ -82,7 +86,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="r in filtered" :key="r.applyId">
+                        <tr v-for="r in paged" :key="r.applyId">
                             <td class="mono">{{ r.useDate }}</td>
                             <td class="mono">{{ r.useTime }}</td>
                             <td class="col-route">
@@ -187,6 +191,7 @@
             </div>
         </div>
 
+        @await Html.PartialAsync("_Pagination", (PaginationModel)ViewBag.Pagination)
 
 
     </div>
@@ -200,6 +205,14 @@
             const rows = ref([]);
             const loading = ref(true);
             const error = ref("");
+            //分頁
+            const page = ref(1);
+            const pageSize = 10;
+
+        const paged = computed(() => {
+          const start = (page.value - 1) * pageSize;
+          return filtered.value.slice(start, start + pageSize);
+        });
                
             
             // 當月 1~最後 1 日
@@ -518,7 +531,7 @@
           filtered,
 
           // 顯示用工具
-          statusText, statusClass, canEdit,
+           statusText, statusClass, canEdit,paged,
 
           //篩選操作
           reloadByDate, resetFilters,
