@@ -129,7 +129,7 @@
             // 動態載入代理人
             async function loadDrivers(leave){
               try{
-                const res = await axios.get(`/Drivers/Agents?leaveId=${leave.leaveId}`);
+                const res = await axios.get(`/api/Drivers/Agents?leaveId=${leave.leaveId}`);
                 leave.availableAgents = res.data || [];
               }catch(err){
                 console.error("讀取代理人名單失敗", err);

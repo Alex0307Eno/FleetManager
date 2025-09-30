@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using Line.Messaging;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace LineBotDemo.Services
@@ -137,6 +138,22 @@ namespace LineBotDemo.Services
             using var doc = JsonDocument.Parse(body);
             return doc.RootElement.TryGetProperty("richMenuId", out var el) ? el.GetString() : null;
         }
+        /// <summary>
+        /// 綁定 RichMenu 給指定使用者
+        /// </summary>
+        public async Task BindRichMenuToUserAsync(string userId, string richMenuId)
+        {
+            var token = _config["LineBot:ChannelAccessToken"];
+            if (string.IsNullOrEmpty(token))
+                throw new InvalidOperationException("❌ ChannelAccessToken 未設定");
 
+            var url = $"https://api.line.me/v2/bot/user/{userId}/richmenu/{richMenuId}";
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var res = await _http.SendAsync(req);
+            res.EnsureSuccessStatusCode(); // 如果失敗會丟例外
+        }
     }
 }

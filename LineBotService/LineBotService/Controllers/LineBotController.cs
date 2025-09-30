@@ -504,6 +504,7 @@ namespace LineBotDemo.Controllers
                             bot.ReplyMessage(replyToken, "輸入格式不正確，請重新輸入。");
                             continue;
                         }
+
                         // 管理員：查看待審核清單
                         if (msg == "待審核")
                         {
@@ -535,7 +536,42 @@ namespace LineBotDemo.Controllers
                         }
                         var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                         var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId);
+                        // ==== 優先處理：是否在等里程數輸入 ====
+                        if (DispatchService.DriverInputState.Waiting.TryGetValue(uid, out var mode))
+                        {
+                            // 嚴格檢查：只能是正整數，長度合理 (里程數不會超過 9999999)
+                            if (!int.TryParse(msg, out var odo) || odo <= 0 || odo > 9999999)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 請輸入正確的里程數（數字），例如：12345");
+                                return Ok();
+                            }
 
+                            string result;
+
+                            if (mode.StartsWith("StartOdometer:"))
+                            {
+                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, result);
+
+                                // 換成 DriverEnd RichMenu
+                                var endMenuId = _config["RichMenus:DriverEnd"];
+                                if (!string.IsNullOrEmpty(endMenuId))
+                                    await _richMenuService.BindRichMenuToUserAsync(uid, endMenuId);
+                            }
+                            else if (mode.StartsWith("EndOdometer:"))
+                            {
+                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, result);
+
+                                // 換回 DriverStart RichMenu
+                                var startMenuId = _config["RichMenus:DriverStart"];
+                                if (!string.IsNullOrEmpty(startMenuId))
+                                    await _richMenuService.BindRichMenuToUserAsync(uid, startMenuId);
+                            }
+
+                            DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
+                            return Ok();
+                        }
                         if (msg == "我的行程")
                         {
                             // 1. 找到目前使用者
@@ -606,7 +642,6 @@ namespace LineBotDemo.Controllers
                         // ==== 頂層處理：開始/結束行程 ====
                         if (msg == "開始行程" || msg == "結束行程")
                         {
-
                             if (driver == null)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您不是駕駛身分或尚未綁定。");
@@ -616,49 +651,20 @@ namespace LineBotDemo.Controllers
                             if (msg == "開始行程")
                             {
                                 DispatchService.DriverInputState.Waiting[uid] = $"StartOdometer:{driver.DriverId}";
+
                                 bot.ReplyMessage(replyToken, "請輸入出發時的里程數 (公里)：");
+
                                 return Ok();
                             }
                             else // 結束行程
                             {
                                 DispatchService.DriverInputState.Waiting[uid] = $"EndOdometer:{driver.DriverId}";
-                                bot.ReplyMessage(replyToken, "請輸入回程的里程數 (公里)：");
+
+                                bot.ReplyMessage(replyToken, "請輸入回場時的里程數 (公里)：");
+
                                 return Ok();
                             }
                         }
-                        // ==== 優先處理：是否在等里程數輸入 ====
-                        if (LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryGetValue(uid, out var mode))
-                        {
-                            if (!int.TryParse(msg, out var odo) || odo < 0)
-                            {
-                                bot.ReplyMessage(replyToken, "⚠️ 請輸入正整數的里程數（公里），例如：12345");
-                                return Ok();
-                            }
-
-                            // 取得 user/driver
-                            if (driver == null)
-                            {
-                                bot.ReplyMessage(replyToken, "⚠️ 找不到駕駛身分，請先完成綁定。");
-                                LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
-                                return Ok();
-                            }
-
-                            if (mode.StartsWith("StartOdometer:"))
-                            {
-                                await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
-                                bot.ReplyMessage(replyToken, $"✅ 已記錄出發里程：{odo} km\n行程已開始。");
-                            }
-                            else if (mode.StartsWith("EndOdometer:"))
-                            {
-                                await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
-                                bot.ReplyMessage(replyToken, $"✅ 已記錄回程里程：{odo} km\n行程已完成。");
-                            }
-
-                            LineBotDemo.Services.DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
-                            return Ok();
-                        }
-
-
 
 
                         // Step 1: 開始預約

@@ -189,7 +189,7 @@
             }
 
             async function loadDrivers(){
-              const res = await axios.get('/Drivers/Records');
+              const res = await axios.get('/api/Drivers/Records');
               drivers.value = (res.data||[]).map(x=>({ id:x.driverId||x.id, name:x.driverName||x.name }));
             }
 

@@ -28,86 +28,41 @@ namespace LineBotDemo.Services
             _driverEndMenuId = menuOptions.Value.DriverEnd;
         }
 
-        /// <summary>
-        /// 開始行程 → 設定狀態、時間、切換到結束 RichMenu
-        /// </summary>
-        public async Task<string> StartTripAsync(int driverId, string userId)
-        {
-            var now = DateTime.Now;
 
-            // 找一張待開始的任務
-            var dispatch = await _db.Dispatches
-                .Where(d => d.DriverId == driverId &&
-                            d.DispatchStatus == "已派車" &&
-                            !d.StartTime.HasValue)
-                .OrderBy(d => d.DispatchId)
-                .FirstOrDefaultAsync();
-
-            if (dispatch == null)
-                return "⚠️ 目前沒有可開始的任務";
-
-            dispatch.DispatchStatus = "執行中";
-            dispatch.StartTime = now;
-            await _db.SaveChangesAsync();
-
-            // 換成「結束行程」RichMenu
-            await _richMenuService.BindToUserAsync(userId, _driverEndMenuId);
-
-            return $"✅ 行程已開始\n任務單號：{dispatch.DispatchId}\n開始時間：{now:HH:mm}";
-        }
-
-        /// <summary>
-        /// 結束行程 → 設定狀態、時間、切換回開始 RichMenu
-        /// </summary>
-        public async Task<string> EndTripAsync(int driverId, string userId)
-        {
-            var now = DateTime.Now;
-
-            var dispatch = await _db.Dispatches
-                .Where(d => d.DriverId == driverId && d.DispatchStatus == "執行中")
-                .OrderByDescending(d => d.DispatchId)
-                .FirstOrDefaultAsync();
-
-            if (dispatch == null)
-                return "⚠️ 目前沒有進行中的任務";
-
-            dispatch.DispatchStatus = "已完成";
-            dispatch.EndTime = now;
-            await _db.SaveChangesAsync();
-
-            // 換回「開始行程」RichMenu
-            await _richMenuService.BindToUserAsync(userId, _driverStartMenuId);
-
-            return $"✅ 行程已完成\n任務單號：{dispatch.DispatchId}\n結束時間：{now:HH:mm}";
-        }
+       
         // 建一個靜態的暫存 (可以放到 DispatchService.cs)
         public static class DriverInputState
         {
             // userId → "StartOdometer:123" 或 "EndOdometer:456"
             public static ConcurrentDictionary<string, string> Waiting = new ConcurrentDictionary<string, string>();
         }
-
-        public async Task SaveStartOdometerAsync(int driverId, int odometer)
+        //儲存開始里程
+        public async Task<string> SaveStartOdometerAsync(int driverId, int odometer)
         {
             var dispatch = await _db.Dispatches
                 .Where(d => d.DriverId == driverId && d.DispatchStatus == "已派車" && !d.StartTime.HasValue)
                 .OrderBy(d => d.DispatchId)
                 .FirstOrDefaultAsync();
 
-            if (dispatch != null)
-            {
-                dispatch.OdometerStart = odometer;
-                dispatch.StartTime = DateTime.Now;
-                dispatch.DispatchStatus = "執行中";
-                await _db.SaveChangesAsync();
-            }
-        }
+            if (dispatch == null)
+                return "⚠️ 沒有找到尚未開始的派車單。";
 
+            if (odometer <= 0)
+                return "⚠️ 里程數必須大於 0。";
+
+            dispatch.OdometerStart = odometer;
+            dispatch.StartTime = DateTime.Now;
+            //dispatch.DispatchStatus = "執行中";
+            await _db.SaveChangesAsync();
+
+            return $"✅ 已記錄出發里程：{odometer} km\n行程已開始。";
+        }
+        //儲存結束里程
         public async Task<string> SaveEndOdometerAsync(int driverId, int odometer)
         {
             var dispatch = await _db.Dispatches
-                .Where(d => d.DriverId == driverId && d.DispatchStatus == "執行中" && !d.EndTime.HasValue)
-                .OrderBy(d => d.StartTime)
+                .Where(d => d.DriverId == driverId && !d.EndTime.HasValue)
+                .OrderByDescending(d => d.DispatchId)
                 .FirstOrDefaultAsync();
 
             if (dispatch == null)
@@ -121,7 +76,7 @@ namespace LineBotDemo.Services
 
             dispatch.OdometerEnd = odometer;
             dispatch.EndTime = DateTime.Now;
-            dispatch.DispatchStatus = "已完成";
+            //dispatch.DispatchStatus = "已完成";
             await _db.SaveChangesAsync();
 
             var totalKm = odometer - dispatch.OdometerStart.Value;
