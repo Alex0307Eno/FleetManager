@@ -17,7 +17,7 @@ namespace Cars.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.8")
+                .HasAnnotation("ProductVersion", "9.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -480,40 +480,81 @@ namespace Cars.Migrations
                     b.ToTable("FavoriteLocations");
                 });
 
-            modelBuilder.Entity("Cars.Models.FuelFillUp", b =>
+            modelBuilder.Entity("Cars.Models.FuelCard", b =>
                 {
-                    b.Property<int>("FuelFillUpId")
+                    b.Property<int>("FuelCardId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FuelFillUpId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FuelCardId"));
 
-                    b.Property<decimal?>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("FuelType")
+                    b.Property<string>("CardNo")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("Liters")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Odometer")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PlateNo")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
 
                     b.Property<int>("VehicleId")
                         .HasColumnType("int");
 
-                    b.HasKey("FuelFillUpId");
+                    b.HasKey("FuelCardId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("FuelCards");
+                });
+
+            modelBuilder.Entity("Cars.Models.FuelFillUp", b =>
+                {
+                    b.Property<int>("FuelTransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FuelTransactionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CardNo")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Liters")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("Odometer")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlateNo")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RawHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("StationName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("TxTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("FuelTransactionId");
 
                     b.ToTable("FuelFillUps");
                 });
@@ -1121,6 +1162,17 @@ namespace Cars.Migrations
                     b.Navigation("Agent");
 
                     b.Navigation("Principal");
+                });
+
+            modelBuilder.Entity("Cars.Models.FuelCard", b =>
+                {
+                    b.HasOne("Cars.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("Cars.Models.Leave", b =>

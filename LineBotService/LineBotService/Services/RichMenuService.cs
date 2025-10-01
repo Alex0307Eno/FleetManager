@@ -73,7 +73,7 @@ namespace LineBotDemo.Services
         public async Task<string> BindUserToRoleAsync(string userId, string roleInput)
         {
             var key = ResolveRoleKey(roleInput);
-            if (key is null) return $"❌ 未知角色：{roleInput}（可用：Driver/Admin/Applicant 或別名 User/申請人/駕駛/管理員）";
+            if (key is null) return $"❌ 未知角色：{roleInput}（可用：Driver/Admin/Applicant ）";
             if (!_roleToMenu.TryGetValue(key, out var menuId) || string.IsNullOrEmpty(menuId))
                 return $"❌ 設定檔未找到角色 {key} 對應的 richMenuId";
 

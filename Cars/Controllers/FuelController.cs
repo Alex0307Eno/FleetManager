@@ -1,123 +1,257 @@
 ﻿using Cars.Data;
-using Microsoft.AspNetCore.Authorization;
+using Cars.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cars.ApiControllers
+
+namespace Cars.Controllers
 {
-    [Authorize]
     [ApiController]
-    [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Route("api/fuel")]
     public class FuelController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        public FuelController(ApplicationDbContext db) { _db = db; }
-        #region 油耗統計
-        // 下拉：車種
-        [HttpGet("categories")]
-        public async Task<IActionResult> GetCategories()
+        public FuelController(ApplicationDbContext db) => _db = db;
+
+        [HttpPost("import")]
+        public async Task<IActionResult> ImportCpcCsv([FromForm] IFormFile file)
         {
-            var cats = await _db.Vehicles
-                .Select(v => v.Model ?? v.Brand ?? "未分類")
-                .Distinct()
-                .OrderBy(x => x)
-                .ToListAsync();
-            return Ok(cats);
-        }
+            if (file == null || file.Length == 0) return BadRequest("請上傳 CSV 檔");
 
-        // 下拉：車牌（可依關鍵字）
-        [HttpGet("plates")]
-        public async Task<IActionResult> GetPlates([FromQuery] string? q = null, [FromQuery] string? category = null)
-        {
-            var query = _db.Vehicles.AsQueryable();
-            if (!string.IsNullOrWhiteSpace(category))
-                query = query.Where(v => (v.Model ?? v.Brand ?? "") == category);
+            // 讀檔（BIG5 失敗就 UTF8）
+            string text;
+            await using (var s = file.OpenReadStream())
+            {
+                using var ms = new MemoryStream();
+                await s.CopyToAsync(ms);
+                var bytes = ms.ToArray();
+                try
+                {
+                    var big5 = System.Text.Encoding.GetEncoding(950);
+                    text = big5.GetString(bytes);
+                }
+                catch
+                {
+                    text = System.Text.Encoding.UTF8.GetString(bytes);
+                }
+            }
 
-            if (!string.IsNullOrWhiteSpace(q))
-                query = query.Where(v => v.PlateNo.Contains(q));
+            var rows = ParseCpcCsv(text);
 
-            var plates = await query
-                .OrderBy(v => v.PlateNo)
-                .Select(v => new { v.VehicleId, v.PlateNo })
-                .Take(50)
-                .ToListAsync();
+            // 匯入前紀錄數
+            var before = await _db.Set<FuelFillUp>().CountAsync();
 
-            return Ok(plates);
-        }
+            // 卡號→車輛 對應表
+            var cardMap = await _db.Set<FuelCard>().ToDictionaryAsync(x => x.CardNo, x => x.VehicleId);
 
-        // 主查詢：油耗統計
-        // 里程 = 期間內同車輛 Max(Odometer) - Min(Odometer)
-        // 每公升行駛公里數 = 里程 / (汽油+柴油 公升)
-        // 平均公里數 = 里程 / 筆數
-        [HttpGet("stats")]
-        public async Task<IActionResult> Stats(
-            [FromQuery] string? category = null,
-            [FromQuery] string? plate = null,
-            [FromQuery] DateTime? from = null,
-            [FromQuery] DateTime? to = null)
-        {
-            var vq = _db.Vehicles.Select(v => new {
-                v.VehicleId,
-                v.PlateNo,
-                Category = v.Model ?? v.Brand ?? "未分類"
+            int ok = 0, dup = 0, bad = 0;
+            foreach (var r in rows)
+            {
+                var key = $"{r.CardNo}|{r.TxTime:yyyy-MM-dd HH:mm}|{Math.Round(r.Amount, 0)}";
+                var hash = Convert.ToBase64String(
+                    System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
+
+                if (await _db.Set<FuelFillUp>().AnyAsync(x => x.RawHash == hash)) { dup++; continue; }
+
+                var tx = new FuelFillUp
+                {
+                    TxTime = r.TxTime,
+                    StationName = r.Station,
+                    CardNo = r.CardNo,
+                    VehicleId = cardMap.TryGetValue(r.CardNo ?? "", out var vid) ? vid : (int?)null,
+                    Liters = r.Liters,
+                    UnitPrice = r.UnitPrice,
+                    Amount = r.Amount,
+                    Odometer = r.Odometer,
+                    RawHash = hash,
+                    SourceFileName = file.FileName,
+                    ImportedAt = DateTime.Now
+                };
+
+                try
+                {
+                    _db.Set<FuelFillUp>().Add(tx);
+                    ok++;
+                }
+                catch
+                {
+                    bad++;
+                }
+            }
+
+            var affected = await _db.SaveChangesAsync();
+            var after = await _db.Set<FuelFillUp>().CountAsync();
+
+            // 印出實際連到的 DB 資訊
+            var cx = _db.Database.GetDbConnection();
+
+            return Ok(new
+            {
+                imported = ok,
+                duplicated = dup,
+                failed = bad,
+                saveChangesAffected = affected,
+                before,
+                after,
+                db = new
+                {
+                    provider = _db.Database.ProviderName,
+                    dataSource = cx.DataSource,
+                    database = cx.Database
+                }
             });
-
-            if (!string.IsNullOrWhiteSpace(category))
-                vq = vq.Where(v => v.Category == category);
-
-            if (!string.IsNullOrWhiteSpace(plate))
-                vq = vq.Where(v => v.PlateNo.Contains(plate));
-
-            var fq = _db.FuelFillUps.AsQueryable();
-            if (from.HasValue) fq = fq.Where(f => f.Date >= from.Value);
-            if (to.HasValue) fq = fq.Where(f => f.Date < to.Value.AddDays(1));
-
-            // 先把篩到的車輛找出來
-            var vehicles = await vq.ToListAsync();
-            var ids = vehicles.Select(x => x.VehicleId).ToList();
-
-            // 只取到這批車的油料紀錄
-            var fills = await fq.Where(f => ids.Contains(f.VehicleId)).ToListAsync();
-
-            // GroupBy 並彙總
-            var result = vehicles
-                .GroupJoin(
-                    fills,
-                    v => v.VehicleId,
-                    f => f.VehicleId,
-                    (v, fs) =>
-                    {
-                        var has = fs.Any();
-                        var minOdo = has ? fs.Min(x => x.Odometer) : 0;
-                        var maxOdo = has ? fs.Max(x => x.Odometer) : 0;
-                        var mileage = Math.Max(0, maxOdo - minOdo);
-
-                        decimal gas = fs.Where(x => x.FuelType == "汽油").Sum(x => x.Liters);
-                        decimal diesel = fs.Where(x => x.FuelType == "柴油").Sum(x => x.Liters);
-                        decimal oil = fs.Where(x => x.FuelType == "機油").Sum(x => x.Liters);
-
-                        var fuelLiters = gas + diesel;
-                        decimal? kmPerL = fuelLiters > 0 ? Math.Round((decimal)mileage / fuelLiters, 2) : (decimal?)null;
-                        decimal? avgKm = fs.Count() > 0 ? Math.Round((decimal)mileage / fs.Count(), 2) : (decimal?)null;
-
-                        return new
-                        {
-                            category = v.Category,
-                            plate = v.PlateNo,
-                            mileageKm = mileage,
-                            gasL = Math.Round(gas, 2),
-                            dieselL = Math.Round(diesel, 2),
-                            oilL = Math.Round(oil, 2),
-                            kmPerL,
-                            avgKm
-                        };
-                    })
-                .OrderBy(r => r.plate)
-                .ToList();
-
-            return Ok(result);
         }
-        #endregion
+
+
+
+        // 簡易 CSV 解析器（請依你的檔案標頭調整 mapping）
+        private static List<CpcRow> ParseCpcCsv(string csv)
+        {
+            var list = new List<CpcRow>();
+            using var reader = new StringReader(csv);
+            string? line;
+
+            // 先讀標頭
+            var header = reader.ReadLine();
+            var idx = DetectHeaderIndex(header);
+
+            int lineNo = 1;
+            while ((line = reader.ReadLine()) != null)
+            {
+                lineNo++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var cols = SplitCsv(line);
+
+                try
+                {
+                    DateTime txTime;
+                    if (!DateTime.TryParse($"{cols[idx.Date]} {cols[idx.Time]}", out txTime))
+                    {
+                        Console.WriteLine($"[WARN] 第 {lineNo} 列日期時間解析失敗：{cols[idx.Date]} {cols[idx.Time]}");
+                        continue;
+                    }
+
+                    decimal liters = 0m;
+                    decimal.TryParse(cols[idx.Liters], out liters);
+
+                    decimal unitPrice = 0m;
+                    decimal.TryParse(cols[idx.UnitPrice], out unitPrice);
+
+                    decimal amount = 0m;
+                    decimal.TryParse(cols[idx.Amount], out amount);
+
+                    int? odo = null;
+                    if (idx.Odometer >= 0 && int.TryParse(cols[idx.Odometer], out var tmpOdo))
+                        odo = tmpOdo;
+
+                    var row = new CpcRow
+                    {
+                        TxTime = txTime,
+                        Station = cols[idx.Station],
+                        CardNo = cols[idx.CardNo],
+                        Liters = liters,
+                        UnitPrice = unitPrice,
+                        Amount = amount,
+                        Odometer = odo
+                    };
+
+                    Console.WriteLine($"[DEBUG] 匯入列：時間={row.TxTime}, 卡號={row.CardNo}, 公升={row.Liters}, 金額={row.Amount}, 里程={row.Odometer}");
+                    list.Add(row);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ERROR] 第 {lineNo} 列解析失敗：{ex.Message}\n原始內容：{line}");
+                }
+            }
+            return list;
+        }
+
+        private record CpcRow
+        {
+            public DateTime TxTime { get; init; }
+            public string Station { get; init; }
+            public string CardNo { get; init; }
+            public decimal Liters { get; init; }
+            public decimal UnitPrice { get; init; }
+            public decimal Amount { get; init; }
+            public int? Odometer { get; init; }
+        }
+
+        private static (int Date, int Time, int Station, int CardNo,  int Liters, int UnitPrice, int Amount, int Odometer)
+    DetectHeaderIndex(string? header)
+        {
+            if (string.IsNullOrEmpty(header))
+                throw new Exception("CSV 檔案缺少標頭列");
+
+            var cols = header.Split(',').Select(s => s.Trim().Trim('"')).ToArray();
+
+            int idx(string name, params string[] aliases)
+            {
+                for (int i = 0; i < cols.Length; i++)
+                {
+                    if (cols[i] == name || aliases.Contains(cols[i])) return i;
+                }
+                return -1;
+            }
+
+            return (
+                Date: idx("交易日期", "日期"),
+                Time: idx("交易時間", "時間"),
+                Station: idx("加油站", "站名"),
+                CardNo: idx("卡號", "燃料卡號"),
+                Liters: idx("公升數", "數量"),
+                UnitPrice: idx("單價"),
+                Amount: idx("金額", "總額"),
+                Odometer: idx("里程數", "里程")
+            );
+        }
+
+
+        private static string[] SplitCsv(string line)
+        {
+            // 可換成 CSV 套件；這裡用最簡單 split，假設中油檔沒有內嵌逗號
+            return line.Split(',').Select(s => s.Trim().Trim('"')).ToArray();
+        }
+
+        public async Task<IActionResult> FuelStats(int year, int month)
+        {
+            var start = new DateTime(year, month, 1);
+            var end = start.AddMonths(1);
+
+            var q = _db.FuelFillUps
+                .Where(x => x.TxTime >= start && x.TxTime < end && x.VehicleId != null)
+                .OrderBy(x => x.VehicleId).ThenBy(x => x.TxTime)
+                .AsEnumerable() // client 計算相鄰差
+                .GroupBy(x => x.VehicleId)
+                .Select(g =>
+                {
+                    decimal liters = g.Sum(x => x.Liters);
+                    decimal amount = g.Sum(x => x.Amount);
+
+                    // 相鄰里程差
+                    var arr = g.Where(x => x.Odometer.HasValue).OrderBy(x => x.TxTime).ToArray();
+                    var km = 0m;
+                    for (int i = 1; i < arr.Length; i++)
+                    {
+                        var diff = arr[i].Odometer!.Value - arr[i - 1].Odometer!.Value;
+                        if (diff > 0) km += diff;
+                    }
+                    var kml = (liters > 0 && km > 0) ? (km / liters) : 0m;
+
+                    return new
+                    {
+                        vehicleId = g.Key,
+                        totalLiters = Math.Round(liters, 2),
+                        totalAmount = amount,
+                        totalKm = km,
+                        kmPerLiter = Math.Round(kml, 2)
+                    };
+                });
+
+            var list = q.ToList();
+            return Ok(list);
+        }
+
     }
+
 }

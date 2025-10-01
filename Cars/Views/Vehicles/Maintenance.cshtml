@@ -364,12 +364,32 @@
         const maintenance = ref([]);
         const showMaintAdd = ref(false);
         const editingMaintId = ref(null);
-        const maintForm = ref({ date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'', nextDueDate:''});
+        const maintForm = ref({ 
+            date: toISODate(new Date()), 
+            odometer:null, 
+            item:'', 
+            unit:'', 
+            qty:null,
+            amount:null, 
+            vendor:'',
+            note:'', 
+            nextDueDate:''
+        });
 
         function toggleMaintForm(){
           if(!showMaintAdd.value){ // 打開時重置
             editingMaintId.value = null;
-            maintForm.value = { date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'',nextDueDate:'' };
+            maintForm.value = { 
+                date: toISODate(new Date()), 
+                odometer:null, 
+                item:'', 
+                unit:'', 
+                qty:null, 
+                amount:null, 
+                vendor:'', 
+                note:'',
+                nextDueDate:'' 
+            };
           }
           showMaintAdd.value = !showMaintAdd.value;
         }
@@ -377,8 +397,16 @@
           editingMaintId.value = r.id;
           showMaintAdd.value = true;
           maintForm.value = {
-            date: (r.date||'').slice(0,10), odometer:r.odometer??null, item:r.item, unit:r.unit||'', qty:r.qty??null,
-            amount:r.amount??null, vendor:r.vendor||'', note:r.note||'',nextDueDate: toISODate(r.nextDueDate)
+            date: (r.date||'').slice(0,10), 
+            odometer:r.odometer??null, 
+            item:r.item, 
+            unit:r.unit||'', 
+            qty:r.qty??null,
+            amount:r.amount??null, 
+            vendor:r.vendor||'', 
+            note:r.note||'',
+            nextDueDate: toISODate(r.nextDueDate
+            )
           };
         }
         function cancelMaint(){ showMaintAdd.value=false; editingMaintId.value=null; }
@@ -386,12 +414,32 @@
           if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
           if(!maintForm.value.item?.trim()){ alert('請輸入保養項目'); return; }
           const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-          const payload = { vehicleId:selectedVehicleId.value, vehiclePlate:plate, date:maintForm.value.date,
-            odometer:maintForm.value.odometer, item:maintForm.value.item.trim(), unit:maintForm.value.unit||null,
-            qty:maintForm.value.qty, amount:maintForm.value.amount, vendor:maintForm.value.vendor||null,
-            note:(maintForm.value.note||'').trim()||null, nextDueDate: maintForm.value.nextDueDate };
-          if(editingMaintId.value){ await axios.put(`/api/maintenance/${editingMaintId.value}`, payload, { withCredentials:true }); }
-          else{ await axios.post('/api/maintenance', payload, { withCredentials:true }); }
+          const payload = { 
+              vehicleId:selectedVehicleId.value, 
+              vehiclePlate:plate, 
+              date:maintForm.value.date,
+            odometer:maintForm.value.odometer, 
+            item:maintForm.value.item.trim(), 
+            unit:maintForm.value.unit||null,
+            qty:maintForm.value.qty, 
+            amount:maintForm.value.amount, 
+            vendor:maintForm.value.vendor||null,
+            note:(maintForm.value.note||'').trim()||null,
+            nextDueDate: maintForm.value.nextDueDate 
+        };
+          if(editingMaintId.value)
+          { 
+              await axios.put(`/api/maintenance/${editingMaintId.value}`, 
+              payload, 
+              { 
+                  withCredentials:true 
+              }); 
+          }else{ 
+              await axios.post('/api/maintenance', 
+              payload, { 
+                  withCredentials:true 
+              }); 
+          }
           editingMaintId.value=null; showMaintAdd.value=false; await loadMaintenance();
         }
         async function removeMaint(r){ if(!confirm('確定刪除這筆保養紀錄？')) return; await axios.delete(`/api/maintenance/${r.id}`, { withCredentials:true }); await loadMaintenance(); }
@@ -400,39 +448,89 @@
         const repairs = ref([]);
         const showRepairAdd = ref(false);
         const editingRepairId = ref(null);
-        const repairForm = ref({ date: toISODate(new Date()), place:'', issue:'', costEstimate:null, vendor:'', note:'', odometer:null });
+        const repairForm = ref({ 
+            date: toISODate(new Date()),
+            place:'', 
+            issue:'', 
+            costEstimate:null, 
+            vendor:'',
+            note:'', 
+            odometer:null 
+        });
 
         function toggleRepairForm(){
           if(!showRepairAdd.value){ // 打開時重置
             editingRepairId.value = null;
-            repairForm.value = { date: toISODate(new Date()), place:'', issue:'', costEstimate:null, vendor:'', note:'', odometer:null };
+            repairForm.value = { 
+                date: toISODate(new Date()),
+                place:'', 
+                issue:'', 
+                costEstimate:null, 
+                vendor:'', 
+                note:'', 
+                odometer:null 
+            };
           }
           showRepairAdd.value = !showRepairAdd.value;
         }
         function startEditRepair(r){
           editingRepairId.value = r.id;
           showRepairAdd.value = true;
-          repairForm.value = { date:r.date||toISODate(new Date()), place:r.place||'', issue:r.issue||'', costEstimate:r.costEstimate??null,
-            vendor:r.vendor||'', note:r.note||'', odometer:null };
+          repairForm.value = { 
+              date:r.date||toISODate(new Date()),
+              place:r.place||'', 
+              issue:r.issue||'', 
+              costEstimate:r.costEstimate??null,
+              vendor:r.vendor||'',
+              note:r.note||'', 
+              odometer:null };
         }
         function cancelRepair(){ showRepairAdd.value=false; editingRepairId.value=null; }
         async function saveRepair(){
           if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
           if(!repairForm.value.issue?.trim()){ alert('請輸入故障描述'); return; }
           const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-          const payload = { vehicleId:selectedVehicleId.value, plateNo:plate, date:repairForm.value.date, place:repairForm.value.place||null,
-            odometer:repairForm.value.odometer??null, issue:repairForm.value.issue.trim(), vendor:repairForm.value.vendor||null,
-            costEstimate:repairForm.value.costEstimate??null, note:(repairForm.value.note||'').trim()||null };
-          if(editingRepairId.value){ await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, payload, { withCredentials:true }); }
-          else{
-            await axios.post('/api/maintenance/repair', payload, { withCredentials:true });
+          const payload = { 
+              vehicleId:selectedVehicleId.value, 
+              plateNo:plate, 
+              date:repairForm.value.date, 
+              place:repairForm.value.place||null,
+              odometer:repairForm.value.odometer??null,
+              issue:repairForm.value.issue.trim(), 
+              vendor:repairForm.value.vendor||null,
+              costEstimate:repairForm.value.costEstimate??null, 
+              note:(repairForm.value.note||'').trim()||null 
+          };
+          if(editingRepairId.value)
+          { 
+              await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, 
+          payload,
+          { 
+              withCredentials:true 
+          }); 
+          }else{
+            await axios.post('/api/maintenance/repair', 
+            payload, { 
+                withCredentials:true 
+            });
             // 新報修 → 狀態調為維修中
-            await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify('維修中'), { withCredentials:true, headers:{'Content-Type':'application/json'} });
-            const idx = vehicles.value.findIndex(v=>v.vehicleId===selectedVehicleId.value); if(idx>=0) vehicles.value[idx].status='維修中';
+            await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify('維修中'), 
+            { 
+                withCredentials:true, headers:{'Content-Type':'application/json'} 
+            });
+            const idx = vehicles.value.findIndex(v=>v.vehicleId===selectedVehicleId.value); 
+            if(idx>=0) vehicles.value[idx].status='維修中';
           }
-          editingRepairId.value=null; showRepairAdd.value=false; await loadVehicleDetail(); await loadRepairs();
+          editingRepairId.value=null; 
+          showRepairAdd.value=false; 
+          await loadVehicleDetail();
+          await loadRepairs();
         }
-        async function removeRepair(id){ if(!confirm('確定刪除此筆報修紀錄？')) return; await axios.delete(`/api/maintenance/repair/${id}`, { withCredentials:true }); await loadRepairs(); }
+        async function removeRepair(id){ 
+            if(!confirm('確定刪除此筆報修紀錄？')) 
+            return; await axios.delete(`/api/maintenance/repair/${id}`, 
+            { withCredentials:true }); 
+            await loadRepairs(); }
 
         // 驗車
         const inspections = ref([]);
@@ -448,17 +546,34 @@
         // 計算欄位
         const repairRows = computed(()=> (Array.isArray(repairs.value)?repairs.value:[]).map((x, i)=>({
           id: x.repairRequestId ?? x.id ?? i,
-          date: x.date || '', place: x.place || '', issue: x.issue || '', status: x.status || '',
-          costEstimate: x.costEstimate ?? null, vendor: x.vendor || '', note: x.note || ''
+          date: x.date || '', 
+          place: x.place || '',
+          issue: x.issue || '', 
+          status: x.status || '',
+          costEstimate: x.costEstimate ?? null, 
+          vendor: x.vendor || '', 
+          note: x.note || ''
         })));
         const inspectionRows = computed(()=> (Array.isArray(inspections.value)?inspections.value:[]).map(x=>({
-          id: x.inspectionId ?? x.id, date: (x.inspectionDate ?? x.date) || '', station: x.station || '', result: x.result || '',
-          nextDueDate: (x.nextDueDate||'') && (x.nextDueDate||'').slice(0,10), odometerKm: x.odometerKm ?? x.odometer ?? null, notes: x.notes || ''
+          id: x.inspectionId ?? x.id,
+          date: (x.inspectionDate ?? x.date) || '',
+          station: x.station || '', 
+          result: x.result || '',
+          nextDueDate: (x.nextDueDate||'') && (x.nextDueDate||'').slice(0,10), 
+          odometerKm: x.odometerKm ?? x.odometer ?? null, 
+          notes: x.notes || ''
         })));
         const violationRows = computed(()=> (Array.isArray(violations.value)?violations.value:[]).map(x=>({
-          id: x.violationId ?? x.id, date: (x.violationDate ?? x.date) || '', location: x.location || '', category: x.category || '',
-          points: x.points ?? null, fineAmount: x.fineAmount ?? null, status: x.status || '',
-          dueDate: (x.dueDate||'') && (x.dueDate||'').slice(0,10), paidDate: (x.paidDate||'') && (x.paidDate||'').slice(0,10), notes: x.notes || ''
+          id: x.violationId ?? x.id,
+          date: (x.violationDate ?? x.date) || '', 
+          location: x.location || '', 
+          category: x.category || '',
+          points: x.points ?? null, 
+          fineAmount: x.fineAmount ?? null, 
+          status: x.status || '',
+          dueDate: (x.dueDate||'') && (x.dueDate||'').slice(0,10),
+          paidDate: (x.paidDate||'') && (x.paidDate||'').slice(0,10), 
+          notes: x.notes || ''
         })));
         //紀錄總覽
                 const recordRows = computed(() => [

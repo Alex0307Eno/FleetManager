@@ -19,7 +19,7 @@ namespace LineBotService
             // Add services to the container.
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
-            builder.Services.AddScoped<AutoDispatcher>();
+            //builder.Services.AddScoped<AutoDispatcher>();
             builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddScoped<VehicleService>();
             builder.Services.AddScoped<DriverService>();
@@ -58,7 +58,6 @@ namespace LineBotService
                 app.UseSwaggerUI();
             }
 
-            //app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseRouting();
             app.UseAuthentication();
