@@ -88,6 +88,7 @@ button.btn.btn-danger {
         padding: 0 16px;
     }
 
+
 /* 頁首條 */
 .page-bar {
     color: #fff;
@@ -143,7 +144,32 @@ button.btn.btn-danger {
     border-color: #c7d2fe;
     color: #4338ca;
 }
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #f3f4f6;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px
+}
 
+.f-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px
+}
+
+    .f-item input, .f-item select {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 6px 8px;
+        background: #fff
+    }
 /* 外框與卡片 */
 .wrap {
     max-width: 1260px;

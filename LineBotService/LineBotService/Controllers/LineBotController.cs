@@ -497,7 +497,73 @@ namespace LineBotDemo.Controllers
                     // ================= MESSAGE 事件 =================
                     if (ev.type == "message")
                     {
+
                         var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                        var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
+                        var driver = (user != null) ? await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId) : null;
+
+                        string mode;
+                        if (DispatchService.DriverInputState.Waiting.TryGetValue(uid, out mode))
+                        {
+                            int odo;
+                            if (!int.TryParse(msg, out odo) || odo <= 0 || odo > 9999999)
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 里程格式不正確，仍在等待里程，請輸入 1~9,999,999 的整數。");
+                                return Ok(); // 仍在等待，不往下走任何驗證
+                            }
+
+                            string result = null;
+
+                            if (mode.StartsWith("StartOdometer:"))
+                            {
+                                if (driver == null)
+                                {
+                                    bot.ReplyMessage(replyToken, "⚠️ 找不到駕駛身分，請先綁定。");
+                                    return Ok();
+                                }
+
+                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, result);
+
+                                if (result != null && result.StartsWith("✅"))
+                                {
+                                    string _;
+                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _); // ✅ 成功才清等待
+                                                                                                    // 成功後切 DriverEnd RichMenu（可選）
+                                    var endMenuId = _config["RichMenus:DriverEnd"];
+                                    if (!string.IsNullOrEmpty(endMenuId))
+                                        await _richMenuService.BindRichMenuToUserAsync(uid, endMenuId);
+                                }
+                                return Ok();
+                            }
+
+                            if (mode.StartsWith("EndOdometer:"))
+                            {
+                                if (driver == null)
+                                {
+                                    bot.ReplyMessage(replyToken, "⚠️ 找不到駕駛身分，請先綁定。");
+                                    return Ok();
+                                }
+
+                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
+                                bot.ReplyMessage(replyToken, result);
+
+                                if (result != null && result.StartsWith("✅"))
+                                {
+                                    string _;
+                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _); // ✅ 成功才清等待
+                                                                                                    // 成功後切回 DriverStart RichMenu（可選）
+                                    var startMenuId = _config["RichMenus:DriverStart"];
+                                    if (!string.IsNullOrEmpty(startMenuId))
+                                        await _richMenuService.BindRichMenuToUserAsync(uid, startMenuId);
+                                }
+                                return Ok();
+                            }
+
+                            // 模式不明時，給出指引（不清等待）
+                            bot.ReplyMessage(replyToken, "⚠️ 當前輸入狀態不明，請重新點選功能鍵再試一次。");
+                            return Ok();
+                        }
                         // 全域訊息安全檢查
                         if (!InputValidator.IsValidUserText(msg) || InputValidator.ContainsSqlMeta(msg))
                         {
@@ -534,44 +600,8 @@ namespace LineBotDemo.Controllers
 
                             continue;
                         }
-                        var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
-                        var driver = await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId);
                         // ==== 優先處理：是否在等里程數輸入 ====
-                        if (DispatchService.DriverInputState.Waiting.TryGetValue(uid, out var mode))
-                        {
-                            // 嚴格檢查：只能是正整數，長度合理 (里程數不會超過 9999999)
-                            if (!int.TryParse(msg, out var odo) || odo <= 0 || odo > 9999999)
-                            {
-                                bot.ReplyMessage(replyToken, "⚠️ 請輸入正確的里程數（數字），例如：12345");
-                                return Ok();
-                            }
-
-                            string result;
-
-                            if (mode.StartsWith("StartOdometer:"))
-                            {
-                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
-                                bot.ReplyMessage(replyToken, result);
-
-                                // 換成 DriverEnd RichMenu
-                                var endMenuId = _config["RichMenus:DriverEnd"];
-                                if (!string.IsNullOrEmpty(endMenuId))
-                                    await _richMenuService.BindRichMenuToUserAsync(uid, endMenuId);
-                            }
-                            else if (mode.StartsWith("EndOdometer:"))
-                            {
-                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
-                                bot.ReplyMessage(replyToken, result);
-
-                                // 換回 DriverStart RichMenu
-                                var startMenuId = _config["RichMenus:DriverStart"];
-                                if (!string.IsNullOrEmpty(startMenuId))
-                                    await _richMenuService.BindRichMenuToUserAsync(uid, startMenuId);
-                            }
-
-                            DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
-                            return Ok();
-                        }
+                        
                         if (msg == "我的行程")
                         {
                             // 1. 找到目前使用者

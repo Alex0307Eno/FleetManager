@@ -1,5 +1,4 @@
-﻿@using Cars.ViewModels
-
+﻿
 @model List<CarApplication>
 @{
     ViewData["Title"] = "派車單";
@@ -12,6 +11,8 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <title>派車單</title>
+    @await Html.PartialAsync("_Pagination")
+
 </head>
 <body>
     <div id="app" class="wrap" v-cloak>
@@ -116,6 +117,11 @@
                         </tr>
                     </tbody>
                 </table>
+                <pagination v-model="page"
+                            :page-size="pageSize"
+                            :total="filtered ? filtered.length : 0">
+                </pagination>
+
 
 
                 <div class="footer-dots">
@@ -191,12 +197,12 @@
             </div>
         </div>
 
-        @await Html.PartialAsync("_Pagination", (PaginationModel)ViewBag.Pagination)
+        
 
 
     </div>
 
-    
+
     <script>
         const { createApp, ref, computed, onMounted } = Vue;
 
@@ -527,11 +533,14 @@
           rows, loading, error,
           filters, drivers, applicants, cars,
 
+          // 分頁
+          page, pageSize, paged,
+
           // 前端篩選
           filtered,
 
           // 顯示用工具
-           statusText, statusClass, canEdit,paged,
+           statusText, statusClass, canEdit,
 
           //篩選操作
           reloadByDate, resetFilters,
@@ -550,6 +559,8 @@
         };
 
           }
-        }).mount('#app');
+        })
+          .component('pagination', window.Pagination)
+         .mount('#app');
     </script>
 </body>

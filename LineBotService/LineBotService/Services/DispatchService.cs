@@ -1,7 +1,5 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using Cars.Services;
-using LineBotDemo.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
@@ -66,17 +64,19 @@ namespace LineBotDemo.Services
                 .FirstOrDefaultAsync();
 
             if (dispatch == null)
-                return "⚠️ 沒有找到正在執行的派車單。";
+                return "⚠️ 沒有找到正在執行的派車單。（仍在等待結束里程，請直接輸入數字）";
 
             if (!dispatch.OdometerStart.HasValue)
-                return "⚠️ 找不到出發里程數，請先登錄開始行程。";
+                return "⚠️ 找不到出發里程數，請先登錄開始行程。（仍在等待結束里程，請直接輸入數字）";
+
+            if (odometer == dispatch.OdometerStart.Value)
+                return "⚠️ 結束里程不可與出發里程相同。（仍在等待結束里程，請直接輸入數字）";
 
             if (odometer < dispatch.OdometerStart.Value)
-                return $"⚠️ 結束里程 ({odometer}) 不可以小於出發里程 ({dispatch.OdometerStart.Value})。";
+                return $"⚠️ 結束里程 ({odometer}) 不可以小於出發里程 ({dispatch.OdometerStart.Value})。（仍在等待結束里程，請直接輸入數字）";
 
             dispatch.OdometerEnd = odometer;
             dispatch.EndTime = DateTime.Now;
-            //dispatch.DispatchStatus = "已完成";
             await _db.SaveChangesAsync();
 
             var totalKm = odometer - dispatch.OdometerStart.Value;

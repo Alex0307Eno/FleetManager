@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
+@await Html.PartialAsync("_Pagination")
 </head>
 <body>
     <main id="app" class="wrap" v-cloak>
@@ -96,15 +97,15 @@
                         </thead>
 
                                 <tbody>
-                            <tr v-for="(r,i) in shown"
+                            <tr v-for="(r,i) in paged"
                                 :key="(r.dispatchId || r.id) + '-' + (r.applyId || i)"
                                 :class="[
-                                  isGroupHead(i) ? 'row-parent' : 'row-child',
-                                  (!isGroupHead(i) && isCollapsed(r.dispatchId)) ? 'collapsed-child' : ''
-                                ]">
+                                         isGroupHead(paged, i) ? 'row-parent' : 'row-child',
+                                         (!isGroupHead(paged, i) && isCollapsed(r.dispatchId)) ? 'collapsed-child' : ''
+                                       ]">
                                 <!-- 用車日期 + 展開/收合 + 母/子標籤 -->
                                 <td class="mono">
-                                    <template v-if="isGroupHead(i)">
+                                    <template v-if="isGroupHead(paged, i)">
                                         <!-- 有子單才顯示箭頭 -->
                                         <a v-if="hasChildren(r.dispatchId)"
                                            href="javascript:;"
@@ -177,6 +178,10 @@
                             </tr>
                         </tbody>
                     </table>
+                    <pagination v-model="page"
+                                :page-size="pageSize"
+                                :total="shown.length">
+                    </pagination>
 
                     <div class="hint">最後更新時間：{{ lastUpdated }}</div>
                 </div>
@@ -337,7 +342,10 @@
                 </div>
             </div>
         </div>
+
     </main>
+
+  
 
 
     <script>
@@ -362,6 +370,9 @@
                   data: res?.data
                 };
               }
+
+              
+
               //有子單的話母單才顯示箭頭
               function hasChildren(dispatchId) {
                 return rows.value.filter(r => r.dispatchId === dispatchId).length > 1;
@@ -401,8 +412,9 @@
               const collapsed = ref(new Set());
 
               // 判斷是否母單：前一列沒有相同 dispatchId
-              const isGroupHead = (i) =>
-                i === 0 || shown.value[i - 1]?.dispatchId !== shown.value[i]?.dispatchId;
+              const isGroupHead = (list, i) =>
+                i === 0 || list[i - 1]?.dispatchId !== list[i]?.dispatchId;
+
 
               // 判斷某個母單是否被收合
               const isCollapsed = (dispatchId) => collapsed.value.has(dispatchId);
@@ -434,7 +446,8 @@
                   return true
                 })
               })
-
+              //分頁
+              const { page, pageSize, paged } = window.usePagination(shown, 10);
               // === 母單下拉選單 ===
               const dispatchOptions = computed(() => {
                 const arr = Array.isArray(shown.value) ? shown.value : [];
@@ -805,8 +818,8 @@
               async function reload() {
                 console.groupCollapsed("🟨 reload");
                 const params = {
-                  dateFrom: q.value.dateFrom || undefined,
-                  dateTo: q.value.dateTo || undefined,
+                  dateFrom: q.value.dateStart   || undefined,
+                  dateTo: q.value.dateEnd       || undefined,
                   driver: q.value.driver || undefined,
                   applicant: q.value.applicant || undefined,
                   plateNo: q.value.plateNo || undefined,
@@ -891,6 +904,8 @@
               return {
                 q, rows, shown,
                 drivers, vehicles,
+                //分頁
+                page, pageSize, paged,
                 // group 收合
                 isGroupHead, isCollapsed, toggleGroup,
                 // 下拉清單
@@ -910,7 +925,9 @@
                 removeRow, openMergeModal, loadLinks, addLink, removeLink, exportCsv
               };
             }
-          }).mount('#app')
+          })
+          .component('pagination', window.Pagination)
+          .mount('#app')
         })
     </script>
 </body>
