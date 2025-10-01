@@ -41,8 +41,7 @@ namespace Cars.Features.Drivers
             var drivers = await _db.Drivers
                 .Where(d => _db.Schedules.Any(s =>
                             s.DriverId == d.DriverId &&
-                            s.WorkDate == today &&
-                            s.IsPresent == true) &&
+                            s.WorkDate == today) &&
                             !excludedDrivers.Contains(d.DriverId))
                 .Select(d => new {
                     d.DriverId,

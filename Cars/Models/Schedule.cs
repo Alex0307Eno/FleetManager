@@ -7,7 +7,6 @@
         public string Shift { get; set; } = "";   // AM/PM/G1/G2/G3
         public string LineCode { get; set; } = ""; // 'A'~'E'
         public int? DriverId { get; set; }         // 臨時覆寫（可 NULL）
-        public bool IsPresent { get; set; } // 是否出勤
         public Driver? Driver { get; set; } // 導航屬性
     }
 }

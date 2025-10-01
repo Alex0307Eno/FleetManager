@@ -136,11 +136,7 @@ namespace Cars.Services
                         .ToListAsync())
                     .OrderBy(s => chain.IndexOf(s.Shift))
                     .ToList();
-                // 取出當日有出勤的司機清單
-                var onDuty = daySchedules
-                .Where(x => x.IsPresent)
-                .Select(x => (x.DriverId, x.Shift))
-                .ToHashSet();
+               
                 // === 2) 撈代理人紀錄（改用 AgentDriverId → Drivers.DriverId）★
                 var rawDelegs = await _db.DriverDelegations
                     .AsNoTracking()
@@ -177,32 +173,7 @@ namespace Cars.Services
                 {
                     string drvName = driverNames.ContainsKey(s.DriverId.Value) ? driverNames[s.DriverId.Value] : $"ID={s.DriverId}";
 
-                    if (!s.IsPresent)
-                    {
-                        // 有代理設定 → 動態建立臨時代理班表（同日同班別）
-                        if (delegMap.TryGetValue(s.DriverId.Value, out var agentDriverId) && agentDriverId != s.DriverId)
-                        {
-                            string agentName = driverNames.ContainsKey(agentDriverId) ? driverNames[agentDriverId] : $"ID={agentDriverId}";
-
-                            replaced.Add(new Cars.Models.Schedule
-                            {
-                                WorkDate = s.WorkDate,
-                                Shift = s.Shift,       // 跟被代理者同班別
-                                DriverId = agentDriverId, // 代理人
-                                IsPresent = true           // 視為當班（僅用於本次派遣流程）
-                            });
-                            //reasons.Add($"司機 {drvName} 請假 → 代理人 {agentName}（{s.Shift}）臨時頂替");
-                        }
-                        else
-                        {
-                            reasons.Add($"司機 {drvName} 請假且無代理人");
-                            
-                        }
-                    }
-                    else
-                    {
-                        normal.Add(s);
-                    }
+                   
                 }
 
                 // 代理頂替優先，再接一般到班；仍依 chain 排序

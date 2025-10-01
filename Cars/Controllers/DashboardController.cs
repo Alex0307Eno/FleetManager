@@ -55,28 +55,47 @@ namespace Cars.ApiControllers
             var list = await (
                 from s in _db.Schedules
                 where s.WorkDate == today
-                join d in _db.Drivers on s.DriverId equals d.DriverId
 
-                // 左連代理
+                // 先用 LineCode 的歷史對應補 DriverId（生效期間含今天）
+                join dla0 in _db.DriverLineAssignments
+                     .Where(a => a.StartDate <= today && (a.EndDate == null || a.EndDate >= today))
+                     on s.LineCode equals dla0.LineCode into gj
+                from dla in gj.DefaultIfEmpty()
+
+                    // 解析當天應該顯示的 DriverId（Schedule 填了就用；沒填才用 LineCode 對應）
+                let resolvedDriverId = (int?)(s.DriverId ?? (dla != null ? dla.DriverId : (int?)null))
+
+                // 用 resolvedDriverId 去找司機（允許找不到 → 左連）
+                join d0 in _db.Drivers on resolvedDriverId equals (int?)d0.DriverId into gd
+                from d in gd.DefaultIfEmpty()
+
+                    // 代理人：只在「明確缺勤」時才切代理
                 join dg0 in _db.DriverDelegations
-                     .Where(g => g.StartDate <= today && today <= g.EndDate)
-                     on s.DriverId equals dg0.PrincipalDriverId into dgs
+                        .Where(x => x.StartDate <= today && today <= x.EndDate)
+                        on resolvedDriverId equals (int?)dg0.PrincipalDriverId into dgs
                 from dg in dgs.DefaultIfEmpty()
 
-                join agent0 in _db.Drivers on dg.AgentDriverId equals agent0.DriverId into ags
+                join agent0 in _db.Drivers
+                        on (int?)(dg != null ? dg.AgentDriverId : (int?)null)
+                        equals (int?)agent0.DriverId into ags
                 from agent in ags.DefaultIfEmpty()
 
-                    // 若請假且有代理，顯示代理；否則顯示原駕駛
-                let showDriverId = (dg != null && agent != null && s.IsPresent == false) ? agent.DriverId : d.DriverId
-                let showDriverName = (dg != null && agent != null && s.IsPresent == false) ? (agent.DriverName + " (代)") : d.DriverName
+                let showDriverId =
+                    (dg != null && agent != null )
+                        ? (int?)agent.DriverId
+                        : resolvedDriverId
 
-                // 展開今日該駕駛的所有派工（允許沒有派工）
+                let showDriverName =
+                    (dg != null && agent != null && agent != null)
+                        ? (agent.DriverName + " (代)")
+                        : (d != null ? d.DriverName : null)
+
+                // 展開今日派工（若沒有派工也要保留排班 → left）
                 from dis in _db.Dispatches
-                    .Where(x => x.DriverId == showDriverId
+                    .Where(x => showDriverId != null // 避免比對 null 抓到一堆空
+                                && x.DriverId == showDriverId
                                 && x.StartTime.HasValue
-                                && x.StartTime.Value.Year == today.Year
-                                && x.StartTime.Value.Month == today.Month
-                                && x.StartTime.Value.Day == today.Day)
+                                && x.StartTime.Value.Date == today)
                     .DefaultIfEmpty()
 
                 join a0 in _db.CarApplications on dis.ApplyId equals a0.ApplyId into aa
@@ -88,7 +107,6 @@ namespace Cars.ApiControllers
                 join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
 
-                    // 排序 key（不能用 ?.，用三元運算子）
                 let sortTime =
                     (dis != null && dis.StartTime.HasValue)
                         ? dis.StartTime.Value
@@ -103,7 +121,7 @@ namespace Cars.ApiControllers
                 {
                     ScheduleId = s.ScheduleId,
                     Shift = s.Shift,
-                    DriverId = showDriverId,
+                    DriverId = showDriverId.Value,
                     DriverName = showDriverName,
                     HasDispatch = (dis != null),
                     StartTime = (dis != null ? dis.StartTime : (DateTime?)null),
@@ -118,12 +136,14 @@ namespace Cars.ApiControllers
                                           ? (a.SingleDistance ?? 0)
                                           : (a.RoundTripDistance ?? 0))
                                       : 0),
-                    Attendance = (s.IsPresent ? "正常" : "請假")
+
+                   
                 }
             ).ToListAsync();
 
             return Ok(ApiResponse<List<TodayScheduleDto>>.Ok(list, "今日班表查詢成功"));
         }
+
 
         #endregion
 
@@ -146,7 +166,6 @@ namespace Cars.ApiControllers
                     d.DriverId,
                     d.DriverName,
                     Shift = s != null ? s.Shift : null,
-                    IsPresent = s != null && s.IsPresent
                 }
             ).AsNoTracking().ToListAsync();
 
@@ -216,7 +235,7 @@ namespace Cars.ApiControllers
                 var driverName = d.DriverName;
 
                 // 缺勤 → 代理人頂替
-                if (!d.IsPresent && delegMap.TryGetValue(d.DriverId, out var proxyAgent))
+                if (delegMap.TryGetValue(d.DriverId, out var proxyAgent))
                 {
                     isAgenting = true;
                     driverId = proxyAgent.DriverId;
@@ -265,7 +284,6 @@ namespace Cars.ApiControllers
                     StartTime = dispatch?.StartTime,
                     EndTime = dispatch?.EndTime,
                     StateText = stateText,
-                    Attendance = isAgenting ? $"請假({d.DriverName ?? "-"})" : (d.IsPresent ? "正常" : "請假"),
                     RestUntil = restUntil,
                     RestRemainMinutes = restRemainMinutes
                 });

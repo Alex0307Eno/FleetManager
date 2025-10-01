@@ -44,6 +44,9 @@ namespace Cars.Models
         [RegularExpression(@"^[^<>]*$", ErrorMessage = "備註不可包含 < 或 > 符號")]
         public string? Note { get; set; }              // 備註
 
+        public DateTime? NextDueDate { get; set; }   // 下次到期日
+
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // 建立時間
     }
 }

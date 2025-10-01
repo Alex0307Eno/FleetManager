@@ -92,7 +92,8 @@ namespace Cars.ApiControllers
                     m.Amount,
                     subtotal = (m.Qty ?? 0) * (m.Amount ?? 0),
                     m.Vendor,
-                    m.Note
+                    m.Note,
+                    m.NextDueDate
                 });
 
             return Ok(await q.ToListAsync());
@@ -119,7 +120,8 @@ namespace Cars.ApiControllers
                 Qty = dto.Qty,
                 Amount = dto.Amount,
                 Vendor = dto.Vendor,
-                Note = dto.Note
+                Note = dto.Note,
+                NextDueDate = dto.NextDueDate
             };
             _db.VehicleMaintenances.Add(entity);
             var (ok, err) = await _db.TrySaveChangesAsync(this);
@@ -141,6 +143,7 @@ namespace Cars.ApiControllers
             m.Amount = body.Amount;
             m.Vendor = body.Vendor;
             m.Note = body.Note;
+            m.NextDueDate = body.NextDueDate;
 
             var (ok, err) = await _db.TrySaveChangesAsync(this);
             if (!ok) return err!; 

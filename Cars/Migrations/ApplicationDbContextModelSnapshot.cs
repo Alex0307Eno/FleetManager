@@ -609,6 +609,12 @@ namespace Cars.Migrations
                     b.Property<string>("LongShort")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("OdometerEnd")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OdometerStart")
+                        .HasColumnType("int");
+
                     b.Property<string>("Plate")
                         .HasColumnType("nvarchar(max)");
 
@@ -676,9 +682,6 @@ namespace Cars.Migrations
 
                     b.Property<int?>("DriverId")
                         .HasColumnType("int");
-
-                    b.Property<bool>("IsPresent")
-                        .HasColumnType("bit");
 
                     b.Property<string>("LineCode")
                         .IsRequired()
@@ -885,6 +888,9 @@ namespace Cars.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("NextDueDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Note")
                         .HasMaxLength(500)

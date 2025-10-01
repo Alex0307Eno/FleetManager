@@ -12,5 +12,7 @@
         public decimal? Amount { get; set; }
         public string? Vendor { get; set; }
         public string? Note { get; set; }
+
+        public DateTime? NextDueDate { get; set; }
     }
 }

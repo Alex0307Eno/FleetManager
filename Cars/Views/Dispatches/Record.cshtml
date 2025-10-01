@@ -128,7 +128,7 @@
 
 
                                 <td class="mono">{{ timeSpan(r.useStart, r.useEnd) }}</td>
-                                <td class="col-route">
+                                <td  class="col-route">
                                     {{ r.route }} ({{ r.tripType === 'round' ? '來回' : (r.tripType === 'single' ? '單程' : '') }})
                                 </td>
                                 <td>
@@ -140,7 +140,7 @@
                                 <td><span class="badge" :class="statusClass(r.status)">{{ statusText(r.status) }}</span></td>
 
                                 <td>
-                                    <span class="pill" :class="!isGroupHead(i) ? 's-muted' : ''">
+                                    <span class="pill" :class="!isGroupHead(paged,i) ? 's-muted' : ''">
                                         {{ r.driver || '未指派' }}
                                     </span>
                                 </td>
@@ -160,7 +160,7 @@
 
                                 <!-- 功能列：母單可以編輯/刪除；子單維持檢視或不顯示 -->
                                 <td>
-                                    <div class="actions" v-if="isGroupHead(i)">
+                                    <div class="actions" v-if="isGroupHead(paged,i)">
                                         @if (User.IsInRole("Admin"))
                                         {
                                         <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>

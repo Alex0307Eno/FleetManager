@@ -54,7 +54,6 @@ namespace Cars.ApiControllers
                     lineCode = s.LineCode,
                     driverId = resolvedDriverId,
                     driverName = d != null ? d.DriverName : null,
-                    isPresent = s.IsPresent
                 }
             )
             // 固定排序：日期 → 班別(AM,PM,G1,G2,G3) → LineCode(A..E)
@@ -138,7 +137,6 @@ namespace Cars.ApiControllers
                                 var newName = driverDict.TryGetValue(newDriverId.Value, out var nn) ? nn : null;
                                 var oldDriverId = row.DriverId;
                                 row.DriverId = newDriverId.Value;
-                                row.IsPresent = true;
                                 _db.Schedules.Update(row);
 
                                 changes.Add(new
@@ -186,7 +184,6 @@ namespace Cars.ApiControllers
                                 var oldName = driverDict.TryGetValue(row.DriverId.Value, out var on) ? on : null;
 
                                 row.DriverId = null;            // 只清空 DriverId，不刪 row
-                                row.IsPresent = false;
                                 _db.Schedules.Update(row);
 
                                 changes.Add(new

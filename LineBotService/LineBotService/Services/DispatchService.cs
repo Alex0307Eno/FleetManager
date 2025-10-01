@@ -28,10 +28,9 @@ namespace LineBotDemo.Services
 
 
        
-        // 建一個靜態的暫存 (可以放到 DispatchService.cs)
+        // 建一個靜態的暫存 
         public static class DriverInputState
         {
-            // userId → "StartOdometer:123" 或 "EndOdometer:456"
             public static ConcurrentDictionary<string, string> Waiting = new ConcurrentDictionary<string, string>();
         }
         //儲存開始里程

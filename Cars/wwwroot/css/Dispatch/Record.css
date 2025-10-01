@@ -177,6 +177,10 @@ button.btn.btn-danger {
     padding: 0 16px;
 }
 
+.nowrap {
+    white-space: nowrap;
+}
+
 .card {
     background: var(--panel);
     border: 1px solid var(--border);

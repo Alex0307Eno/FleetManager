@@ -19,7 +19,9 @@ body {
     margin: 24px auto;
     padding: 0 16px
 }
-
+.nowrap {
+    white-space: nowrap;
+}
 .grid {
     display: grid;
     grid-template-columns: 320px 1fr;

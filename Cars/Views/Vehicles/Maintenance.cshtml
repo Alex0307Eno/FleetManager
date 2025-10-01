@@ -101,6 +101,8 @@
                         <input type="number" v-model.number="maintForm.amount" step="0.1" placeholder="單價" />
                         <input type="text" v-model="maintForm.vendor" placeholder="承修廠商" />
                         <input type="text" v-model="maintForm.note" placeholder="備註" />
+                        <input id="nextDueDate" type="date" class="form-control" v-model="maintForm.nextDueDate" placeholder="下次保養日期" />
+
                     </div>
                     <div style="text-align:right">
                         <button class="btn" @@click="cancelMaint">取消</button>
@@ -112,21 +114,22 @@
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:110px">保養日期</th>
+                                <th style="width:120px">保養日期</th>
                                 <th style="width:80px">里程</th>
                                 <th style="width:220px">保養項目</th>
-                                <th style="width:60px">單位</th>
-                                <th style="width:70px">數量</th>
+                                <th class="nowrap" style="width:60px">單位</th>
+                                <th class="nowrap" style="width:70px">數量</th>
                                 <th style="width:90px">單價</th>
                                 <th style="width:100px">金額</th>
                                 <th style="width:160px">承修廠商</th>
                                 <th style="width:120px">備註</th>
+                                <th class="nowrap" style="width:120px">下次保養日期</th>
                                 <th style="width:80px">功能</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="r in maintenance" :key="r.id">
-                                <td class="mono">{{ r?.date || '—' }}</td>
+                                <td class="mono nowrap">{{ r?.date || '—' }}</td>
                                 <td class="mono">{{ r.odometer ?? '' }}</td>
                                 <td>{{ r.item }}</td>
                                 <td>{{ r.unit || '' }}</td>
@@ -135,12 +138,17 @@
                                 <td class="mono">{{ fmtMoney(r.subtotal) }}</td>
                                 <td>{{ r.vendor || '' }}</td>
                                 <td>{{ r.note || '' }}</td>
+                                <td>
+                                    <span v-if="r && r.nextDueDate">{{ toISODate(r.nextDueDate) }}</span>
+                                    <span v-else>—</span>
+                                    <span v-if="r && r.nextDueDate && isDueSoon(r.nextDueDate)" class="badge bg-warning ms-1">即將到期</span>
+                                </td>
                                 <td class="row-actions">
                                     <button class="icon-btn" title="編輯" @@click="startEditMaint(r)">✏️</button>
                                     <button class="icon-btn" title="刪除" @@click="removeMaint(r)">🗑️</button>
                                 </td>
                             </tr>
-                            <tr v-if="!maintenance.length"><td colspan="10" style="text-align:center; color:#64748b">尚無資料</td></tr>
+                            <tr v-if="!maintenance.length"><td colspan="11" style="text-align:center; color:#64748b">尚無資料</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -188,7 +196,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="r in repairRows" :key="r.id">
-                                <td class="mono">{{ r.date || '—' }}</td>
+                                <td class="mono nowrap">{{ r.date || '—' }}</td>
                                 <td>{{ r.place }}</td>
                                 <td>{{ r.issue }}</td>
                                 <td>{{ r.status }}</td>
@@ -232,9 +240,9 @@
                                 <th style="width:120px">驗車日期</th>
                                 <th style="width:160px">驗車站</th>
                                 <th style="width:80px">結果</th>
-                                <th style="width:120px">下次到期</th>
                                 <th style="width:100px">里程</th>
                                 <th style="width:200px">備註</th>
+                                <th style="width:120px">下次到期</th>
                                 <th style="width:90px">功能</th>
                             </tr>
                         </thead>
@@ -243,9 +251,13 @@
                                 <td class="mono">{{ (r.date ?? '').slice(0,10) }}</td>
                                 <td>{{ r.station || '' }}</td>
                                 <td>{{ r.result || '' }}</td>
-                                <td class="mono">{{ r.nextDueDate || '' }}</td>
                                 <td class="mono">{{ r.odometerKm ?? '' }}</td>
                                 <td>{{ r.notes || '' }}</td>
+                                <td>
+                                    <span v-if="r && r.nextDueDate">{{ toISODate(r.nextDueDate) }}</span>
+                                    <span v-else>—</span>
+                                    <span v-if="r && r.nextDueDate && isDueSoon(r.nextDueDate)" class="badge bg-warning ms-1">即將到期</span>
+                                </td>
                                 <td class="row-actions"><button class="icon-btn" title="編輯" @@click="startEditInspection(r)">✏️</button><button class="icon-btn" title="刪除" @@click="removeInspection(r.id)">🗑️</button></td>
                             </tr>
                             <tr v-if="!inspectionRows.length"><td colspan="7" style="text-align:center; color:#64748b">尚無驗車紀錄</td></tr>
@@ -294,13 +306,13 @@
                         </thead>
                         <tbody>
                             <tr v-for="r in violationRows" :key="r.id">
-                                <td class="mono">{{ (r.date ?? '').slice(0,10) }}</td>
+                                <td class="mono nowrap">{{ (r.date ?? '').slice(0,10) }}</td>
                                 <td>{{ r.location || '' }}</td>
                                 <td>{{ r.category || '' }}</td>
                                 <td class="mono">{{ fmtMoney(r.fineAmount) }}</td>
                                 <td>{{ r.status || '' }}</td>
-                                <td class="mono">{{ r.dueDate || '' }}</td>
-                                <td class="mono">{{ r.paidDate || '' }}</td>
+                                <td class="mono nowrap">{{ r.dueDate || '' }}</td>
+                                <td class="mono nowrap">{{ r.paidDate || '' }}</td>
                                 <td>{{ r.notes || '' }}</td>
                                 <td class="row-actions"><button class="icon-btn" title="編輯" @@click="startEditViolation(r)">✏️</button><button class="icon-btn" title="刪除" @@click="removeViolation(r.id)">🗑️</button></td>
                             </tr>
@@ -322,26 +334,42 @@
     createApp({
       setup(){
         // 工具
-        const toISODate = d => new Date(d).toISOString().slice(0,10);
-        const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
-        const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
+    const toISODate = (val) => {
+      if (!val) return '';
+      // API 多半回字串；字串直接切 'T' 最穩，不涉入時區
+      if (typeof val === 'string') return val.split('T')[0].slice(0, 10);
+      // 其餘（Date 或數值時間戳）
+      const d = new Date(val);
+      if (isNaN(d)) return '';
+      // 把本地時間挪回「本地日」零點，避免 UTC 造成跨日
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 10);
+    };
+       const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
+      const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
+     function isDueSoon(d){
+      const today = new Date();
+      const due = new Date(toISODate(d) || today);
+      const diff = (due - today) / (1000*60*60*24);
+      return diff >= 0 &&  diff <= 30; // 30天內到期
+    }
 
         // 狀態
         const vehicles = ref([]);
         const selectedVehicleId = ref(0);
         const vehicleDetail = ref({});
-        const tab = ref('maint');
+        const tab = ref('record');
 
         // 保養
         const maintenance = ref([]);
         const showMaintAdd = ref(false);
         const editingMaintId = ref(null);
-        const maintForm = ref({ date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'' });
+        const maintForm = ref({ date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'', nextDueDate:''});
 
         function toggleMaintForm(){
           if(!showMaintAdd.value){ // 打開時重置
             editingMaintId.value = null;
-            maintForm.value = { date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'' };
+            maintForm.value = { date: toISODate(new Date()), odometer:null, item:'', unit:'', qty:null, amount:null, vendor:'', note:'',nextDueDate:'' };
           }
           showMaintAdd.value = !showMaintAdd.value;
         }
@@ -350,7 +378,7 @@
           showMaintAdd.value = true;
           maintForm.value = {
             date: (r.date||'').slice(0,10), odometer:r.odometer??null, item:r.item, unit:r.unit||'', qty:r.qty??null,
-            amount:r.amount??null, vendor:r.vendor||'', note:r.note||''
+            amount:r.amount??null, vendor:r.vendor||'', note:r.note||'',nextDueDate: toISODate(r.nextDueDate)
           };
         }
         function cancelMaint(){ showMaintAdd.value=false; editingMaintId.value=null; }
@@ -361,7 +389,7 @@
           const payload = { vehicleId:selectedVehicleId.value, vehiclePlate:plate, date:maintForm.value.date,
             odometer:maintForm.value.odometer, item:maintForm.value.item.trim(), unit:maintForm.value.unit||null,
             qty:maintForm.value.qty, amount:maintForm.value.amount, vendor:maintForm.value.vendor||null,
-            note:(maintForm.value.note||'').trim()||null };
+            note:(maintForm.value.note||'').trim()||null, nextDueDate: maintForm.value.nextDueDate };
           if(editingMaintId.value){ await axios.put(`/api/maintenance/${editingMaintId.value}`, payload, { withCredentials:true }); }
           else{ await axios.post('/api/maintenance', payload, { withCredentials:true }); }
           editingMaintId.value=null; showMaintAdd.value=false; await loadMaintenance();
@@ -651,12 +679,14 @@
             await loadViolations(); 
         });
 
+       
+
         return { 
-          vehicles, selectedVehicleId, vehicleDetail, tab, fmtNum, fmtMoney,recordRows,
+          vehicles, selectedVehicleId, vehicleDetail, tab, fmtNum, fmtMoney,recordRows,toISODate,
           // 車況
           setAvailable, onVehicleChanged,
           // 保養
-          maintenance, showMaintAdd, editingMaintId, maintForm, toggleMaintForm, startEditMaint, cancelMaint, saveMaint, removeMaint,
+          maintenance, showMaintAdd, editingMaintId, maintForm, toggleMaintForm, startEditMaint, cancelMaint, saveMaint, removeMaint,isDueSoon,
           // 維修
           repairs, repairRows, showRepairAdd, editingRepairId, repairForm, toggleRepairForm, startEditRepair, cancelRepair, saveRepair, removeRepair,
           // 驗車
