@@ -1,0 +1,50 @@
+﻿
+.page-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.toolbar {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr;
+    align-items: end
+}
+
+@@media(min - width:768px) {
+    .toolbar {
+        grid-template-columns: 1fr auto
+    }
+}
+
+.filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: end
+}
+
+.table-wrap {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    overflow: auto
+}
+
+th, td {
+    vertical-align: middle
+}
+
+.num {
+    text-align: right;
+    white-space: nowrap
+}
+
+.plate {
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
+
+

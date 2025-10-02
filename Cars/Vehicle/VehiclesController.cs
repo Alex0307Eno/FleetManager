@@ -3,27 +3,33 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cars.Vehicle
 {
+    [Authorize]
+
     public class VehiclesController : Controller
     {
-        [Authorize]
         public IActionResult Maintenance()
         {
             return View();
         }
-        [Authorize]
+        
         public IActionResult FuelStats()
         {
             return View();
         }
-        [Authorize]
+   
+
+        [HttpGet("/Fuel/Cards")]
+        public IActionResult Cards(int? year, int? month)
+        {
+            var now = DateTime.Now;
+            ViewBag.Year = year ?? now.Year;
+            ViewBag.Month = month ?? now.Month;
+            return View("FuelCardStats"); 
+        }
         public IActionResult Statistics()
         {
             return View();
         }
-        [Authorize]
-        public IActionResult FuelStatsChart()
-        {
-            return View();
-        }
+        
     }
 }

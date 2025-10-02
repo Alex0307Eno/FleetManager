@@ -17,7 +17,7 @@ namespace Cars.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.9")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -505,7 +505,7 @@ namespace Cars.Migrations
                     b.ToTable("FuelCards");
                 });
 
-            modelBuilder.Entity("Cars.Models.FuelFillUp", b =>
+            modelBuilder.Entity("Cars.Models.FuelTransaction", b =>
                 {
                     b.Property<int>("FuelTransactionId")
                         .ValueGeneratedOnAdd()
@@ -519,6 +519,9 @@ namespace Cars.Migrations
                     b.Property<string>("CardNo")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FuelCardId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("ImportedAt")
                         .HasColumnType("datetime2");
@@ -551,12 +554,9 @@ namespace Cars.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("VehicleId")
-                        .HasColumnType("int");
-
                     b.HasKey("FuelTransactionId");
 
-                    b.ToTable("FuelFillUps");
+                    b.ToTable("FuelTransaction");
                 });
 
             modelBuilder.Entity("Cars.Models.Leave", b =>

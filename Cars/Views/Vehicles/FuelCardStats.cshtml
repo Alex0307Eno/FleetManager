@@ -1,0 +1,161 @@
+﻿@{
+    ViewData["Title"] = "加油卡概況";
+    var year = (int)(ViewBag.Year ?? DateTime.Now.Year);
+    var month = (int)(ViewBag.Month ?? DateTime.Now.Month);
+}
+<link href="/css/Vehicle/FuelCardStats.css" rel="stylesheet" />
+
+
+
+<div id="app" class="page-wrap">
+    <div class="mb-2">
+        <h3 class="mb-0">加油卡概況 <small class="text-secondary">（{{ year }}/{{ month }}）</small></h3>
+        <div class="text-secondary small">檢視每張卡於指定月份的使用情形</div>
+    </div>
+
+    <section class="toolbar mb-3">
+        <div class="filters">
+            <div>
+                <label class="form-label mb-1">年份</label>
+                <input type="number" class="form-control" v-model.number="year" />
+            </div>
+            <div>
+                <label class="form-label mb-1">月份</label>
+                <input type="number" class="form-control" min="1" max="12" v-model.number="month" />
+            </div>
+            <div>
+                <label class="form-label mb-1 d-block">&nbsp;</label>
+                <button class="btn btn-primary" @@click="loadCards" :disabled="loading">
+                    <template v-if="!loading">載入</template>
+                    <template v-else>
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        載入中
+                    </template>
+                </button>
+                <button class="btn btn-outline-secondary ms-1" @@click="setThisMonth" :disabled="loading">本月</button>
+            </div>
+        </div>
+        <div>
+            <a class="btn btn-outline-dark" href="/Vehicles/FuelStats">回油耗統計</a>
+        </div>
+    </section>
+
+    <div v-if="error" class="alert alert-danger">{{ error }}</div>
+
+    <div class="table-wrap">
+        <table class="table table-striped table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="min-width:120px;">卡號</th>
+                    <th style="min-width:120px;">車牌</th>
+                    <th class="text-center" style="width:90px;">啟用</th>
+                    <th class="num" style="width:90px;">筆數</th>
+                    <th class="num" style="width:120px;">總公升</th>
+                    <th class="num" style="width:120px;">總金額</th>
+                    <th style="min-width:170px;">最後加油時間</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-if="loading">
+                    <td colspan="7" class="text-secondary">
+                        <span class="spinner-border spinner-border-sm me-2"></span>載入中…
+                    </td>
+                </tr>
+                <tr v-else-if="cards.length === 0">
+                    <td colspan="7" class="text-secondary">本月無資料</td>
+                </tr>
+                <tr v-else v-for="c in sortedCards" :key="c.fuelCardId">
+                    <td class="fw-semibold">{{ c.cardNo }}</td>
+                    <td class="plate">{{ c.plateNo || '—' }}</td>
+                    <td class="text-center">
+                        <span class="badge rounded-pill border"
+                              :class="c.isActive
+                        ? 'bg-success-subtle text-success border-success'
+                        : 'bg-secondary-subtle text-secondary-emphasis border-secondary'">
+                            {{ c.isActive ? '啟用' : '停用' }}
+                        </span>
+                    </td>
+
+                    <td class="num">{{ (c.txCount ?? 0).toLocaleString() }}</td>
+                    <td class="num">{{ fmt(c.totalLiters, 2) }}</td>
+                    <td class="num">{{ fmt(c.totalAmount, 0) }}</td>
+                    <td>{{ formatTime(c.lastTxTime) }}</td>
+                </tr>
+            </tbody>
+            <tfoot v-if="cards.length > 0">
+                <tr class="fw-bold">
+                    <td colspan="3">合計</td>
+                    <td class="num">{{ cards.reduce((s,x)=>s+(x.txCount||0),0).toLocaleString() }}</td>
+                    <td class="num">{{ fmt(cards.reduce((s,x)=>s+(x.totalLiters||0),0),2) }}</td>
+                    <td class="num">{{ fmt(cards.reduce((s,x)=>s+(x.totalAmount||0),0),0) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const year = ref(@year);
+        const month = ref(@month);
+        const cards = ref([]);
+        const loading = ref(false);
+        const error = ref('');
+
+        function fmt(n, d=0){
+          const v = Number(n); if(!isFinite(v)) return '—';
+          return v.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+        }
+        function formatTime(iso){
+          if(!iso) return '—';
+          const d = new Date(iso);
+          if(isNaN(d)) return '—';
+          const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'),
+                da=String(d.getDate()).padStart(2,'0'),
+                hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+          return `${y}-${m}-${da} ${hh}:${mm}`;
+        }
+
+        const sortedCards = computed(() => {
+          // 以總金額由高到低
+          return [...cards.value].sort((a,b)=>(b.totalAmount??0)-(a.totalAmount??0));
+        });
+
+        async function loadCards(){
+          error.value = '';
+          cards.value = [];
+          if(!year.value || !month.value || month.value<1 || month.value>12){
+            error.value = '請輸入正確的年份與月份';
+            return;
+          }
+          try{
+            loading.value = true;
+            const res = await axios.get(`/api/Fuel/Cards/${year.value}/${month.value}`);
+            cards.value = Array.isArray(res.data) ? res.data : [];
+          }catch(err){
+            console.error(err);
+            error.value = err?.response?.data ?? err?.message ?? '讀取失敗';
+          }finally{
+            loading.value = false;
+          }
+        }
+
+        function setThisMonth(){
+          const now = new Date();
+          year.value = now.getFullYear();
+          month.value = now.getMonth()+1;
+          loadCards();
+        }
+
+        onMounted(loadCards);
+
+        return { year, month, cards, loading, error, loadCards, setThisMonth, fmt, formatTime, sortedCards };
+      }
+    }).mount('#app');
+</script>

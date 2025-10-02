@@ -37,12 +37,9 @@ namespace Cars.Features.Drivers
             // 合併要排除的駕駛
             var excludedDrivers = busyDrivers.Concat(restNotEnough).Distinct().ToList();
 
-            // 4. 當日正常出勤的司機
+            // 4. 全部 Drivers - 排除清單
             var drivers = await _db.Drivers
-                .Where(d => _db.Schedules.Any(s =>
-                            s.DriverId == d.DriverId &&
-                            s.WorkDate == today) &&
-                            !excludedDrivers.Contains(d.DriverId))
+                .Where(d => !excludedDrivers.Contains(d.DriverId))
                 .Select(d => new {
                     d.DriverId,
                     d.DriverName,

@@ -3,14 +3,15 @@
 namespace Cars.Models
 {
     /// <summary>加油 / 補機油紀錄</summary>
-    public class FuelFillUp
+    public class FuelTransaction
     {
         [Key]
         public int FuelTransactionId { get; set; }
+        
+        public int FuelCardId { get; set; }    // 對應 FuelCard 的外鍵
         public DateTime TxTime { get; set; }          // 交易時間
         public string StationName { get; set; }       // 加油站
         public string CardNo { get; set; }            // 卡號（原始）
-        public int? VehicleId { get; set; }           // 透過卡號或車牌比對
         public string PlateNo { get; set; }           // 檔案內車牌（若有）
         public decimal Liters { get; set; }           // 公升
         public decimal UnitPrice { get; set; }        // 單價

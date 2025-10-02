@@ -75,7 +75,7 @@ namespace Cars.ApiControllers
                             break;
                         }
                     }
-                    catch { /* 忽略破損 hash */ }
+                    catch {  }
                 }
 
                 // 4-2) 舊明碼 -> 命中就升級

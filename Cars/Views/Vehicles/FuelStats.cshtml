@@ -1,33 +1,155 @@
-﻿<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-<div id="app">
-    <div class="toolbar">
-        <!-- 隱藏的檔案輸入 -->
-        <input type="file"
-               id="cpcFile"
-               ref="cpcFileInput"
-               accept=".csv"
-               style="display:none"
-               @@change ="importCpc" />
+﻿@{
+    ViewData["Title"] = "月度油耗統計";
+    var year = (int)(ViewBag.Year ?? DateTime.Now.Year);
+    var month = (int)(ViewBag.Month ?? DateTime.Now.Month);
+}
+<link href="/css/Vehicle/FuelStats.css" rel="stylesheet" />
 
-        <!-- 點按鈕時會自動觸發檔案選擇 -->
-        <button class="btn btn-primary" @@click ="selectFile">
-            匯入中油
-        </button>
+
+<div id="app" class="container py-3">
+    <h2 class="mb-3">月度油耗統計（{{ year }}/{{ month }}）</h2>
+
+    <div class="mb-3 d-flex gap-2 align-items-end flex-wrap">
+        <!-- 年月選擇 -->
+        <div class="d-flex gap-2 align-items-end">
+            <div>
+                <label for="year" class="form-label">年份</label>
+                <input type="number" id="year" class="form-control" v-model.number="year" style="width:120px">
+            </div>
+            <div>
+                <label for="month" class="form-label">月份</label>
+                <input type="number" id="month" class="form-control" v-model.number="month" min="1" max="12" style="width:100px">
+            </div>
+            <div class="pb-1">
+                <button class="btn btn-primary" @@click="loadStats">載入</button>
+                <button class="btn btn-outline-secondary" @@click="setThisMonth">本月</button>
+            </div>
+        </div>
+        <a class="nav-link" href="/Fuel/Cards">加油卡概況</a>
+
+        <!-- 匯入中油（Vue 管理） -->
+        <div class="ms-auto">
+            <input type="file" ref="cpcFileInput" accept=".csv" style="display:none" @@change="importCpc" />
+            <button class="btn btn-success" :disabled="uploading" @@click="selectFile">
+                <span v-if="!uploading">匯入中油</span>
+                <span v-else>
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    上傳中…
+                </span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 錯誤訊息 -->
+    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th style="width:140px;">車牌</th>
+                    <th>總公升</th>
+                    <th>總金額</th>
+                    <th>總里程</th>
+                    <th>Km/L</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-if="loading">
+                    <td colspan="5">載入中…</td>
+                </tr>
+                <tr v-else-if="rows.length === 0">
+                    <td colspan="5">本月無資料</td>
+                </tr>
+                <tr v-else v-for="r in sortedRows" :key="(r.plateNo || '') + '-' + (r.vehicleId ?? '')">
+                    <td>{{ r.plateNo || '' }}</td>
+                    <td>{{ fmt(r.totalLiters, 2) }}</td>
+                    <td>{{ fmt(r.totalAmount, 0) }}</td>
+                    <td>{{ fmt(r.totalKm, 0) }}</td>
+                    <td>{{ fmt(r.kmPerLiter, 2) }}</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td>合計</td>
+                    <td>{{ fmt(sumLiters, 2) }}</td>
+                    <td>{{ fmt(sumAmount, 0) }}</td>
+                    <td>{{ fmt(sumKm, 0) }}</td>
+                    <td>{{ fmt(sumKml, 2) }}</td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 </div>
 
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-    const { createApp, ref } = Vue;
+    const { createApp, ref, computed, onMounted } = Vue;
 
     createApp({
       setup() {
+        // 狀態
+        const year = ref(@year);
+        const month = ref(@month);
+        const rows = ref([]);          // 從 API 取得的列（含 plateNo）
+        const loading = ref(false);
+        const error = ref('');
+        const uploading = ref(false);
         const cpcFileInput = ref(null);
 
-        function selectFile() {
-          cpcFileInput.value.click(); // 觸發檔案選擇
+        // 工具：數字格式化
+        function fmt(n, digits = 0) {
+          const v = Number(n);
+          if (!isFinite(v)) return '—';
+          return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
         }
 
+        // 計算欄位：排序與合計
+        const sortedRows = computed(() => {
+          return [...rows.value].sort((a, b) => (b.kmPerLiter ?? 0) - (a.kmPerLiter ?? 0));
+        });
+        const sumLiters = computed(() => rows.value.reduce((s, x) => s + (x.totalLiters ?? 0), 0));
+        const sumAmount = computed(() => rows.value.reduce((s, x) => s + (x.totalAmount ?? 0), 0));
+        const sumKm     = computed(() => rows.value.reduce((s, x) => s + (x.totalKm ?? 0), 0));
+        const sumKml    = computed(() => (sumLiters.value > 0 && sumKm.value > 0) ? (sumKm.value / sumLiters.value) : 0);
+
+        // 行為：載入統計
+        async function loadStats() {
+          error.value = '';
+          rows.value = [];
+          // 基本驗證
+          if (!year.value || !month.value || month.value < 1 || month.value > 12) {
+            error.value = '請輸入正確的年份與月份';
+            return;
+          }
+          const url = `/api/fuel/stats/${year.value}/${month.value}`;
+          try {
+            loading.value = true;
+            const res = await axios.get(url);
+            rows.value = Array.isArray(res.data) ? res.data : [];
+          } catch (err) {
+            console.error(err);
+            error.value = (err?.response?.data) || (err?.message) || '讀取失敗';
+          } finally {
+            loading.value = false;
+          }
+        }
+
+        // 行為：本月
+        function setThisMonth() {
+          const now = new Date();
+          year.value = now.getFullYear();
+          month.value = now.getMonth() + 1;
+          loadStats();
+        }
+
+        // 匯入：選檔
+        function selectFile() {
+          cpcFileInput.value?.click();
+        }
+
+        // 匯入：送出
         async function importCpc(e) {
           const file = e.target.files?.[0];
           if (!file) return;
@@ -36,18 +158,37 @@
           fd.append('file', file);
 
           try {
-            const res = await axios.post('/api/fuel/import', fd, {
-              headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            alert(`匯入完成：新增 ${res.data.imported}，重複 ${res.data.duplicated}，失敗 ${res.data.failed}`);
+            uploading.value = true;
+            const res = await axios.post('/api/fuel/import', fd); // boundary 自帶
+            const msg = res?.data
+              ? `匯入完成：新增 ${res.data.imported}，重複 ${res.data.duplicated}，失敗 ${res.data.failed}`
+              : '匯入完成';
+            alert(msg);
+            // 匯入後重載目前年月統計
+            await loadStats();
           } catch (err) {
+            console.error(err);
             alert('匯入失敗');
           } finally {
-            e.target.value = ''; // 重置 input，避免同一檔案再選一次沒觸發
+            uploading.value = false;
+            e.target.value = ''; // 重置 input
           }
         }
 
-        return { cpcFileInput, selectFile, importCpc };
+        // 初始載入
+        onMounted(() => {
+          loadStats();
+        });
+
+        return {
+          // 狀態
+          year, month, rows, loading, error,
+          uploading, cpcFileInput,
+          // 計算
+          sortedRows, sumLiters, sumAmount, sumKm, sumKml,
+          // 方法
+          fmt, loadStats, setThisMonth, selectFile, importCpc
+        };
       }
     }).mount('#app');
 </script>
