@@ -908,6 +908,42 @@ namespace Cars.Migrations
                     b.ToTable("VehicleInspections");
                 });
 
+            modelBuilder.Entity("Cars.Models.VehicleLocationLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GpsTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double?>("Heading")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Speed")
+                        .HasColumnType("float");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("VehicleLocationLogs");
+                });
+
             modelBuilder.Entity("Cars.Models.VehicleMaintenance", b =>
                 {
                     b.Property<int>("VehicleMaintenanceId")
@@ -1202,6 +1238,17 @@ namespace Cars.Migrations
                 });
 
             modelBuilder.Entity("Cars.Models.VehicleInspection", b =>
+                {
+                    b.HasOne("Cars.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Cars.Models.VehicleLocationLog", b =>
                 {
                     b.HasOne("Cars.Models.Vehicle", "Vehicle")
                         .WithMany()

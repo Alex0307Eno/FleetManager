@@ -7,6 +7,7 @@ using Cars.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Hangfire;
+using Cars.Services.GPS;
 
 namespace Cars
 {
@@ -42,6 +43,10 @@ namespace Cars
             builder.Services.AddScoped<DriverService>();
             builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddScoped<LineBotNotificationService>();
+            //GPS 服務
+            builder.Services.AddHttpClient<HttpGpsProvider>();
+            builder.Services.AddScoped<IGpsProvider>(sp =>
+                new SerialGpsProvider("COM3")); // 這裡換成你的實際 COM port
 
             builder.Services.AddHttpClient();
 

@@ -40,6 +40,9 @@ namespace Cars.Data
 
         public DbSet<Leave> Leaves { get; set; } // 請假資料表
 
+        public DbSet<VehicleLocationLog> VehicleLocationLogs { get; set; }
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

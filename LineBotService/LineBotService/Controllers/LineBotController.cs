@@ -1160,9 +1160,6 @@ namespace LineBotDemo.Controllers
                         }
                     }
 
-
-                   
-
                 }
 
                 catch (Exception ex)
@@ -1278,7 +1275,7 @@ namespace LineBotDemo.Controllers
 
         #endregion
 
-        
+        #region 共用方法
         // ====== 共用方法：嘗試儲存資料庫 ======
         private bool TrySave(string replyToken, string userMsg = "⚠️ 資料儲存失敗，請稍後再試")
         {
@@ -1324,7 +1321,7 @@ namespace LineBotDemo.Controllers
             }
             return true;
         }
-
+        #endregion
     }
 
 
