@@ -1,9 +1,8 @@
 ﻿using Cars.Data;
 using Cars.Features.CarApplications;
-using Cars.Migrations;
+using Cars.Features.Drivers;
+using Cars.Features.Vehicles;
 using Cars.Models;
-using DocumentFormat.OpenXml.Bibliography;
-using DocumentFormat.OpenXml.Spreadsheet;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -37,8 +36,11 @@ namespace LineBotDemo.Controllers
         private string? _replyToken;   // 全域 replyToken
         private readonly CarApplicationService _carAppService;
         private readonly DispatchService _dispatchService;
+        private readonly DriverService _driverService;
+        private readonly VehicleService _vehicleService;
 
-        public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService, CarApplicationService carAppService, DispatchService dispatchService)
+        public LineBotController(IHttpClientFactory httpFactory, IConfiguration config, ApplicationDbContext db,RichMenuService richMenuService, CarApplicationService carAppService, DispatchService dispatchService, DriverService driverService,
+    VehicleService vehicleService)
         {
             _http = httpFactory.CreateClient();
             _token = config["LineBot:ChannelAccessToken"];
@@ -49,9 +51,11 @@ namespace LineBotDemo.Controllers
             _bot = new Bot(_token);
             _carAppService = carAppService;
             _dispatchService = dispatchService;
-
-
+            _driverService = driverService ?? throw new ArgumentNullException(nameof(driverService));
+            _vehicleService = vehicleService ?? throw new ArgumentNullException(nameof(vehicleService));
         }
+
+        
         #region 暫存方法
 
         // 對話進度暫存
@@ -1011,7 +1015,15 @@ namespace LineBotDemo.Controllers
                             // === Step 2. 出發/抵達時間 ===
                             var start = DateTime.TryParse(state.ReserveTime, out var tmpStart) ? tmpStart : DateTime.Now;
                             var end = DateTime.TryParse(state.ArrivalTime, out var tmpEnd) ? tmpEnd : start.AddMinutes(60);
+                            // === Step 2.5 檢查司機與車輛是否可用 ===
+                            var availableDrivers = await _driverService.GetAvailableDriversAsync(start, end);
+                            var availableCars = await _vehicleService.GetAvailableVehiclesAsync(start, end);
 
+                            if (!availableDrivers.Any() || !availableCars.Any())
+                            {
+                                bot.ReplyMessage(replyToken, "⚠️ 該時段沒有可用的司機或車輛，請重新選擇時間。");
+                                continue; // 中斷，不建立申請單
+                            }
                             // === Step 3. 建立申請單 (呼叫 API) ===
                             var appInput = new CarApplication
                             {

@@ -1,11 +1,13 @@
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Features.CarApplications;
-using Cars.Features.Vehicles;
 using Cars.Features.Drivers;
+using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
-
+using Hangfire;
+using Hangfire.SqlServer;
 using LineBotDemo.Services;
+using LineBotService.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineBotService
@@ -25,15 +27,18 @@ namespace LineBotService
             builder.Services.AddScoped<DriverService>();
             builder.Services.AddScoped<DispatchService>();
             builder.Services.Configure<RichMenuOptions>(builder.Configuration.GetSection("RichMenus"));
+            builder.Services.AddScoped<ILinePush, LinePush>();
+            builder.Services.AddScoped<NotificationService>();
+    
 
 
 
 
-            // ���U GoogleMapsSettings
+            // 註冊 GoogleMapsSettings
             builder.Services.Configure<GoogleMapsSettings>(
                 builder.Configuration.GetSection("GoogleMaps"));
 
-            // ���U HttpClient + DistanceService
+            // 註冊 HttpClient + DistanceService
             builder.Services.AddHttpClient<IDistanceService, GoogleDistanceService>();
 
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -44,6 +49,15 @@ namespace LineBotService
                 opt.JsonSerializerOptions.ReferenceHandler =
                     System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
             });
+
+            builder.Services.AddHangfire(cfg => cfg
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"),
+            new SqlServerStorageOptions { PrepareSchemaIfNecessary = true }));
+
+            builder.Services.AddHangfireServer();   // 啟動背景工作者
 
             // Swagger
             builder.Services.AddEndpointsApiExplorer();
@@ -57,7 +71,7 @@ namespace LineBotService
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
+            app.UseHangfireDashboard("/hangfire");
             app.UseStaticFiles();
             app.UseRouting();
             app.UseAuthentication();

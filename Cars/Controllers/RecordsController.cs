@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
+using Cars.Features.CarApplications;
 using Cars.Models;
 using Cars.Services;
-using Cars.Features.CarApplications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -373,6 +373,8 @@ namespace Cars.ApiControllers
 
             var (ok,err) = await _db.TrySaveChangesAsync(this);
             if (!ok) return err!;
+            DispatchJobScheduler.ScheduleRideReminders(dispatch);
+
             Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
             _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
 

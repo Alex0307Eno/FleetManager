@@ -317,23 +317,26 @@ namespace LineBotService.Services
         //選擇司機卡片
         public static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
         {
-            var now = DateTime.Now;
+            var app = db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+            if (app == null)
+                return @"{ ""type"": ""text"", ""text"": ""⚠️ 找不到該申請單"" }";
+
+            var useStart = app.UseStart;
+            var useEnd = app.UseEnd;
 
             var drivers = db.Drivers
                 .Where(d => !d.IsAgent &&
-                    //沒有正在出勤
-                    !db.Dispatches.Any(dis =>
-                        dis.DriverId == d.DriverId &&
-                        dis.DispatchStatus == "已派車" &&
-                        dis.StartTime <= now &&
-                        dis.EndTime >= now)
-
-
-
+                    !db.CarApplications.Any(ca =>
+                        ca.DriverId == d.DriverId &&
+                        ca.ApplyId != applyId && // 排除自己
+                        ca.UseStart < useEnd &&  // 交疊判斷
+                        ca.UseEnd > useStart
+                    )
                 )
                 .Select(d => new { d.DriverId, d.DriverName })
                 .Take(5)
                 .ToList();
+
 
 
             var btns = string.Join(",\n        ", drivers.Select(d =>
@@ -366,16 +369,22 @@ namespace LineBotService.Services
         //選擇車輛卡片
         public static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
         {
-            var now = DateTime.Now;
+            var app = db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
+            if (app == null)
+                return @"[{ ""type"": ""text"", ""text"": ""⚠️ 找不到該申請單"" }]";
 
-            // 過濾掉正在使用中的車輛
+            var useStart = app.UseStart;
+            var useEnd = app.UseEnd;
+
             var cars = db.Vehicles
                 .Where(v => v.Status == "可用" &&
-                !db.Dispatches.Any(dis =>
-                    dis.VehicleId == v.VehicleId &&
-                    dis.DispatchStatus == "已派車" &&
-                    dis.StartTime <= now &&
-                    dis.EndTime >= now))
+                    !db.CarApplications.Any(ca =>
+                        ca.VehicleId == v.VehicleId &&
+                        ca.ApplyId != applyId && // 排除自己
+                        ca.UseStart < useEnd &&
+                        ca.UseEnd > useStart
+                    )
+                )
                 .Select(v => new { v.VehicleId, v.PlateNo })
                 .Take(5)
                 .ToList();

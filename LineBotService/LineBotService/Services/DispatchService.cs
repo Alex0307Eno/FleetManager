@@ -1,5 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Hangfire;
+using LineBotService.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;

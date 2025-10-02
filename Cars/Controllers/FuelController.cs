@@ -20,7 +20,7 @@ namespace Cars.Controllers
             s = s.Replace(" ", "").Replace("-", "").Replace("—", "").Replace("–", "");
             return s;
         }
-
+        [ApiExplorerSettings(IgnoreApi = true)]
         [HttpPost("import")]
         public async Task<IActionResult> ImportCpcCsv([FromForm] IFormFile file)
         {
@@ -89,10 +89,10 @@ namespace Cars.Controllers
                 var tx = new FuelTransaction
                 {
                     TxTime = r.TxTime,
-                    FuelCardId = fuelCardId.Value,  // ✅ 關鍵：用外鍵串卡片
+                    FuelCardId = fuelCardId.Value,  
                     StationName = r.Station,
-                    CardNo = r.CardNo,              // 原始卡號保留稽核
-                    PlateNo = r.PlateNo ?? "",      // 若 DB NOT NULL → 給空字串也可
+                    CardNo = r.CardNo,              
+                    PlateNo = r.PlateNo ?? "",      
                     Liters = r.Liters,
                     UnitPrice = r.UnitPrice,
                     Amount = r.Amount,

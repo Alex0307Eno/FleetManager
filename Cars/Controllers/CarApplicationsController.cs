@@ -17,16 +17,14 @@ namespace Cars.ApiControllers
     public class CarApplicationsController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        private readonly AutoDispatcher _dispatcher;
         private readonly IDistanceService _distance;
         private readonly CarApplicationService _carApplicationService;
         private readonly VehicleService _vehicleService;
 
 
-        public CarApplicationsController(ApplicationDbContext db, AutoDispatcher dispatcher, IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService)
+        public CarApplicationsController(ApplicationDbContext db,  IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService)
         {
             _db = db;
-            _dispatcher = dispatcher;
             _distance = distance;
             _carApplicationService = carApplicationService;
             _vehicleService = vehicleService;
@@ -132,7 +130,9 @@ namespace Cars.ApiControllers
 
             _db.Dispatches.Add(dispatch);
             var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            DispatchJobScheduler.ScheduleRideReminders(dispatch);
             if (!ok2)
+
             {
                 await tx.RollbackAsync();
                 return err2!;

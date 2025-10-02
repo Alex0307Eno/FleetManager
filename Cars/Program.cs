@@ -6,7 +6,7 @@ using Cars.Models;
 using Cars.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
-
+using Hangfire;
 
 namespace Cars
 {
@@ -22,7 +22,14 @@ namespace Cars
 
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            // 加入 Hangfire
+            builder.Services.AddHangfire(config =>
+            {
+                config.UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"));
+            });
 
+            // 啟動 Hangfire Server
+            builder.Services.AddHangfireServer();
 
             // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));
@@ -30,10 +37,12 @@ namespace Cars
             builder.Services.AddScoped<IDistanceService, GoogleDistanceService>();
 
             // 其他服務
-            builder.Services.AddScoped<AutoDispatcher>();
+            //builder.Services.AddScoped<AutoDispatcher>();
             builder.Services.AddScoped<VehicleService>();
             builder.Services.AddScoped<DriverService>();
             builder.Services.AddScoped<CarApplicationService>();
+            builder.Services.AddScoped<LineBotNotificationService>();
+
             builder.Services.AddHttpClient();
 
             // MVC
@@ -125,6 +134,7 @@ namespace Cars
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
+            app.UseHangfireDashboard("/hangfire");
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();

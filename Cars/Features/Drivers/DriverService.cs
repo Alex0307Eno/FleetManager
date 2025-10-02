@@ -13,8 +13,8 @@ namespace Cars.Features.Drivers
             var today = DateTime.Today;
 
             // 1. 查出已經在該時段有派工的 DriverIds
-            var busyDrivers = await _db.Dispatches
-                .Where(d => d.StartTime < useEnd && d.EndTime > useStart)
+            var busyDrivers = await _db.CarApplications
+                .Where(d => d.UseStart < useEnd && d.UseEnd > useStart)
                 .Select(d => d.DriverId)
                 .ToListAsync();
 
