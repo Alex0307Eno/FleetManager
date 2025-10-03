@@ -57,7 +57,7 @@ namespace Cars.ApiControllers
                 v.Year,
                 v.Model,
                 v.Type,
-                v.Retired
+                v.RetiredDate
             });
         }
 
@@ -72,6 +72,36 @@ namespace Cars.ApiControllers
             if (!ok) return err!; 
             return NoContent();
         }
+
+        // 更新車輛基本資料（車籍卡）
+        [HttpPut("vehicle/{id:int}")]
+        public async Task<IActionResult> UpdateVehicleDetail(int id, [FromBody] VehicleUpdateDto dto)
+        {
+            var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == id);
+            if (v == null) return NotFound();
+
+            v.Source = dto.Source;
+            v.ApprovalNo = dto.ApprovalNo;
+            v.PurchaseDate = dto.PurchaseDate ?? v.PurchaseDate;
+            v.Value = dto.Value;
+            v.LicenseDate = dto.LicenseDate ?? v.LicenseDate;
+            v.StartUseDate = dto.StartUseDate ?? v.StartUseDate;
+            v.InspectionDate = dto.InspectionDate ?? v.InspectionDate;
+            v.EngineCC = dto.EngineCC;
+            v.EngineNo = dto.EngineNo;
+            v.Brand = dto.Brand;
+            v.Year = dto.Year;
+            v.Model = dto.Model;
+            v.Type = dto.Type;
+            v.RetiredDate = dto.RetiredDate;
+
+            var (ok, err) = await _db.TrySaveChangesAsync(this);
+            if (!ok) return err!;
+            return NoContent();
+        }
+
+        
+
         #endregion
 
         #region 保養紀錄 CRUD
@@ -84,6 +114,7 @@ namespace Cars.ApiControllers
                 .OrderByDescending(m => m.Date)
                 .Select(m => new {
                     id = m.VehicleMaintenanceId,
+                    m.VehicleId,
                     date = m.Date.ToString("yyyy-MM-dd"),
                     m.Odometer,
                     m.Item,
@@ -227,6 +258,7 @@ namespace Cars.ApiControllers
                 .OrderByDescending(r => r.Date)
                 .Select(r => new {
                     repairRequestId = r.RepairRequestId,
+                    vehicleId = r.VehicleId,
                     date = r.Date != null ? r.Date.ToString("yyyy-MM-dd") : "",
                     place = r.Place ?? "",
                     issue = r.Issue ?? "",
@@ -273,17 +305,17 @@ namespace Cars.ApiControllers
 
             var list = await _db.VehicleInspections
                 .AsNoTracking()
-                .Where(x => x.VehicleId == vehicleId)
-                .OrderByDescending(x => x.InspectionDate)
-                .Select(x => new {
-                    x.InspectionId,
-                    x.VehicleId,
-                    date = x.InspectionDate,
-                    station = x.Station,
-                    result = x.Result,
-                    nextDueDate = x.NextDueDate,
-                    odometerKm = x.OdometerKm,
-                    notes = x.Notes
+                .Where(i => i.VehicleId == vehicleId)
+                .OrderByDescending(i => i.InspectionDate)
+                .Select(i => new {
+                    i.InspectionId,
+                    i.VehicleId,
+                    date = i.InspectionDate,
+                    station = i.Station,
+                    result = i.Result,
+                    nextDueDate = i.NextDueDate,
+                    odometerKm = i.OdometerKm,
+                    notes = i.Notes
                 })
                 .ToListAsync();
 
@@ -358,19 +390,19 @@ namespace Cars.ApiControllers
 
             var list = await _db.VehicleViolations
                 .AsNoTracking()
-                .Where(x => x.VehicleId == vehicleId)
-                .OrderByDescending(x => x.ViolationDate)
-                .Select(x => new {
-                    x.ViolationId,
-                    x.VehicleId,
-                    date = x.ViolationDate,
-                    location = x.Location,
-                    category = x.Category,
-                    fineAmount = x.FineAmount,
-                    status = x.Status,
-                    dueDate = x.DueDate,
-                    paidDate = x.PaidDate,
-                    notes = x.Notes
+                .Where(v => v.VehicleId == vehicleId)
+                .OrderByDescending(v => v.ViolationDate)
+                .Select(v => new {
+                    v.ViolationId,
+                    v.VehicleId,
+                    date = v.ViolationDate,
+                    location = v.Location,
+                    category = v.Category,
+                    fineAmount = v.FineAmount,
+                    status = v.Status,
+                    dueDate = v.DueDate,
+                    paidDate = v.PaidDate,
+                    notes = v.Notes
                 })
                 .ToListAsync();
 

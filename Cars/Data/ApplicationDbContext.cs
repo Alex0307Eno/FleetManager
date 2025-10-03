@@ -20,6 +20,8 @@ namespace Cars.Data
         public DbSet<Cars.Models.Dispatch> Dispatches { get; set; }
         public DbSet<Record> Records { get; set; }
 
+        public DbSet<DispatchAudit> DispatchAudits { get; set; }
+
         public DbSet<DispatchOrder> v_DispatchOrders { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<DriverDelegation> DriverDelegations { get; set; }

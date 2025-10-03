@@ -163,13 +163,13 @@
                                     <div class="actions" v-if="isGroupHead(paged,i)">
                                         @if (User.IsInRole("Admin"))
                                         {
-                                        <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
+                                        <button class="icon-btn view" title="檢視" @@click ="openHistory(r.dispatchId)"><i class="fa-solid fa-eye"></i></button>
                                         <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
                                         }
                                     </div>
                                     <div class="actions" v-else>
-                                        <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
+                                        <button class="icon-btn view" title="檢視" @@click="openHistory(r.dispatchId)"><i class="fa-solid fa-eye"></i></button>
                                     </div>
                                 </td>
                             </tr>
@@ -220,7 +220,7 @@
                         <option :value="null">（不指定）</option>
                         <!-- 當下的車輛 -->
                         <option v-if="currentVehicle" :value="currentVehicle.vehicleId">
-                            ★ 當前指派：{{ currentVehicle.plateNo }}(載客量{{ currentVehicle.capacity }})
+                            ★ 當前指派：{{ currentVehicle.plateNo }}(載客量{{ currentVehicle.Capacity }})
                         </option>
                         <!-- 其他可用車輛 -->
                         <option v-for="v in availVehicles" :key="v.vehicleId" :value="v.vehicleId">
@@ -342,6 +342,45 @@
                 </div>
             </div>
         </div>
+        <!-- 異動紀錄 Modal -->
+        <div v-if="showHistory" class="modal-mask">
+            <div class="modal-container" style="max-width:800px;width:95%;">
+                <h3 class="modal-title">🚗 異動紀錄</h3>
+
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width:180px;">時間</th>
+                                <th style="width:100px;">動作</th>
+                                <th style="width:120px;">操作人</th>
+                                <th>舊值</th>
+                                <th>新值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="!historyRows.length">
+                                <td colspan="5" class="text-muted" style="text-align:center;padding:16px;">
+                                    目前沒有異動紀錄
+                                </td>
+                            </tr>
+                            <tr v-for="(h,i) in historyRows" :key="i">
+                                <td class="mono">{{ formatDateTime(h.at) }}</td>
+                                <td><span class="badge blue">{{ h.action }}</span></td>
+                                <td>{{ h.byUserName }}</td>
+                                <td><span class="text-muted">{{ h.oldValue }}</span></td>
+                                <td><span class="text-success">{{ h.newValue }}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn" @@click ="showHistory=false">關閉</button>
+                </div>
+            </div>
+        </div>
+
 
     </main>
 
@@ -370,7 +409,15 @@
                   data: res?.data
                 };
               }
-
+            //轉換日期工具
+          function formatDateTime(v){
+            if(!v) return '';
+            // 後端可能回 "2025-03-05T13:20:00" 或 "2025-03-05 13:20:00"
+            const s = String(v).replace(' ', 'T');
+            const d = new Date(s);
+            if(isNaN(d)) return String(v);
+            return d.toLocaleString();
+            }
               
 
               //有子單的話母單才顯示箭頭
@@ -399,6 +446,9 @@
               ? res.data.data
               : res.data;
 
+              //異動紀錄
+              const historyRows = ref([]);
+              const showHistory = ref(false);
               // === 共乘併單相關 state ===
               const showMergeModal = ref(false);
               const currentDispatchId = ref(null);
@@ -660,16 +710,7 @@
               const availDrivers = ref([]);
               const availVehicles = ref([]);
 
-              const viewRow = async (r) => {
-                try {
-                  const res = await axios.get(`/api/dispatch/${r.dispatchId}`);
-                  viewing.value = res.data;
-                } catch (err) {
-                  console.error(err);
-                  alert("讀取失敗");
-                }
-              };
-              const closeView = () => { viewing.value = null; };
+              
 
               function canEdit(r) {
                 if (!r.driverId) return true;
@@ -899,6 +940,20 @@
                 await Promise.all([loadLinks(), loadDispatchOptions()]);
                 console.groupEnd();
               });
+              //異動紀錄
+                         async function openHistory(id){
+          console.log("🔎 openHistory called with id =", id);
+          try {
+            const res = await axios.get(`/api/dispatch/${id}/history`, { withCredentials:true });
+            historyRows.value = res.data || [];
+            showHistory.value = true;
+          }catch(err){
+            console.error("載入異動紀錄失敗", err);
+          }
+        }
+
+
+
 
               // === Return ===
               return {
@@ -913,7 +968,7 @@
                 // 更新時間
                 lastUpdated,
                 // 工具
-                fmtNum,rocDate, timeSpan, fmtKm, statusText, statusClass, canEdit,
+                fmtNum,rocDate, timeSpan, fmtKm, statusText, statusClass, canEdit,formatDateTime,
                 // 狀態
                 viewing, editing, currentDriver, currentVehicle,
                 selectedDriverId, selectedVehicleId, availDrivers, availVehicles,
@@ -921,7 +976,7 @@
                 showMergeModal, currentDispatchId, mergedApps, newChildDispatchId, 
                 applicantOptions, currentMainDispatchId, filteredDispatchOptions,hasChildren,remainingSeats,
                 // 方法
-                openMergeFor, reload, viewRow, closeView, editRow, confirmEdit, cancelEdit,
+                openMergeFor, reload, editRow, confirmEdit, cancelEdit,openHistory,historyRows,showHistory,
                 removeRow, openMergeModal, loadLinks, addLink, removeLink, exportCsv
               };
             }

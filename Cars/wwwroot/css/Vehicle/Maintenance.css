@@ -15,7 +15,7 @@ body {
 }
 
 .wrap {
-    max-width: 1280px;
+    max-width: 1400px;
     margin: 24px auto;
     padding: 0 16px
 }
@@ -175,6 +175,13 @@ tbody tr:first-child td {
     gap: 6px
 }
 
+/* 表格內容強制不換行 */
+table th,
+table td {
+    white-space: nowrap;
+}
+
+
 .icon-btn {
     border: 1px solid var(--border);
     background: #fff;
@@ -222,7 +229,7 @@ tbody tr:first-child td {
 }
 
     .vehicle-info .plate {
-        background: rgba(255,255,255,0.15);
+        background: #16a34a;
         padding: 6px 12px;
         border-radius: 8px
     }
@@ -247,4 +254,44 @@ tbody tr:first-child td {
 .status.報廢 {
     background: #dc2626;
     color: #fff
+}
+.status-select {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 13px;
+}
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+}
+.status-badge.is-available {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #c8e6c9;
+}
+.status-badge.is-disabled {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ffcdd2;
+}
+.status-badge.is-repair {
+  background: #fff8e1;
+  color: #ef6c00;
+  border-color: #ffe0b2;
+}
+/* 讓工具列左右分散 */
+.toolbar-justify {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+/* 鉛筆按鈕置中對齊 */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }

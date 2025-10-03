@@ -296,51 +296,6 @@ namespace Cars.ApiControllers
         }
         #endregion
 
-        #region 檢視單筆派車單
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetOne(int id)
-        {
-            Console.WriteLine($"[Console] GetOne called id={id}");
-            _logger.LogInformation("GetOne called id={Id}", id);
-
-            var d = await _db.Dispatches
-                .AsNoTracking()
-                .Include(x => x.Vehicle)
-                .Include(x => x.Driver)
-                .Include(x => x.CarApplication)
-                .ThenInclude(ca => ca.Applicant)
-                .FirstOrDefaultAsync(x => x.DispatchId == id);
-
-            if (d == null)
-            {
-                Console.WriteLine($"[Console] GetOne not found: {id}");
-                _logger.LogWarning("GetOne: dispatch {Id} not found", id);
-                return NotFound();
-            }
-
-            Console.WriteLine($"[Console] GetOne found DispatchId={d.DispatchId}, ApplyId={d.ApplyId}, DriverId={d.DriverId}");
-            _logger.LogDebug("GetOne found DispatchId={DispatchId}, ApplyId={ApplyId}, DriverId={DriverId}", d.DispatchId, d.ApplyId, d.DriverId);
-
-            return Ok(new
-            {
-                d.DispatchId,
-                d.DispatchStatus,
-                d.StartTime,
-                d.EndTime,
-                d.CreatedAt,
-                Driver = d.Driver?.DriverName,
-                PlateNo = d.Vehicle?.PlateNo,
-                Applicant = d.CarApplication?.Applicant?.Name,
-                ReasonType = d.CarApplication?.ReasonType,
-                Reason = d.CarApplication?.ApplyReason,
-                Origin = d.CarApplication?.Origin,
-                Destination = d.CarApplication?.Destination,
-                Seats = d.CarApplication?.PassengerCount,
-                Status = d.CarApplication?.Status
-            });
-        }
-        #endregion
-
         #region 更新派車單狀態
         
         
@@ -372,10 +327,30 @@ namespace Cars.ApiControllers
                 app.Status = "完成審核"; // 這邊可以依照你的流程改，若只要改派車狀態可省略
             }
 
-            var (ok,err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
+            var (ok1,err1) = await _db.TrySaveChangesAsync(this);
+            if (!ok1) return err1!;
+            // 重新排程提醒
             DispatchJobScheduler.ScheduleRideReminders(dispatch);
-
+            // 3. 紀錄異動
+            _db.DispatchAudits.Add(new DispatchAudit
+            {
+                DispatchId = dispatch.DispatchId,
+                Action = "Assign",
+                OldValue = JsonSerializer.Serialize(new
+                {
+                    OldDriverId = app?.DriverId,
+                    OldVehicleId = app?.VehicleId
+                }),
+                NewValue = JsonSerializer.Serialize(new
+                {
+                    dispatch.DriverId,
+                    dispatch.VehicleId
+                }),
+                ByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                ByUserName = User.Identity?.Name
+            });
+            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            if (!ok2) return err2!;
             Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
             _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
 
@@ -443,10 +418,91 @@ namespace Cars.ApiControllers
 
         #endregion
 
+        #region 異動紀錄
+        [HttpGet("{id}/history")]
+        public async Task<IActionResult> GetHistory(int id)
+        {
+            var rows = await _db.DispatchAudits
+                .AsNoTracking()
+                .Where(x => x.DispatchId == id)
+                .OrderByDescending(x => x.At)
+                .ToListAsync();
+
+            var drivers = await _db.Drivers.ToDictionaryAsync(d => d.DriverId, d => d.DriverName);
+            var vehicles = await _db.Vehicles.ToDictionaryAsync(v => v.VehicleId, v => v.PlateNo);
+
+            var taiwanTz = TimeZoneInfo.FindSystemTimeZoneById("Taipei Standard Time");
+
+            var result = rows.Select(r => new {
+                At = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(r.At, DateTimeKind.Utc), taiwanTz)
+                                  .ToString("yyyy/MM/dd HH:mm:ss"), // 直接轉字串
+                Action = r.Action switch
+                {
+                    "Assign" => "指派",
+                    "Create" => "建立",
+                    "Update" => "更新",
+                    "Delete" => "刪除",
+                    _ => r.Action
+                },
+                r.ByUserName,
+                OldValue = TranslateValues(r.OldValue, drivers, vehicles),
+                NewValue = TranslateValues(r.NewValue, drivers, vehicles)
+            });
+
+            return Ok(result);
+        }
+
+
+        private string TranslateValues(string raw,
+            Dictionary<int, string> drivers,
+            Dictionary<int, string> vehicles)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "—";
+
+            try
+            {
+                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(raw);
+                if (dict == null || dict.Count == 0) return "—";
+
+                var parts = new List<string>();
+                foreach (var kv in dict)
+                {
+                    string label = kv.Key switch
+                    {
+                        "DriverId" or "OldDriverId" => "駕駛",
+                        "VehicleId" or "OldVehicleId" => "車輛",
+                        _ => kv.Key
+                    };
+
+                    string value = "";
+                    if (kv.Key.Contains("Driver") && int.TryParse(kv.Value?.ToString(), out int did))
+                        value = drivers.ContainsKey(did) ? drivers[did] : $"ID={did}";
+                    else if (kv.Key.Contains("Vehicle") && int.TryParse(kv.Value?.ToString(), out int vid))
+                        value = vehicles.ContainsKey(vid) ? vehicles[vid] : $"ID={vid}";
+                    else
+                        value = kv.Value?.ToString() ?? "";
+
+                    parts.Add($"{label}={value}");
+                }
+                return string.Join("，", parts);
+            }
+            catch
+            {
+                return raw;
+            }
+        }
+
+
+
+        #endregion
+
+
+
+
         //共乘功能
 
         #region 派車單併單功能
-     
+
 
 
         [HttpPost("{parentId}/links")]
@@ -515,8 +571,20 @@ namespace Cars.ApiControllers
                 }
             }
             var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!; 
+            if (!ok) return err!;
+            _db.DispatchAudits.Add(new DispatchAudit
+            {
+                DispatchId = parentId,            // AddLink：母單記一筆
+                Action = "LinkAdd",
+                NewValue = JsonSerializer.Serialize(new { ChildDispatchId = childDispatchId }),
+                ByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                ByUserName = User.Identity?.Name
+            });
+            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            if (!ok2) return err2!;
+
             return Ok(new { message = "併入成功", remainingAfter = remaining - seatsWanted });
+
         }
 
 
@@ -542,7 +610,18 @@ namespace Cars.ApiControllers
                 child.VehicleId = null;
             }
             var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!; 
+            if (!ok) return err!;
+            _db.DispatchAudits.Add(new DispatchAudit
+            {
+                DispatchId = dispatchId,          // RemoveLink：母單記一筆
+                Action = "LinkRemove",
+                OldValue = JsonSerializer.Serialize(new { ChildDispatchId = childDispatchId }),
+                ByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                ByUserName = User.Identity?.Name
+            });
+            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
+            if (!ok2) return err2!;
+
             return Ok(new { message = "已取消併單" });
         }
         #endregion
@@ -645,5 +724,6 @@ namespace Cars.ApiControllers
 
 
         #endregion
+
     }
 }

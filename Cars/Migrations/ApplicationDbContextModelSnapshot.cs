@@ -229,6 +229,41 @@ namespace Cars.Migrations
                     b.ToTable("Dispatches");
                 });
 
+            modelBuilder.Entity("Cars.Models.DispatchAudit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ByUserName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DispatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DispatchAudits");
+                });
+
             modelBuilder.Entity("Cars.Models.DispatchLink", b =>
                 {
                     b.Property<int>("ParentDispatchId")
@@ -837,8 +872,8 @@ namespace Cars.Migrations
                     b.Property<DateTime?>("PurchaseDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("Retired")
-                        .HasColumnType("bit");
+                    b.Property<DateTime?>("RetiredDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Source")
                         .HasMaxLength(50)

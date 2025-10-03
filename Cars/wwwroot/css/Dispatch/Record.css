@@ -283,6 +283,44 @@ table {
     border-spacing: 0;
 }
 
+.table th, .table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.table th {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #e5f1fb;
+    color: #1e6fb8;
+}
+
+.modal-container {
+    animation: fadeInUp .25s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
 th {
     white-space: nowrap; /* 不換行 */
     overflow: hidden; /* 超出隱藏 */

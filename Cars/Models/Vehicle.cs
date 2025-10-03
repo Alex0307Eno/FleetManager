@@ -55,8 +55,7 @@ namespace Cars.Models
         [StringLength(50)]
         public string? ApprovalNo { get; set; } // 核准文號
 
-        public bool Retired { get; set; } = false; // 是否報廢
-
+        public DateTime? RetiredDate { get; set; } // 報廢日期
         // 關聯
         public ICollection<Dispatch>? DispatchOrders { get; set; }
     }
