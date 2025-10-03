@@ -2,6 +2,7 @@
 using Cars.Features.CarApplications;
 using Cars.Models;
 using Cars.Services;
+using Cars.Services.Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

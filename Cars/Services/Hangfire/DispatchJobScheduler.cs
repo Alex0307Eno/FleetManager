@@ -1,12 +1,11 @@
 ﻿using Cars.Models;
-using Cars.Services;
 using Hangfire;
 
-namespace Cars.Services
+namespace Cars.Services.Hangfire
 {
     public static class DispatchJobScheduler
     {
-        public static void ScheduleRideReminders(Cars.Models.Dispatch dispatch)
+        public static void ScheduleRideReminders(Models.Dispatch dispatch)
         {
             // 前一天提醒
             BackgroundJob.Schedule<LineBotNotificationService>(

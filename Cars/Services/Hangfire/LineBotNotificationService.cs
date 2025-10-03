@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cars.Services
+namespace Cars.Services.Hangfire
 {
     public class LineBotNotificationService
     {
@@ -27,13 +27,13 @@ namespace Cars.Services
             var driverName = d.Driver?.DriverName ?? "未指派";
 
             var text =
-$@"⏰ 乘車提醒（{(type == "D1" ? "前一日" : "15 分鐘前")}）
-📅 {app.UseStart:yyyy/MM/dd HH:mm} → {app.UseEnd:HH:mm}
-🚗 車號：{plate}
-🧑 駕駛：{driverName}
-📍 {app.Origin} → {app.Destination}";
+                    $@"⏰ 乘車提醒（{(type == "D1" ? "前一日" : "15 分鐘前")}）
+                    📅 {app.UseStart:yyyy/MM/dd HH:mm} → {app.UseEnd:HH:mm}
+                    🚗 車號：{plate}
+                    🧑 駕駛：{driverName}
+                    📍 {app.Origin} → {app.Destination}";
 
-            // 這裡先用 Console 模擬，之後可換成推 LINE
+            
             Console.WriteLine(text);
         }
     }

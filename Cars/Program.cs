@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Hangfire;
 using Cars.Services.GPS;
+using Cars.Services.Hangfire;
 
 namespace Cars
 {

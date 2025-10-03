@@ -71,9 +71,8 @@ namespace Cars.ApiControllers
                 contact = d.ContactAddress,
                 phone = d.Phone,
                 mobile = d.Mobile,
-                emergency = string.Join(" ",
-                    new[] { d.EmergencyContactName, d.EmergencyContactPhone }
-                    .Where(s => !string.IsNullOrWhiteSpace(s)))
+                emergency = d.EmergencyContactName,
+                emergencyPhone = d.EmergencyContactPhone,
             });
 
             return Ok(result);

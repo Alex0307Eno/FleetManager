@@ -4,7 +4,15 @@
     margin: 0 auto;
     padding: 16px;
 }
-
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg,#1e6fb8,#2b83d4)
+}
 .toolbar {
     display: grid;
     gap: 12px;

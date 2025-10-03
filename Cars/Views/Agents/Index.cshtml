@@ -2,252 +2,191 @@
     ViewData["Title"] = "駕駛員管理 > 代理人員";
     Layout = "_Layout";
 }
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
-<link rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link href="~/css/Driver/Agent.css" rel="stylesheet" />
-<div class="topbar">
-    <div class="muted" style="margin-bottom:12px;">駕駛員管理 <span style="color:#fff;">&gt;</span> <b>代理人員</b></div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-warning" href="/Agents/Create">
-            <i class="fa-solid fa-plus"></i> 新增
-        </a>
+
+<div id="app" v-cloak>
+    <div class="topbar">
+        <div class="muted" style="margin-bottom:12px;">駕駛員管理 <span style="color:#fff;">&gt;</span> <b>代理人員</b></div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-warning" href="/Agents/Create">
+                <i class="fa-solid fa-plus"></i> 新增
+            </a>
+        </div>
     </div>
-</div>
-<div class="page-wrap">
 
     <!-- Tabs -->
-    <div class="tabs" id="tabs">
-        <div class="tab active" data-tab="records">代理紀錄</div>
-        <div class="tab" data-tab="profile">代理人員基本資料</div>
+    <div class="tabs">
+        <div class="tab" :class="{active: activeTab==='records'}" @@click ="activeTab='records'">代理紀錄</div>
+        <div class="tab" :class="{active: activeTab==='profile'}" @@click ="switchToProfile()">代理人員基本資料</div>
     </div>
 
-
-    <!-- 代理紀錄（已經有就保留你原本的） -->
-    <div class="content" id="pane-records">
+    <!-- 代理紀錄 -->
+    <div v-show="activeTab==='records'" class="content">
         <div class="table-card">
-            <table class="table" id="tbl-records">
+            <table class="table">
                 <thead>
                     <tr>
-                        <th style="width:18%;">代理人姓名</th>
-                        <th style="width:20%;">代理期間</th>
-                        <th style="width:18%;">被代理人</th>
-                        <th style="width:14%;">代理原因</th>
-                        <th style="width:15%;">代理期間行駛趟數</th>
-                        <th style="width:15%;">代理期間行駛公里數</th>
+                        <th>代理人姓名</th>
+                        <th>代理期間</th>
+                        <th>被代理人</th>
+                        <th>代理原因</th>
+                        <th>行駛趟數</th>
+                        <th>行駛公里數</th>
                         <th class="td-actions">功能</th>
                     </tr>
                 </thead>
-                <tbody id="tbody-records"></tbody>
+                <tbody>
+                    <tr v-for="r in records" :key="r.id">
+                        <td>{{ r.agentName }}</td>
+                        <td>{{ r.period }}</td>
+                        <td>{{ r.principalName }}</td>
+                        <td>{{ r.reason }}</td>
+                        <td>{{ r.tripCount }}</td>
+                        <td>{{ r.distanceKm }}</td>
+                        <td>
+                            <a class="icon-btn view" href="javascript:void(0)" @@click ="viewRecord(r)">
+                                <i class="fa-regular fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>
 
-    <!--  代理人員基本資料（只有切到分頁才載資料） -->
-    <div class="content" id="pane-profile" style="display:none;">
+    <!-- 代理人員基本資料 -->
+    <div v-show="activeTab==='profile'" class="content">
         <div class="table-card">
-            <table class="table" id="tbl-profiles">
+            <table class="table">
                 <thead>
                     <tr>
-                        <th style="width:12%;">姓名</th>
-                        <th style="width:14%;">身分證字號</th>
-                        <th style="width:10%;">出生年月日</th>
+                        <th>姓名</th>
+                        <th>身分證字號</th>
+                        <th>出生年月日</th>
                         <th>戶籍地址</th>
                         <th>聯絡地址</th>
-                        <th style="width:8%;">市話</th>
-                        <th style="width:12%;">行動電話</th>
-                        <th style="width:18%;">緊急聯絡人</th>
+                        <th>電話</th>
+                        <th>行動電話</th>
+                        <th>緊急聯絡人</th>
+                        <th>聯絡人電話</th>
                         <th class="td-actions">功能</th>
                     </tr>
                 </thead>
-                <tbody id="tbody-profiles"></tbody>
+                <tbody>
+                    <tr v-for="p in profiles" :key="p.id">
+                        <td>{{ p.name }}</td>
+                        <td>{{ p.nationalId }}</td>
+                        <td>{{ p.birthRoc }}</td>
+                        <td>{{ p.household }}</td>
+                        <td>{{ p.contact }}</td>
+                        <td>{{ p.phone }}</td>
+                        <td>{{ p.mobile }}</td>
+                        <td>{{ p.emergency }}</td>
+                        <td>{{ p.emergencyPhone }}</td>
+                        <td>
+                            <a class="icon-btn view" @@click ="viewProfile(p)">
+                                <i class="fa-regular fa-eye"></i>
+                            </a>
+                            <a class="icon-btn edit" :href="`/Agents/Edit/${p.driverId}`">
+                                <i class="fa-regular fa-pen-to-square"></i>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>
-</div>
-<!-- 紀錄 Modal -->
-<div id="record-modal" class="modal-mask" style="display:none;">
-    <div class="modal-container" style="max-width:700px;width:90%;">
-        <h3 class="modal-title">代理紀錄詳細資料</h3>
 
-        <table class="table-detail">
-            <tr><th>代理人姓名</th><td id="r-agent"></td></tr>
-            <tr><th>被代理人</th><td id="r-principal"></td></tr>
-            <tr><th>代理原因</th><td id="r-reason"></td></tr>
-            <tr><th>代理期間</th><td id="r-period"></td></tr>
-            <tr><th>行駛趟數</th><td id="r-trip"></td></tr>
-            <tr><th>行駛公里數</th><td id="r-dist"></td></tr>
-        </table>
+    <!-- Modal: Record -->
+    <div class="modal-mask" v-if="showRecordModal">
+        <div class="modal-container" style="max-width:700px;width:90%;">
+            <h3>代理紀錄詳細資料</h3>
+            <table class="table-detail">
+                <tr><th>代理人姓名</th><td>{{ currentRecord.agentName }}</td></tr>
+                <tr><th>被代理人</th><td>{{ currentRecord.principalName }}</td></tr>
+                <tr><th>代理原因</th><td>{{ currentRecord.reason }}</td></tr>
+                <tr><th>代理期間</th><td>{{ currentRecord.period }}</td></tr>
+                <tr><th>行駛趟數</th><td>{{ currentRecord.tripCount }}</td></tr>
+                <tr><th>行駛公里數</th><td>{{ currentRecord.distanceKm }}</td></tr>
+            </table>
+            <div style="text-align:right">
+                <button class="btn" @@click ="showRecordModal=false">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        <div class="modal-actions" style="margin-top:12px;text-align:right">
-            <button class="btn" onclick="closeRecordModal()">關閉</button>
+    <!-- Modal: Profile -->
+    <div class="modal-mask" v-if="showProfileModal">
+        <div class="modal-container" style="max-width:700px;width:90%;">
+            <h3>代理人員詳細資料</h3>
+            <table class="table-detail">
+                <tr><th>姓名</th><td>{{ currentProfile.name }}</td></tr>
+                <tr><th>身分證</th><td>{{ currentProfile.nationalId }}</td></tr>
+                <tr><th>生日</th><td>{{ currentProfile.birthRoc }}</td></tr>
+                <tr><th>戶籍地址</th><td>{{ currentProfile.household }}</td></tr>
+                <tr><th>聯絡地址</th><td>{{ currentProfile.contact }}</td></tr>
+                <tr><th>電話</th><td>{{ currentProfile.phone }}</td></tr>
+                <tr><th>手機</th><td>{{ currentProfile.mobile }}</td></tr>
+                <tr><th>緊急聯絡人</th><td>{{ currentProfile.emergency }}</td></tr>
+                <tr><th>聯絡人電話</th><td>{{ currentProfile.emergencyPhone }}</td></tr>
+            </table>
+            <div style="text-align:right">
+                <button class="btn" @@click ="showProfileModal=false">關閉</button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- 檢視 Modal -->
-<div id="profile-modal" class="modal-mask" style="display:none;">
-    <div class="modal-container" style="max-width:700px;width:90%;">
-        <h3 class="modal-title">代理人員詳細資料</h3>
+<script>
+    const { createApp } = Vue;
 
-        <table class="table-detail">
-            <tr><th>姓名</th><td id="m-name"></td></tr>
-            <tr><th>身分證</th><td id="m-nid"></td></tr>
-            <tr><th>生日</th><td id="m-birth"></td></tr>
-            <tr><th>戶籍地址</th><td id="m-household"></td></tr>
-            <tr><th>聯絡地址</th><td id="m-contact"></td></tr>
-            <tr><th>電話</th><td id="m-phone"></td></tr>
-            <tr><th>手機</th><td id="m-mobile"></td></tr>
-            <tr><th>緊急聯絡人</th><td id="m-emergency"></td></tr>
-        </table>
-
-        <div class="modal-actions" style="margin-top:12px;text-align:right">
-            <button class="btn" onclick="closeProfileModal()">關閉</button>
-        </div>
-    </div>
-</div>
-
-
-@section Scripts {
-    <script>
-        // ------- 共用小工具 -------
-        function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m])); }
-        function show(v, dash=false){ return v && v.trim() ? escapeHtml(v) : (dash ? '-' : ''); }
-
-        // ------- Tabs 切換 + lazy load -------
-        let profilesLoaded = false;
-        document.querySelectorAll('#tabs .tab').forEach(t => {
-          t.addEventListener('click', () => {
-            document.querySelectorAll('#tabs .tab').forEach(s => s.classList.remove('active'));
-            t.classList.add('active');
-            const key = t.getAttribute('data-tab');
-            document.getElementById('pane-records').style.display = key==='records' ? 'block' : 'none';
-            document.getElementById('pane-profile').style.display = key==='profile' ? 'block' : 'none';
-            if (key === 'profile' && !profilesLoaded) loadProfiles();
-          });
-        });
-
-        // ------- 代理紀錄 -------
-        (function loadRecords() {
-            axios.get('/api/Agents/Records', { headers: { 'Cache-Control': 'no-cache' } })
-              .then(res => {
-                const rows = res.data;
-                const tb = document.getElementById('tbody-records');
-                tb.innerHTML = '';
-
-                rows.forEach(r => {
-                  const tr = document.createElement('tr');
-                  tr.innerHTML =
-                    `<td>${show(r.agentName)}</td>
-                     <td>${show(r.period)}</td>
-                     <td>${show(r.principalName)}</td>
-                     <td>${show(r.reason)}</td>
-                     <td>${r.tripCount}</td>
-                     <td>${r.distanceKm}</td>
-                     <td class="td-actions">
-                        <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewRecord(${r.id})">
-                          <i class="fa-regular fa-eye"></i>
-                        </a>
-                     </td>`;
-                  tb.appendChild(tr);
-                });
-
-                // 儲存資料在全域，讓 viewRecord 可以查
-                window._recordCache = rows;
-              })
-              .catch(err => {
-                console.error(err);
-                alert("讀取紀錄失敗");
-              });
-          })();
-
-        // ------- ✅ 代理人員基本資料（lazy load） -------
-        function loadProfiles() {
-           axios.get('/api/Agents/Profiles', { headers: { 'Cache-Control': 'no-cache' } })
-             .then(res => {
-               const rows = res.data;
-               const tb = document.getElementById('tbody-profiles');
-               tb.innerHTML = '';
-
-               rows.forEach(r => {
-                 const tr = document.createElement('tr');
-                 tr.innerHTML =
-                   `<td>${show(r.name)}</td>
-                    <td>${show(r.nationalId)}</td>
-                    <td>${show(r.birthRoc)}</td>
-                    <td>${show(r.household)}</td>
-                    <td>${show(r.contact)}</td>
-                    <td>${show(r.phone, true)}</td>
-                    <td>${show(r.mobile)}</td>
-                    <td>${show(r.emergency)}</td>
-                    <td class="td-actions">
-                       <a class="icon-btn view" title="檢視" href="javascript:void(0)" onclick="viewProfile(${r.id})">
-                         <i class="fa-regular fa-eye"></i>
-                       </a>
-                       <a class="icon-btn edit" title="編輯" href="/Agents/Edit/${r.driverId}">
-                         <i class="fa-regular fa-pen-to-square"></i>
-                       </a>
-                    </td>`;
-                 tb.appendChild(tr);
-               });
-
-               profilesLoaded = true;
-             })
-             .catch(err => {
-               console.error(err);
-               alert("讀取 Profiles 失敗");
-             });
-         }                
-         //代理人紀錄
-        function viewRecord(id){
-          const rows = window._recordCache || [];
-          const data = rows.find(x => x.id === id);
-          if(!data) return alert("找不到資料");
-
-          document.getElementById("r-agent").textContent     = data.agentName || '—';
-          document.getElementById("r-principal").textContent = data.principalName || '—';
-          document.getElementById("r-reason").textContent    = data.reason || '—';
-          document.getElementById("r-period").textContent    = data.period || '—';
-          document.getElementById("r-trip").textContent      = data.tripCount || '0';
-          document.getElementById("r-dist").textContent      = data.distanceKm || '0';
-
-          document.getElementById("record-modal").style.display = "flex";
+    createApp({
+        data() {
+            return {
+                activeTab: 'records',
+                records: [],
+                profiles: [],
+                showRecordModal: false,
+                showProfileModal: false,
+                currentRecord: {},
+                currentProfile: {},
+                profilesLoaded: false
+            }
+        },
+        mounted() {
+            this.loadRecords();
+        },
+        methods: {
+            loadRecords() {
+                axios.get('/api/Agents/Records')
+                    .then(res => this.records = res.data)
+                    .catch(() => alert("讀取紀錄失敗"));
+            },
+            loadProfiles() {
+                if (this.profilesLoaded) return;
+                axios.get('/api/Agents/Profiles')
+                    .then(res => {
+                        this.profiles = res.data;
+                        this.profilesLoaded = true;
+                    })
+                    .catch(() => alert("讀取 Profiles 失敗"));
+            },
+            switchToProfile() {
+                this.activeTab = 'profile';
+                this.loadProfiles();
+            },
+            viewRecord(r) {
+                this.currentRecord = r;
+                this.showRecordModal = true;
+            },
+            viewProfile(p) {
+                this.currentProfile = p;
+                this.showProfileModal = true;
+            }
         }
-
-        function closeRecordModal(){
-          document.getElementById("record-modal").style.display = "none";
-        }
-
-        //代理人基本資料
-         function viewProfile(id) {
-          axios.get('/api/Agents/Profiles', { headers: { 'Cache-Control': 'no-cache' } })
-            .then(res => {
-              const rows = res.data;
-              const data = rows.find(x => x.id === id);
-              if (!data) return alert("找不到資料");
-
-              document.getElementById("m-name").textContent      = data.name || '—';
-              document.getElementById("m-nid").textContent       = data.nationalId || '—';
-              document.getElementById("m-birth").textContent     = data.birthRoc || '—';
-              document.getElementById("m-household").textContent = data.household || '—';
-              document.getElementById("m-contact").textContent   = data.contact || '—';
-              document.getElementById("m-phone").textContent     = data.phone || '—';
-              document.getElementById("m-mobile").textContent    = data.mobile || '—';
-              document.getElementById("m-emergency").textContent = data.emergency || '—';
-
-              document.getElementById("profile-modal").style.display = "flex";
-            })
-            .catch(err => {
-              console.error(err);
-              alert("載入資料失敗");
-            });
-        }
-
-        function closeProfileModal(){
-          document.getElementById("profile-modal").style.display="none";
-        }
-
-    </script>
-}
+    }).mount("#app");
+</script>
