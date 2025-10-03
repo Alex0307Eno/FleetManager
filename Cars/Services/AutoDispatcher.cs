@@ -465,9 +465,7 @@ namespace Cars.Services
                 };
             }
 
-            //  時間要有
-            if (!d.StartTime.HasValue || !d.EndTime.HasValue)
-                return new DispatchResult { Success = false, Message = "派工時間未設定，無法派車" };
+            
 
             var start = d.StartTime.Value;
             var end = d.EndTime.Value;
