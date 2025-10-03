@@ -39,7 +39,7 @@ namespace Cars
             builder.Services.AddScoped<IDistanceService, GoogleDistanceService>();
 
             // 其他服務
-            //builder.Services.AddScoped<AutoDispatcher>();
+            builder.Services.AddScoped<AutoDispatcher>();
             builder.Services.AddScoped<VehicleService>();
             builder.Services.AddScoped<DriverService>();
             builder.Services.AddScoped<CarApplicationService>();

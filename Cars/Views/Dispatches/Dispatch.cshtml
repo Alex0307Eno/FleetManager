@@ -104,7 +104,7 @@
                             <td><span class="pill blue" :class="r.plateNo ? '' : 's-muted'">{{ r.plateNo || '未指派' }}</span></td>
                             <td class="mono">{{ r.materialName  }}</td>
                             <td class="row-actions">
-                                <button class="icon-btn view" title="檢視" @@click="viewRow(r)"><i class="fa-solid fa-eye"></i></button>
+                                <button class="icon-btn view" title="檢視" @@click="openAppHistory(r.applyId)"><i class="fa-solid fa-eye"></i></button>
                                 @if (User.IsInRole("Admin") || User.IsInRole("Manager"))
                                 {
                                 <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -129,51 +129,42 @@
                 </div>
             </div>
         </section>
-        <!-- 檢視狀態 Modal -->
-        <div v-if="viewing" class="modal-mask">
+        <!-- 申請單異動紀錄 Modal -->
+        <div v-if="showAppHistory" class="modal-mask">
             <div class="modal-container">
-                <h3 class="modal-title">派車單詳細資料</h3>
-                <p class="modal-subtitle">#{{ viewing.applyId }}</p>
+                <h3 class="modal-title">申請單異動紀錄</h3>
+                <p class="modal-subtitle">#{{ currentAppId }}</p>
 
-                <div class="form-group">
-                    <label>申請人</label>
-                    <div>{{ viewing.applicant ? viewing.applicant.name : '' }}</div>
-                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>時間</th>
+                            <th>動作</th>
+                            <th>操作人</th>
+                            <th>舊值</th>
+                            <th>新值</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="!appHistoryRows.length">
+                            <td colspan="5" class="text-muted">目前沒有異動紀錄</td>
+                        </tr>
+                        <tr v-for="(h,i) in appHistoryRows" :key="i">
+                            <td>{{ formatDateTime(h.at) }}</td>
+                            <td>{{ h.action }}</td>
+                            <td>{{ h.byUserName }}</td>
+                            <td>{{ h.oldValue }}</td>
+                            <td><pre style="white-space: pre-line; margin:0">{{ h.newValue }}</pre></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-
-                <div class="form-group">
-                    <label>駕駛人</label>
-                    <div>{{ viewing.driverName || '未指派' }}</div>
-                </div>
-
-                <div class="form-group">
-                    <label>車輛</label>
-                    <div>{{ viewing.plateNo || '未指派' }}</div>
-                </div>
-
-                <div class="form-group" >
-                    <label>事由</label>
-                    <div>
-                        <span v-if="viewing.reasonType">({{ viewing.reasonType }})</span>
-                        {{ viewing.applyReason }}
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>裝載物料</label>
-                    <div>{{ viewing.materialName || '—' }}</div>
-                </div>
-
-
-                <div class="form-group" >
-                    <label>狀態</label>
-                    <div>{{ viewing.status }}</div>
-                </div>
-
-                <div class="modal-actions">
-                    <button class="btn btn-primary" @@click="closeView">關閉</button>
+                <div class="text-end">
+                    <button class="btn btn-secondary" @@click="showAppHistory=false">關閉</button>
                 </div>
             </div>
         </div>
+
 
         <!-- 編輯狀態 Modal -->
         <div v-if="editing" class="modal-mask">
@@ -319,6 +310,34 @@
             loading.value = false;
           }
         };
+        
+
+         // === CarApplication 異動紀錄 ===
+        const showAppHistory = ref(false)
+        const currentAppId = ref(null)
+        const appHistoryRows = ref([])
+
+                 function formatDateTime(dt) {
+          if (!dt) return "";
+          const d = new Date(dt);
+          return d.toLocaleString("zh-TW", { hour12: false });
+        }
+
+
+
+        // 打開 Modal + 讀取紀錄
+        async function openAppHistory(appId) {
+          console.log("🔎 openAppHistory called with appId =", appId)
+          currentAppId.value = appId
+          try {
+            const res = await axios.get(`/api/carapplications/${appId}/history`, { withCredentials: true })
+            appHistoryRows.value = res.data || []
+            showAppHistory.value = true
+          } catch (err) {
+            console.error("❌ 載入申請單異動紀錄失敗", err)
+            alert("載入申請單異動紀錄失敗")
+          }
+        }
 
 
             onMounted(() => {
@@ -432,17 +451,7 @@
 
             
 
-        // R: 檢視
-                   const viewing = Vue.ref(null);
-        const viewRow = async (r) => {
-        try {
-        const res = await axios.get(`/api/carApplications/${r.applyId}`);
-        viewing.value = res.data?.data || null;
-        } catch (err) {
-        alert('讀取失敗');
-        }
-        };
-        const closeView = () => { viewing.value = null; };
+        
 
 
 
@@ -463,23 +472,23 @@
             });
         
             // 若改為「完成審核」→ 立刻自動派車
-            // if (newStatus.value === '完成審核') {
-            //   const params = {
-            //     passengerCount: editing.value.passengerCount ?? 0
-            //   };
-            //   try {
-            //     const res2 = await axios.post(
-            //       `/api/carApplications/${editing.value.applyId}/approve-assign`,
-            //       null,
-            //       { params }
-            //     );
-            //     alert(res2.data?.message || '審核完成並已自動派車');
-            //   } catch (err) {
-            //     自動派車失敗時回報，但狀態仍已更新成完成審核，管理員可再重試或改派
-            //     const msg = err?.response?.data?.message || '自動派車失敗，請稍後再試或改派車輛';
-            //     alert(`❌ ${msg}`);
-            //   }
-            // }
+            if (newStatus.value === '完成審核') {
+              const params = {
+                passengerCount: editing.value.passengerCount ?? 0
+              };
+              try {
+                const res2 = await axios.post(
+                  `/api/carApplications/${editing.value.applyId}/approve-assign`,
+                  null,
+                  { params }
+                );
+                alert(res2.data?.message || '審核完成並已自動派車');
+              } catch (err) {
+                //自動派車失敗時回報，但狀態仍已更新成完成審核，管理員可再重試或改派
+                const msg = err?.response?.data?.message || '自動派車失敗，請稍後再試或改派車輛';
+                alert(`❌ ${msg}`);
+              }
+            }
         
             editing.value = null;
             await loadData(); // 重新載入列表（更新駕駛/車牌/狀態）
@@ -540,7 +549,7 @@
           filtered,
 
           // 顯示用工具
-           statusText, statusClass, canEdit,
+            statusText, statusClass, canEdit,formatDateTime,
 
           //篩選操作
           reloadByDate, resetFilters,
@@ -548,8 +557,8 @@
           // 匯出
           exportCSV,
 
-          // 檢視 
-          viewing, viewRow, closeView,
+          // 異動
+             showAppHistory,openAppHistory, currentAppId, appHistoryRows,
 
           //編輯
           editing, newStatus, editRow, confirmEdit, cancelEdit,

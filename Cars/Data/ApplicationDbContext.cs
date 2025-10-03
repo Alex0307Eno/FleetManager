@@ -18,6 +18,8 @@ namespace Cars.Data
         public DbSet<Cars.Models.Vehicle> Vehicles { get; set; }
         public DbSet<Driver> Drivers { get; set; }
         public DbSet<Cars.Models.Dispatch> Dispatches { get; set; }
+        public DbSet<CarApplicationAudit> CarApplicationAudits { get; set; }
+
         public DbSet<Record> Records { get; set; }
 
         public DbSet<DispatchAudit> DispatchAudits { get; set; }

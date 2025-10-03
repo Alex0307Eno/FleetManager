@@ -444,8 +444,8 @@ namespace Cars.Services
             if (d == null) return new DispatchResult { Success = false, Message = "派工不存在" };
 
             // 駕駛必須已經指派
-            if (d.DriverId == null)
-                return new DispatchResult { Success = false, Message = "此派工尚未指派駕駛" };
+            //if (d.DriverId == null)
+            //    return new DispatchResult { Success = false, Message = "此派工尚未指派駕駛" };
 
             // 已經派過車就回覆現況
             if (d.VehicleId != null)

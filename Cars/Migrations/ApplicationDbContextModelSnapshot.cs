@@ -152,6 +152,38 @@ namespace Cars.Migrations
                     b.ToTable("CarApplications");
                 });
 
+            modelBuilder.Entity("Cars.Models.CarApplicationAudit", b =>
+                {
+                    b.Property<int>("AuditId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuditId"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ApplyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ByUserName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("AuditId");
+
+                    b.ToTable("CarApplicationAudits");
+                });
+
             modelBuilder.Entity("Cars.Models.CarPassenger", b =>
                 {
                     b.Property<int>("PassengerId")
@@ -231,11 +263,11 @@ namespace Cars.Migrations
 
             modelBuilder.Entity("Cars.Models.DispatchAudit", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<int>("DispatchAuditsId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DispatchAuditsId"));
 
                     b.Property<string>("Action")
                         .IsRequired()
@@ -259,7 +291,7 @@ namespace Cars.Migrations
                     b.Property<string>("OldValue")
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
+                    b.HasKey("DispatchAuditsId");
 
                     b.ToTable("DispatchAudits");
                 });
