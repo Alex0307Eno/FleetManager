@@ -14,6 +14,8 @@ namespace Cars.Models
         [RegularExpression(@"^[A-Z0-9\-]{2,20}$", ErrorMessage = "車牌格式錯誤")]
         public string? PlateNo { get; set; } // 車牌
 
+        public int? Odometer { get; set; } // 里程數
+
         [StringLength(50)]
         public string? Brand { get; set; } // 廠牌
 

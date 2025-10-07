@@ -428,18 +428,18 @@ namespace Cars.ApiControllers
         }
         #endregion
 
-        #region 審核後自動派車 (暫不使用)
+        #region 審核後自動派車 
         //完成審核自動派車
         [HttpPost("{applyId:int}/approve-assign")]
         public async Task<IActionResult> ApproveAndAssign(
     int applyId,
     [FromQuery] int passengerCount,
-    [FromQuery] int? preferredVehicleId = null)
+    [FromQuery] int? vehicleId = null)
         {
             // 1) 找此申請單對應、未派車的派工
             var dispatch = await _db.Dispatches
             .Where(d => d.ApplyId == applyId
-            && d.DriverId == null)                 
+            && d.VehicleId == null)                 
             .OrderByDescending(d => d.DispatchId)
             .FirstOrDefaultAsync();
 
@@ -447,7 +447,7 @@ namespace Cars.ApiControllers
                 return NotFound(new { message = "找不到待派車的派工（可能已派車或尚未指派駕駛）。" });
 
             //2) 自動派車
-           var result = await _dispatcher.ApproveAndAssignVehicleAsync(dispatch.DispatchId, passengerCount, preferredVehicleId);
+           var result = await _dispatcher.ApproveAndAssignVehicleAsync(dispatch.DispatchId, passengerCount, vehicleId);
             if (!result.Success)
                 return BadRequest(new { message = result.Message });
 
@@ -456,6 +456,8 @@ namespace Cars.ApiControllers
             if (app != null)
             {
                 app.Status = "完成審核";
+                app.VehicleId = vehicleId ?? result.VehicleId;
+
                 var (ok, err) = await _db.TrySaveChangesAsync(this);
                 if (!ok) return err!;
             }
@@ -463,7 +465,8 @@ namespace Cars.ApiControllers
             return Ok(new
             {
                 message = "已完成審核（請指定駕駛）",
-                status = app?.Status
+                vehicle = app?.VehicleId,
+                status = app?.Status,
             });
         }
 

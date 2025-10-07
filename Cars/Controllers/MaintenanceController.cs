@@ -48,6 +48,7 @@ namespace Cars.ApiControllers
                 v.ApprovalNo,
                 v.PurchaseDate,
                 v.Value,
+                v.Odometer,
                 v.LicenseDate,
                 v.StartUseDate,
                 v.InspectionDate,
@@ -84,6 +85,7 @@ namespace Cars.ApiControllers
             v.ApprovalNo = dto.ApprovalNo;
             v.PurchaseDate = dto.PurchaseDate ?? v.PurchaseDate;
             v.Value = dto.Value;
+            v.Odometer = dto.Odometer;
             v.LicenseDate = dto.LicenseDate ?? v.LicenseDate;
             v.StartUseDate = dto.StartUseDate ?? v.StartUseDate;
             v.InspectionDate = dto.InspectionDate ?? v.InspectionDate;

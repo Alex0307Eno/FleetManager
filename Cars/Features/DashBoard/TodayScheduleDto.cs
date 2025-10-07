@@ -7,14 +7,13 @@
         public int DriverId { get; set; }
         public string DriverName { get; set; } = "";
         public bool HasDispatch { get; set; }
-        public DateTime? StartTime { get; set; }
-        public DateTime? EndTime { get; set; }
+        public DateTime? UseStart { get; set; }
+        public DateTime? UseEnd { get; set; }
         public string Route { get; set; } = "";
         public string? ApplicantName { get; set; }
         public string? ApplicantDept { get; set; }
         public int PassengerCount { get; set; }
         public string? PlateNo { get; set; }
         public decimal TripDistance { get; set; }
-        public string Attendance { get; set; } = "";
     }
 }

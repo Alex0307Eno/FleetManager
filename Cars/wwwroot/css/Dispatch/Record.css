@@ -397,6 +397,25 @@ tbody td {
     }
 
 
+.s-approved {
+    background-color: #3b82f6; /* 藍色：已派車 */
+    color: white;
+}
+
+.s-progress {
+    background-color: #f59e0b; /* 橘色：行程中 */
+    color: white;
+}
+
+.s-done {
+    background-color: #10b981; /* 綠色：已完成 */
+    color: white;
+}
+
+.s-wait {
+    background-color: #9ca3af; /* 灰色：待指派 */
+    color: white;
+}
 
 /* 列操作鈕 */
 .actions {

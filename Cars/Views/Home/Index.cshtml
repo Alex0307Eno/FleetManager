@@ -113,7 +113,7 @@
                                             </span>
                                         </td>
                                         <td class="mono">{{ d.taskWindow || '無' }}</td>
-                                        <td class="mono">{{ d.etaBack || '-' }}</td>
+                                        <td class="mono">{{ d.useEnd || '-' }}</td>
                                         <td class="mono">{{ d.earliestOut || (d.stateText==='待命中' ? '即時可用' : '-') }}</td>
                                         <td>{{ d.attendance }}</td>
                                     </tr>
@@ -393,13 +393,7 @@
             });
           }
 
-          // 統一樣式（你可以自行調整）
-          const MAP_STYLES = [
-            { featureType: "poi", elementType:"labels", stylers:[{visibility:"off"}] },
-            { featureType: "transit", stylers:[{visibility:"off"}] },
-            { featureType: "road", elementType:"geometry", stylers:[{lightness:10}] },
-            { featureType: "water", stylers:[{saturation:-20}] }
-          ];
+         
 
           // 小汽車圖（橘：執勤中）
           function carSVG(color){
@@ -545,7 +539,7 @@
 
           
             const { data } = await axios.post(
-              `/api/carapplications/applications/${p.applyId}/approve-assign`,
+              `/api/carapplications/${p.applyId}/approve-assign`,
               null,
               { params: { passengerCount: p.passengerCount ?? 0 } }
             );
@@ -553,7 +547,7 @@
 
             
            location.reload();
-            // alert(`已成功審核並派車\n車牌：${data.plateNo ?? '—'}`);
+            alert(`已成功審核並派車`);
 
             
             p.status = "完成審核";
@@ -630,7 +624,9 @@
                       tripDistance: (x.tripDistance ?? '').toString().replace('公里',''),
                       lat: toNumOrNull(x.lat), lng: toNumOrNull(x.lng),
                       plateNo: x.plateNo ?? '-',
-                      startTime: x.startTime, endTime: x.endTime, updatedAt: x.updatedAt,
+                      useStart: x.useStart ?? x.UseStart ?? null,
+                      useEnd: x.useEnd ?? x.UseEnd ?? null,
+                      updatedAt: x.updatedAt,
                       shiftLabel, shiftClass, arrivalDisplay
                     };
                   });
@@ -670,11 +666,17 @@
 
         function scheduleToDriverRow(x){
           // 時間
-          const st  = x?.startTime ? new Date(x.startTime) : null;
-          const et  = x?.endTime   ? new Date(x.endTime)   : null;
+          // 解析用車時間欄位（後端大小寫不一致都包進來）
+          const rawStart = x?.startTime ?? x?.useStart ?? x?.UseStart ?? null;
+          const rawEnd   = x?.endTime   ?? x?.useEnd   ?? x?.UseEnd   ?? null;
+
+          // 統一轉成 Date 物件
+          const st = rawStart ? new Date(rawStart) : null;
+          const et = rawEnd   ? new Date(rawEnd)   : null;
           const now = new Date();
           const onDuty = st && et && !isNaN(st) && !isNaN(et) && now >= st && now <= et;
-
+          const stDate = st ? new Date(st) : null;
+          const etDate = et ? new Date(et) : null;
           // 後端提供的休息資訊與請假單
           const restRemainMinutes = Number(x?.restRemainMinutes ?? 0);
           const restUntil         = x?.restUntil ? new Date(x.restUntil) : null;
@@ -722,14 +724,14 @@
 
           // 時窗/回來時間/最早可出車
           const taskWindow = (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '';
-          const etaBack    = et ? fmtHHmm(et) : '-';
+          const useEnd = etDate ? fmtHHmm(etDate) : '-';
           const earliestOut =
-             stateText === '執勤中' ? (et ? fmtHHmm(new Date(et.getTime() + 15*60000)) : '-')
+             stateText === '執勤中' ? (et ? fmtHHmm(new Date(et.getTime() + 60*60000)) : '-')
             : stateText === '休息中' ? (restUntil ? fmtHHmm(restUntil) : '-')
             : '即時可用';
           // 出勤狀況
         const attendance = (typeof x.attendance === 'string' && x.attendance.trim())
-          ? x.attendance.trim()   // ← 優先用後端提供的 attendance
+          ? x.attendance.trim()   
           : ( (x?.leaveNote || '').trim() ? '請假' : '正常' );
 
           return {
@@ -743,13 +745,13 @@
             stateDotClass,
             restRemainMinutes,                 
             taskWindow,
-            etaBack,
+            useEnd,
             earliestOut,
             attendance: leave === '請假' ? '請假' : '正常',
             applicantDept: arrivalPlaceRaw || '-',
             applicantName: x?.applicantName ?? '-',
             passengerCount: x?.passengerCount ?? '-',
-            attendance
+            
           };
         }
                 

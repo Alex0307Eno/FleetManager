@@ -896,6 +896,9 @@ namespace Cars.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int?>("Odometer")
+                        .HasColumnType("int");
+
                     b.Property<string>("PlateNo")
                         .IsRequired()
                         .HasMaxLength(20)

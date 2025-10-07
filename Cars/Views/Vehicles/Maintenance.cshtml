@@ -69,6 +69,7 @@
                 <div class="field"><label>核准文號</label><div class="fake">{{ vehicleDetail.approvalNo || '—' }}</div></div>
                 <div class="field"><label>購置日期</label><div class="fake">{{ vehicleDetail.purchaseDate?.slice(0,10) || '—' }}</div></div>
                 <div class="field"><label>價值</label><div class="fake">{{ vehicleDetail.value || '—' }}</div></div>
+                <div class="field"><label>里程數</label><div class="fake">{{ vehicleDetail.odometer || '—' }}</div></div>
                 <div class="field"><label>請領牌照日期</label><div class="fake">{{ vehicleDetail.licenseDate?.slice(0,10) || '—' }}</div></div>
                 <div class="field"><label>開始使用日期</label><div class="fake">{{ vehicleDetail.startUseDate?.slice(0,10) || '—' }}</div></div>
                 <div class="field"><label>定期檢驗日期</label><div class="fake">{{ vehicleDetail.inspectionDate?.slice(0,10) || '—' }}</div></div>
@@ -90,6 +91,7 @@
                 <div class="field"><label>核准文號</label><input v-model="vehicleForm.approvalNo" /></div>
                 <div class="field"><label>購置日期</label><input type="date" v-model="vehicleForm.purchaseDate" /></div>
                 <div class="field"><label>價值</label><input type="number" v-model.number="vehicleForm.value" /></div>
+                <div class="field"><label>里程數</label><input type="number" v-model.number="vehicleForm.odometer" /></div>
                 <div class="field"><label>請領牌照日期</label><input type="date" v-model="vehicleForm.licenseDate" /></div>
                 <div class="field"><label>開始使用日期</label><input type="date" v-model="vehicleForm.startUseDate" /></div>
                 <div class="field"><label>定期檢驗日期</label><input type="date" v-model="vehicleForm.inspectionDate" /></div>
@@ -438,6 +440,7 @@
         approvalNo: d.approvalNo || '',
         purchaseDate: (d.purchaseDate||'').slice(0,10) || '',
         value: d.value ?? null,
+        odometer: d.odometer ?? null,
         licenseDate: (d.licenseDate||'').slice(0,10) || '',
         startUseDate: (d.startUseDate||'').slice(0,10) || '',
         inspectionDate: (d.inspectionDate||'').slice(0,10) || '',
@@ -463,6 +466,7 @@
         ApprovalNo: vehicleForm.value.approvalNo || null,
         PurchaseDate: vehicleForm.value.purchaseDate || null,
         Value: vehicleForm.value.value ?? null,
+        Odometer: vehicleForm.value.odometer ?? null,
         LicenseDate: vehicleForm.value.licenseDate || null,
         StartUseDate: vehicleForm.value.startUseDate || null,
         InspectionDate: vehicleForm.value.inspectionDate || null,

@@ -51,6 +51,8 @@ namespace Cars.ApiControllers
         public async Task<IActionResult> TodaySchedule()
         {
             var today = DateTime.Today;
+            var tomorrow = today.AddDays(1);
+
 
             var list = await (
                 from s in _db.Schedules
@@ -58,62 +60,63 @@ namespace Cars.ApiControllers
 
                 // 先用 LineCode 的歷史對應補 DriverId（生效期間含今天）
                 join dla0 in _db.DriverLineAssignments
-                     .Where(a => a.StartDate <= today && (a.EndDate == null || a.EndDate >= today))
-                     on s.LineCode equals dla0.LineCode into gj
+                    .Where(a => a.StartDate <= today && (a.EndDate == null || a.EndDate >= today))
+                    on s.LineCode equals dla0.LineCode into gj
                 from dla in gj.DefaultIfEmpty()
 
-                    // 解析當天應該顯示的 DriverId（Schedule 填了就用；沒填才用 LineCode 對應）
+                    // 解析當天應該顯示的 DriverId
                 let resolvedDriverId = (int?)(s.DriverId ?? (dla != null ? dla.DriverId : (int?)null))
 
-                // 用 resolvedDriverId 去找司機（允許找不到 → 左連）
+                // 駕駛
                 join d0 in _db.Drivers on resolvedDriverId equals (int?)d0.DriverId into gd
                 from d in gd.DefaultIfEmpty()
 
-                    // 代理人：只在「明確缺勤」時才切代理
+                    // 代理人邏輯
                 join dg0 in _db.DriverDelegations
-                        .Where(x => x.StartDate <= today && today <= x.EndDate)
-                        on resolvedDriverId equals (int?)dg0.PrincipalDriverId into dgs
+                    .Where(x => x.StartDate <= today && today <= x.EndDate)
+                    on resolvedDriverId equals (int?)dg0.PrincipalDriverId into dgs
                 from dg in dgs.DefaultIfEmpty()
 
                 join agent0 in _db.Drivers
-                        on (int?)(dg != null ? dg.AgentDriverId : (int?)null)
-                        equals (int?)agent0.DriverId into ags
+                    on (int?)(dg != null ? dg.AgentDriverId : (int?)null)
+                    equals (int?)agent0.DriverId into ags
                 from agent in ags.DefaultIfEmpty()
 
                 let showDriverId =
-                    (dg != null && agent != null )
+                    (dg != null && agent != null)
                         ? (int?)agent.DriverId
                         : resolvedDriverId
 
                 let showDriverName =
-                    (dg != null && agent != null && agent != null)
+                    (dg != null && agent != null)
                         ? (agent.DriverName + " (代)")
                         : (d != null ? d.DriverName : null)
 
-                // 展開今日派工（若沒有派工也要保留排班 → left）
+                // 展開當天派工（有用車時間者）
                 from dis in _db.Dispatches
-                    .Where(x => showDriverId != null // 避免比對 null 抓到一堆空
-                                && x.DriverId == showDriverId
-                                && x.StartTime.HasValue
-                                && x.StartTime.Value.Date == today)
+                    .Where(x => showDriverId != null
+                                && x.DriverId == showDriverId)
                     .DefaultIfEmpty()
 
-                join a0 in _db.CarApplications on dis.ApplyId equals a0.ApplyId into aa
+                join a0 in _db.CarApplications
+                    on dis.ApplyId equals a0.ApplyId into aa
                 from a in aa.DefaultIfEmpty()
 
-                join v0 in _db.Vehicles on dis.VehicleId equals v0.VehicleId into vv
+                join v0 in _db.Vehicles
+                    on dis.VehicleId equals v0.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
 
-                join ap0 in _db.Applicants on a.ApplicantId equals ap0.ApplicantId into appGroup
+                join ap0 in _db.Applicants
+                    on a.ApplicantId equals ap0.ApplicantId into appGroup
                 from ap in appGroup.DefaultIfEmpty()
+                where a.UseStart != null && a.UseStart >= today && a.UseStart < tomorrow
 
+                orderby a.UseStart, dis.DispatchId
+                // 排序以「用車開始時間」為主，若無則用派工時間
                 let sortTime =
-                    (dis != null && dis.StartTime.HasValue)
-                        ? dis.StartTime.Value
-                        : (s.Shift == "早" ? today.AddHours(8)
-                         : s.Shift == "午" ? today.AddHours(12)
-                         : s.Shift == "晚" ? today.AddHours(18)
-                         : today.AddHours(23).AddMinutes(59))
+                    (a != null && a.UseStart != null)
+                        ? a.UseStart
+                        : (dis.StartTime ?? today.AddHours(23))
 
                 orderby sortTime, (dis != null ? dis.DispatchId : int.MaxValue)
 
@@ -124,20 +127,18 @@ namespace Cars.ApiControllers
                     DriverId = showDriverId.Value,
                     DriverName = showDriverName,
                     HasDispatch = (dis != null),
-                    StartTime = (dis != null ? dis.StartTime : (DateTime?)null),
-                    EndTime = (dis != null ? dis.EndTime : (DateTime?)null),
+                    UseStart = (a != null ? a.UseStart : null),
+                    UseEnd = (a != null ? a.UseEnd : null),
                     Route = (a != null ? ((a.Origin ?? "") + "-" + (a.Destination ?? "")) : ""),
                     ApplicantName = (ap != null ? ap.Name : null),
                     ApplicantDept = (ap != null ? ap.Dept : null),
                     PassengerCount = (a != null ? a.PassengerCount : 0),
                     PlateNo = (v != null ? v.PlateNo : null),
                     TripDistance = (a != null
-                                      ? (a.TripType == "單程"
-                                          ? (a.SingleDistance ?? 0)
-                                          : (a.RoundTripDistance ?? 0))
-                                      : 0),
-
-                   
+                        ? (a.TripType == "單程"
+                            ? (a.SingleDistance ?? 0)
+                            : (a.RoundTripDistance ?? 0))
+                        : 0)
                 }
             ).ToListAsync();
 
@@ -170,34 +171,39 @@ namespace Cars.ApiControllers
             ).AsNoTracking().ToListAsync();
 
             // === Step 2. 當前派工（正在執勤的） ===
+
             var dispatchesNow = await (
                 from dis in _db.Dispatches
-                where dis.StartTime.HasValue && dis.StartTime.Value <= now &&
-                      (!dis.EndTime.HasValue || dis.EndTime.Value >= now) &&
-                      dis.DriverId != null
                 join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
+
+                    // ✅ 改用「用車時間」判斷進行中
+                where a.UseStart  <= now &&
+                      a.UseEnd>= now &&
+                      dis.DriverId != null
+
                 select new
                 {
                     dis.DriverId,
-                    dis.StartTime,
-                    dis.EndTime,
+                    UseStart = a.UseStart,
+                    UseEnd = a.UseEnd,
                     PlateNo = v != null ? v.PlateNo : null,
                     Dept = ap.Dept,
                     Name = ap.Name,
                     a.PassengerCount
                 }
             )
-            .OrderByDescending(x => x.StartTime)
-            .ThenBy(x => x.EndTime)
+            .OrderByDescending(x => x.UseStart)
+            .ThenBy(x => x.UseEnd)
             .AsNoTracking()
             .ToListAsync();
 
             var dispatchByDriver = dispatchesNow
                 .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
+
 
             // === Step 3. 查代理人 ===
             var delegs = await (
@@ -281,8 +287,8 @@ namespace Cars.ApiControllers
                     ApplicantDept = dispatch?.Dept,
                     ApplicantName = dispatch?.Name,
                     PassengerCount = dispatch?.PassengerCount,
-                    StartTime = dispatch?.StartTime,
-                    EndTime = dispatch?.EndTime,
+                    UseStart = dispatch?.UseStart,
+                    UseEnd = dispatch?.UseEnd,
                     StateText = stateText,
                     RestUntil = restUntil,
                     RestRemainMinutes = restRemainMinutes
@@ -312,8 +318,10 @@ namespace Cars.ApiControllers
                 join v in _db.Vehicles on d.VehicleId equals v.VehicleId into vj
                 from v in vj.DefaultIfEmpty()
                 where a.UseStart.Date == today
-                     && a.UseEnd >= DateTime.Now
-                     && (d.DispatchStatus != "已完成" || d.DriverId == null || d.VehicleId == null)
+                      && a.UseEnd >= DateTime.Now
+                      && a.Status != "駁回"
+
+
 
 
                 orderby a.UseStart,
@@ -369,8 +377,8 @@ namespace Cars.ApiControllers
 
             var raw = await (
                 from a in _db.CarApplications
-                where (a.Status == "待審核" || a.Status == "審核中")
-                      && a.UseStart.Date == today
+                where (a.Status == "待審核" )
+                      && a.UseStart == today
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into apj
                 from ap in apj.DefaultIfEmpty()
                 orderby a.UseStart

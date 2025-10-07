@@ -85,15 +85,12 @@
                                 <th style="width:120px">申請人</th>
                                 <th style="width:70px">人數</th>
                                 <th style="width:90px">行駛里程</th>
-                                <th style="width:100px">審核狀態</th>
+                                <th style="width:100px">目前狀態</th>
                                 <th style="width:120px">駕駛員</th>
                                 <th style="width:90px">車輛</th>
                                 <th style="width:90px">出發前里程數</th>
                                 <th style="width:90px">回場後里程數</th>
-                                @if (User.IsInRole("Admin"))
-                                {
-                                    <th style="width:140px">功能</th>
-                                }
+                                <th style="width:140px">功能</th>
                         </thead>
 
                                 <tbody>
@@ -147,16 +144,12 @@
                                 <td>
                                     <span class="pill blue" :class="r.plate ? '' : 's-muted'">
                                         {{ r.plate || '未指派' }}
-                                    </span>
+                                    </span> 
                                 </td>
                                 
                                 <td class="mono">{{ fmtNum(r.odometerStart) }}</td>
                                 
                                 <td class="mono">{{ fmtNum(r.odometerEnd) }}</td>
-
-
-
-                                
 
                                 <!-- 功能列：母單可以編輯/刪除；子單維持檢視或不顯示 -->
                                 <td>
@@ -167,6 +160,26 @@
                                         <button v-if="canEdit(r)" class="icon-btn edit" title="編輯" @@click="editRow(r)"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="icon-btn delete" title="刪除" @@click="removeRow(r)"><i class="fa-solid fa-trash"></i></button>
                                         }
+                                        @if (User.IsInRole("Driver"))
+                                        {
+                                            <!-- 若未開始且有車、有司機 -->
+                                            <button v-if="r.status === '已派車' && !r.StartTime"
+                                                    class="btn btn-success btn-sm"
+                                                    @@click ="openStartModal(r)">
+                                                開始行程
+                                            </button>
+
+                                            <!-- 若已開始但未結束 -->
+                                            <button v-else-if="r.status === '行程中' && !r.EndTime"
+                                                    class="btn btn-danger btn-sm"
+                                                    @@click ="openEndModal(r)">
+                                                結束行程
+                                            </button>
+
+                                            <span v-else>{{ r.status }}</span>
+                                        }
+                                        
+
                                     </div>
                                     <div class="actions" v-else>
                                         <button class="icon-btn view" title="檢視" @@click="openHistory(r.dispatchId)"><i class="fa-solid fa-eye"></i></button>
@@ -381,7 +394,44 @@
             </div>
         </div>
 
+        <!-- 開始行程輸入框 -->
+        <div class="modal fade" id="startModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">開始行程</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted">目前里程數：{{ odometer ?? '讀取中...' }}</p>
+                        <label>請輸入起始里程數：</label>
+                        <input v-model="odometerStart" type="number" class="form-control" min="0" />
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button class="btn btn-success" @@click="startTrip">確認開始</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <!-- 結束行程輸入框 -->
+        <div class="modal fade" id="endModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">結束行程</h5>
+                    </div>
+                    <div class="modal-body">
+                        <label>請輸入結束里程數：</label>
+                        <input v-model="odometerEnd" type="number" class="form-control" min="0" />
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button class="btn btn-danger" @@click="endTrip">確認結束</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
   
@@ -449,6 +499,70 @@
               //異動紀錄
               const historyRows = ref([]);
               const showHistory = ref(false);
+
+              //開始行程/結束行程
+              const  currentRecord = ref(null);
+              const odometerStart = ref(null);
+              const odometerEnd =  ref(null);
+              const odometer = ref(null);
+
+              let startModal, endModal;
+
+           async function openStartModal(r){
+          currentRecord.value = r;
+          odometerStart.value = null;
+          odometer.value = null;
+                 try {
+        const res = await axios.get(`/api/dispatch/vehicles/${r.vehicleId}/odometer`)
+            odometer.value = res.data.odometer || 0;
+        } catch (err) {
+          console.warn("⚠️ 無法讀取車輛里程", err);
+        }
+          startModal = startModal || new bootstrap.Modal(document.getElementById('startModal'));
+          startModal.show();
+        }
+        async function startTrip(){
+          if (odometerStart.value == null || odometerStart.value < 0) {
+            alert('請輸入起始里程數'); return;
+          }
+              if (this.odometerStart < this.odometer) {
+        alert(`⚠️ 起始里程不可小於當前里程 (${this.odometer})`);
+        return;
+              }
+          try{
+            await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/start`, {
+              OdometerStart: odometerStart.value
+            });
+            alert('✅ 已開始行程');
+            startModal?.hide();
+            await reload();
+          }catch(err){
+            alert(err?.response?.data?.message || '開始行程失敗');
+          }
+        }
+
+        function openEndModal(r){
+          currentRecord.value = r;
+          odometerEnd.value = null;
+          endModal = endModal || new bootstrap.Modal(document.getElementById('endModal'));
+          endModal.show();
+        }
+        async function endTrip(){
+          if (odometerEnd.value == null || odometerEnd.value < 0) {
+            alert('請輸入結束里程數'); return;
+          }
+          try{
+            await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/end`, {
+              OdometerEnd: odometerEnd.value
+            });
+            alert('✅ 行程已結束');
+            endModal?.hide();
+            await reload();
+          }catch(err){
+            alert(err?.response?.data?.message || '結束行程失敗');
+          }
+        }
+        
               // === 共乘併單相關 state ===
               const showMergeModal = ref(false);
               const currentDispatchId = ref(null);
@@ -916,16 +1030,26 @@
                 }
               }
 
-              const statusText = (s) => {
-                const k = String(s || "").trim();
-                if (k === "已派車" || k.toLowerCase() === "approved") return "已派車";
-                return "待指派";
-              };
-              const statusClass = (s) => {
-                const k = String(s || "").trim();
-                if (k === "已派車" || k.toLowerCase() === "approved") return "s-approved";
-                return "s-wait";
-              };
+                     const statusText = (s) => {
+          const k = String(s || "").trim().toLowerCase();
+
+          if (k === "已派車" || k === "approved") return "已派車";
+          if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "行程中";
+          if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "已完成";
+
+          return "待指派";
+        };
+
+        const statusClass = (s) => {
+          const k = String(s || "").trim().toLowerCase();
+
+          if (k === "已派車" || k === "approved") return "s-approved";
+          if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "s-progress";
+          if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "s-done";
+
+          return "s-wait";
+        };
+
 
               watch(currentDispatchId, async (id, old) => {
                 console.groupCollapsed("🟧 currentDispatchId changed");
@@ -967,6 +1091,8 @@
                 uniqueDrivers, uniqueApplicants, uniquePlates, dispatchOptions,
                 // 更新時間
                 lastUpdated,
+                // 開始/結束行程
+                 openStartModal, openEndModal, startTrip, endTrip,odometerStart, odometerEnd, odometer,
                 // 工具
                 fmtNum,rocDate, timeSpan, fmtKm, statusText, statusClass, canEdit,formatDateTime,
                 // 狀態

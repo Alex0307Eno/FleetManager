@@ -130,7 +130,7 @@
             }
 
             function switchTab(t){ tab.value=t; if(t==="apply") initPickers(); else if(t==="records") loadLeaves(); }
-            function goSchedule(){ window.location.href="/Drivers/MySchedule"; }
+            function goSchedule(){ window.location.href="/api/Drivers/MySchedule"; }
             const statusClass=(s)=> s==="核准"?"s-approved": s==="駁回"?"s-reject":"s-wait";
 
             onMounted(()=>{ initPickers(); });

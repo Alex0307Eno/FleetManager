@@ -6,6 +6,7 @@
         public string? ApprovalNo { get; set; }
         public DateTime? PurchaseDate { get; set; }
         public decimal? Value { get; set; }
+        public int? Odometer { get; set; }
         public DateTime? LicenseDate { get; set; }
         public DateTime? StartUseDate { get; set; }
         public DateTime? InspectionDate { get; set; }

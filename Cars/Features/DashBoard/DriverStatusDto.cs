@@ -9,8 +9,8 @@
         public string? ApplicantDept { get; set; }
         public string? ApplicantName { get; set; }
         public int? PassengerCount { get; set; }
-        public DateTime? StartTime { get; set; }
-        public DateTime? EndTime { get; set; }
+        public DateTime? UseStart { get; set; }
+        public DateTime? UseEnd { get; set; }
         public string StateText { get; set; } = "";
         public DateTime? RestUntil { get; set; }
         public int? RestRemainMinutes { get; set; }

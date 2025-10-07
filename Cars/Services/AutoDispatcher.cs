@@ -446,7 +446,19 @@ namespace Cars.Services
             // 駕駛必須已經指派
             //if (d.DriverId == null)
             //    return new DispatchResult { Success = false, Message = "此派工尚未指派駕駛" };
+            // 從 CarApplications 取得用車時間
+            var app = await _db.CarApplications
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.ApplyId == d.ApplyId);
 
+            if (app == null)
+                return new DispatchResult { Success = false, Message = "找不到對應的用車申請單。" };
+
+            if (app.UseStart == default || app.UseEnd == default)
+                return new DispatchResult { Success = false, Message = "申請單未設定起訖時間，無法派車。" };
+
+            var start = app.UseStart;
+            var end = app.UseEnd;
             // 已經派過車就回覆現況
             if (d.VehicleId != null)
             {
@@ -461,14 +473,10 @@ namespace Cars.Services
                     Message = $"已派車 - {plateExisting}",
                     DriverId = d.DriverId,
                     VehicleId = d.VehicleId,
-                    PlateNo = plateExisting
+                    PlateNo = plateExisting,
                 };
             }
 
-            
-
-            var start = d.StartTime.Value;
-            var end = d.EndTime.Value;
 
             // 檢查可用/載客量/時段衝突
             if (preferredVehicleId.HasValue)
@@ -480,15 +488,21 @@ namespace Cars.Services
                 if (v.Capacity.HasValue && passengerCount > 0 && v.Capacity.Value < passengerCount)
                     return new DispatchResult { Success = false, Message = "指定車輛座位數不足" };
 
-                var used = await _db.Dispatches.AnyAsync(x =>
-                    x.VehicleId == v.VehicleId &&
-                    start < x.EndTime &&
-                    x.StartTime < end);
+                var used = await _db.Dispatches
+                    .Where(d => d.VehicleId == v.VehicleId)
+                    .Join(_db.CarApplications,
+                        dis => dis.ApplyId,
+                        app => app.ApplyId,
+                        (dis, app) => new { dis, app })
+                    .AnyAsync(x => start < x.app.UseEnd && x.app.UseStart < end);
+
+
 
                 if (used) return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用" };
 
                 d.VehicleId = v.VehicleId;
                 d.DispatchStatus = "已派車";
+                app.VehicleId = v.VehicleId;
                 try
                 {
                     await _db.SaveChangesAsync();
@@ -570,10 +584,16 @@ namespace Cars.Services
             // 4) 逐台檢查時段衝突（排除取消），選到即用
             foreach (var v in ordered) 
             {
-                var used = await _db.Dispatches.AnyAsync(x =>
-                    x.VehicleId == v.VehicleId &&
-                    start < x.EndTime &&
-                    x.StartTime < end);
+                var used = await (
+                    from dis in _db.Dispatches
+                    join app2 in _db.CarApplications on dis.ApplyId equals app2.ApplyId
+                    where dis.VehicleId == v.VehicleId
+                          && app2.ApplyId != app.ApplyId  
+                          && start < app2.UseEnd
+                          && app2.UseStart < end
+                    select dis
+                ).AnyAsync();
+
 
                 if (used) continue;
 
