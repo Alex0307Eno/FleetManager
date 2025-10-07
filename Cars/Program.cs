@@ -44,6 +44,8 @@ namespace Cars
             builder.Services.AddScoped<DriverService>();
             builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddScoped<LineBotNotificationService>();
+            builder.Services.AddScoped<DispatchService>();
+
             //GPS 服務
             builder.Services.AddHttpClient<HttpGpsProvider>();
             builder.Services.AddScoped<IGpsProvider>(sp =>

@@ -3,6 +3,8 @@ using Cars.Features.CarApplications;
 using Cars.Features.Drivers;
 using Cars.Features.Vehicles;
 using Cars.Models;
+using Cars.Services;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -507,17 +509,19 @@ namespace LineBotDemo.Controllers
                         var driver = (user != null) ? await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId) : null;
 
                         string mode;
+                        // 等待駕駛輸入里程的狀態判定
                         if (DispatchService.DriverInputState.Waiting.TryGetValue(uid, out mode))
                         {
                             int odo;
                             if (!int.TryParse(msg, out odo) || odo <= 0 || odo > 9999999)
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 里程格式不正確，仍在等待里程，請輸入 1~9,999,999 的整數。");
-                                return Ok(); // 仍在等待，不往下走任何驗證
+                                return Ok();
                             }
 
                             string result = null;
 
+                            // === 開始行程 ===
                             if (mode.StartsWith("StartOdometer:"))
                             {
                                 if (driver == null)
@@ -526,14 +530,18 @@ namespace LineBotDemo.Controllers
                                     return Ok();
                                 }
 
-                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, odo);
+                                // 從字串取出 dispatchId，例如 "StartOdometer:123"
+                                int dispatchId = int.Parse(mode.Split(':')[1]);
+
+                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, dispatchId, odo);
                                 bot.ReplyMessage(replyToken, result);
 
                                 if (result != null && result.StartsWith("✅"))
                                 {
                                     string _;
-                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _); // ✅ 成功才清等待
-                                                                                                    // 成功後切 DriverEnd RichMenu（可選）
+                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
+
+                                    // 成功後切到行程中 RichMenu
                                     var endMenuId = _config["RichMenus:DriverEnd"];
                                     if (!string.IsNullOrEmpty(endMenuId))
                                         await _richMenuService.BindRichMenuToUserAsync(uid, endMenuId);
@@ -541,6 +549,7 @@ namespace LineBotDemo.Controllers
                                 return Ok();
                             }
 
+                            // === 結束行程 ===
                             if (mode.StartsWith("EndOdometer:"))
                             {
                                 if (driver == null)
@@ -549,24 +558,23 @@ namespace LineBotDemo.Controllers
                                     return Ok();
                                 }
 
-                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, odo);
+                                int dispatchId = int.Parse(mode.Split(':')[1]);
+
+                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, dispatchId, odo);
                                 bot.ReplyMessage(replyToken, result);
 
                                 if (result != null && result.StartsWith("✅"))
                                 {
                                     string _;
-                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _); // ✅ 成功才清等待
-                                                                                                    // 成功後切回 DriverStart RichMenu（可選）
+                                    DispatchService.DriverInputState.Waiting.TryRemove(uid, out _);
+
+                                    // 成功後切回駕駛主選單 RichMenu
                                     var startMenuId = _config["RichMenus:DriverStart"];
                                     if (!string.IsNullOrEmpty(startMenuId))
                                         await _richMenuService.BindRichMenuToUserAsync(uid, startMenuId);
                                 }
                                 return Ok();
                             }
-
-                            // 模式不明時，給出指引（不清等待）
-                            bot.ReplyMessage(replyToken, "⚠️ 當前輸入狀態不明，請重新點選功能鍵再試一次。");
-                            return Ok();
                         }
                         // 全域訊息安全檢查
                         if (!InputValidator.IsValidUserText(msg) || InputValidator.ContainsSqlMeta(msg))

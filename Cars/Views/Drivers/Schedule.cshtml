@@ -443,7 +443,6 @@
         });
 
         // ==== 右側「班次安排」：A~E 對應司機（臨時覆寫）
-        // 改成「純 number 或 null」，不要用 { driverId, shifts:[] }，以符合後端 /BulkSet
         const assign = reactive({ A: null, B: null, C: null, D: null, E: null });
 
         // 代理人/駕駛合併下拉
@@ -715,8 +714,6 @@
 
           try {
             const res = await axios.post('/api/Drivers/Schedule/BulkSet', payload);
-            // 後端回傳我建議是：[{date, shift, lineCode, driverId, driverName}]
-                // 成功後
             const changes = Array.isArray(res.data) ? res.data : [];
             if (changes.length) {
               const msg = changes.map(c => {
@@ -859,7 +856,6 @@
         }
       }
 
-      // 如果 bucket 是數字（舊的「整點」模式），直接回傳空陣列以免出現多餘列
       return []
     }
                     async function loadDayDispatches() {

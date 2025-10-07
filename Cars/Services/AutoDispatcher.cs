@@ -145,7 +145,7 @@ namespace Cars.Services
 
                 // 若同一天同一被代理人有多筆，取最新建立的那筆
                 var delegMap = rawDelegs
-                .GroupBy(d => d.PrincipalDriverId) // 直接用 int
+                .GroupBy(d => d.PrincipalDriverId) 
                 .ToDictionary(
                  g => g.Key,
                  g => g.OrderByDescending(x => x.CreatedAt).First().AgentDriverId

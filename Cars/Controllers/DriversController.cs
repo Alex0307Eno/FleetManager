@@ -635,18 +635,27 @@ namespace Cars.ApiControllers
 
         #region 查詢可用司機
         //查詢可用司機
-        [HttpGet("/api/drivers-available")]
+        [HttpGet("available-drivers")]
         public async Task<IActionResult> GetAvailableDrivers(
-        [FromQuery] DateTime useStart,
-        [FromQuery] DateTime useEnd)
+    [FromQuery] DateTime useStart,
+    [FromQuery] DateTime useEnd)
         {
             if (useStart == default || useEnd == default || useEnd <= useStart)
                 return BadRequest(ApiResponse.Fail<object>("時間區間不正確"));
 
             var list = await _driverService.GetAvailableDriversAsync(useStart, useEnd);
 
-            return Ok(ApiResponse.Ok(list, "可用駕駛清單取得成功"));
+            // 抓出代理清單
+            var delegatedIds = await _db.DriverDelegations
+                .Where(d => d.StartDate <= useEnd && d.EndDate >= useStart)
+                .SelectMany(d => new[] { d.PrincipalDriverId, d.AgentDriverId })
+                .Distinct()
+                .ToListAsync();
+
+           
+            return Ok(ApiResponse.Ok(delegatedIds, "可用駕駛清單取得成功"));
         }
+
         #endregion
     }
 }

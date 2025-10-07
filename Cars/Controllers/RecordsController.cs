@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Features.CarApplications;
+using Cars.Migrations;
 using Cars.Models;
 using Cars.Services;
 using Cars.Services.Hangfire;
@@ -18,11 +19,14 @@ namespace Cars.ApiControllers
     {
         private readonly ApplicationDbContext _db;
         private readonly ILogger<RecordsController> _logger;
+        private readonly DispatchService _dispatchService;
 
-        public RecordsController(ApplicationDbContext db, ILogger<RecordsController> logger)
+
+        public RecordsController(ApplicationDbContext db, ILogger<RecordsController> logger, DispatchService dispatchService)
         {
             _db = db;
             _logger = logger;
+            _dispatchService = dispatchService;
         }
 
         # region 派車單列表
@@ -334,7 +338,7 @@ namespace Cars.ApiControllers
             // 重新排程提醒
             DispatchJobScheduler.ScheduleRideReminders(dispatch);
             // 3. 紀錄異動
-            _db.DispatchAudits.Add(new DispatchAudit
+            _db.DispatchAudits.Add(new Cars.Models.DispatchAudit
             {
                 DispatchId = dispatch.DispatchId,
                 Action = "Assign",
@@ -574,7 +578,7 @@ namespace Cars.ApiControllers
             }
             var (ok, err) = await _db.TrySaveChangesAsync(this);
             if (!ok) return err!;
-            _db.DispatchAudits.Add(new DispatchAudit
+            _db.DispatchAudits.Add(new Cars.Models.DispatchAudit
             {
                 DispatchId = parentId,            // AddLink：母單記一筆
                 Action = "LinkAdd",
@@ -613,7 +617,7 @@ namespace Cars.ApiControllers
             }
             var (ok, err) = await _db.TrySaveChangesAsync(this);
             if (!ok) return err!;
-            _db.DispatchAudits.Add(new DispatchAudit
+            _db.DispatchAudits.Add(new Cars.Models.DispatchAudit
             {
                 DispatchId = dispatchId,          // RemoveLink：母單記一筆
                 Action = "LinkRemove",
@@ -735,119 +739,38 @@ namespace Cars.ApiControllers
         [HttpPost("{id}/start")]
         public async Task<IActionResult> StartTrip(int id, [FromBody] TripStartDto dto)
         {
-            var d = await _db.Dispatches.FindAsync(id);
-            if (d == null) return NotFound(new { message = "派車單不存在" });
+            if (dto == null || dto.OdometerStart <= 0)
+                return BadRequest(new { message = "請輸入有效的起始里程數" });
 
-            // 只能由指派的司機啟動
-            if (User.IsInRole("Driver"))
-            {
-                var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(uid, out var userId)) return Forbid();
-                var myDriverId = await _db.Drivers.Where(x => x.UserId == userId)
-                                                  .Select(x => x.DriverId).FirstOrDefaultAsync();
-                if (myDriverId == 0 || d.DriverId != myDriverId)
-                    return Forbid(); // 不是此單司機
-            }
+            var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(uid, out var userId)) return Forbid();
 
-            if (d.StartTime != null) return BadRequest(new { message = "已開始行程，不能重複開始" });
-            if (dto?.OdometerStart == null || dto.OdometerStart < 0)
-                return BadRequest(new { message = "必須輸入有效的起始里程數" });
-            if (d.VehicleId == null) return BadRequest(new { message = "尚未指派車輛，無法開始行程" });
-            var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.VehicleId == d.VehicleId);
-            if (v == null) return BadRequest(new { message = "找不到車輛" });
-            if (dto.OdometerStart < v.Odometer)
-                return BadRequest(new { message = $"起始里程不可小於目前里程（{v.Odometer}）" });
-            d.StartTime = DateTime.Now; 
-            d.OdometerStart = dto.OdometerStart;
-            d.DispatchStatus = "行程中";
+            var driverId = await _db.Drivers.Where(d => d.UserId == userId)
+                                            .Select(d => d.DriverId)
+                                            .FirstOrDefaultAsync();
+            if (driverId == 0) return Forbid();
 
-            // 寫審計
-            _db.DispatchAudits.Add(new DispatchAudit
-            {
-                DispatchId = d.DispatchId,
-                Action = "Start",
-                NewValue = System.Text.Json.JsonSerializer.Serialize(new {  d.OdometerStart }),
-                ByUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
-                ByUserName = User.Identity?.Name
-            });
-
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-            return Ok(new { message = "已開始行程", d.DispatchId, d.StartTime, d.OdometerStart });
+            var msg = await _dispatchService.SaveStartOdometerAsync(id, driverId, dto.OdometerStart.Value);
+            return msg.StartsWith("⚠️") ? BadRequest(new { message = msg }) : Ok(new { message = msg });
         }
+
 
         [HttpPost("{id}/end")]
         public async Task<IActionResult> EndTrip(int id, [FromBody] TripEndDto dto)
         {
-            var dispatch = await _db.Dispatches
-                .Include(d => d.Vehicle)
-                .FirstOrDefaultAsync(d => d.DispatchId == id);
+            if (dto == null || dto.OdometerEnd <= 0)
+                return BadRequest(new { message = "請輸入有效的結束里程數" });
 
-            if (dispatch == null)
-                return NotFound(new { message = "派車單不存在" });
+            var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(uid, out var userId)) return Forbid();
 
-            var vehicle = dispatch.Vehicle;
+            var driverId = await _db.Drivers.Where(d => d.UserId == userId)
+                                            .Select(d => d.DriverId)
+                                            .FirstOrDefaultAsync();
+            if (driverId == 0) return Forbid();
 
-            // 驗證司機身分
-            if (User.IsInRole("Driver"))
-            {
-                var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(uid, out var userId)) return Forbid();
-
-                var myDriverId = await _db.Drivers
-                    .Where(x => x.UserId == userId)
-                    .Select(x => x.DriverId)
-                    .FirstOrDefaultAsync();
-
-                if (myDriverId == 0 || dispatch.DriverId != myDriverId)
-                    return Forbid();
-            }
-
-            // 驗證行程狀態與里程數
-            if (dispatch.StartTime == null)
-                return BadRequest(new { message = "尚未開始行程，無法結束" });
-
-            if (dispatch.EndTime != null)
-                return BadRequest(new { message = "已結束行程，不能重複結束" });
-
-            if (dto?.OdometerEnd == null || dto.OdometerEnd < 0)
-                return BadRequest(new { message = "必須輸入有效的結束里程數" });
-
-            if (dispatch.OdometerStart != null && dto.OdometerEnd < dispatch.OdometerStart)
-                return BadRequest(new { message = "結束里程不可小於起始里程" });
-
-            // 更新派工
-            dispatch.EndTime = DateTime.Now;
-            dispatch.OdometerEnd = dto.OdometerEnd;
-            dispatch.DispatchStatus = "已完成";
-
-            //  同步更新車輛目前里程
-            if (vehicle != null)
-            {
-                vehicle.Odometer = dto.OdometerEnd;
-            }
-
-            // 審核紀錄
-            _db.DispatchAudits.Add(new DispatchAudit
-            {
-                DispatchId = dispatch.DispatchId,
-                Action = "End",
-                NewValue = System.Text.Json.JsonSerializer.Serialize(new { dispatch.OdometerEnd }),
-                ByUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
-                ByUserName = User.Identity?.Name
-            });
-
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-
-            return Ok(new
-            {
-                message = "✅ 行程已結束，車輛目前里程已更新",
-                dispatch.DispatchId,
-                dispatch.EndTime,
-                dispatch.OdometerEnd,
-                vehicleMileage = vehicle?.Odometer
-            });
+            var msg = await _dispatchService.SaveEndOdometerAsync(id, driverId, dto.OdometerEnd.Value);
+            return msg.StartsWith("⚠️") ? BadRequest(new { message = msg }) : Ok(new { message = msg });
         }
 
 
