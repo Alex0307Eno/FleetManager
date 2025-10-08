@@ -1,0 +1,159 @@
+name: Security / Vulnerability Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  # 若要改嚴重等級門檻可在這裡調整
+  FAIL_ON_NPM_VULNERABLE: "true"   # dotnet vulnerable 有結果就 fail
+  FAIL_SEVERITY: "CRITICAL"        # trivy/semmgrep 可用作參考 (部分工具支援)
+
+jobs:
+
+  prepare:
+    name: Prepare / Build
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'    # 改成你專案的 dotnet 版本
+
+      - name: Restore & Build
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Release
+
+      - name: Build Docker image for scanning
+        id: build-image
+        uses: docker/build-push-action@v4
+        with:
+          push: false
+          platforms: linux/amd64
+          tags: temp-security-scan:latest
+        env:
+          DOCKER_BUILDKIT: 1
+
+  dotnet-vuln:
+    name: .NET vulnerable packages
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check vulnerable packages
+        id: dotnet-vuln
+        run: |
+          echo "Running dotnet list package --vulnerable ..."
+          # 走遍所有 csproj
+          set -e
+          found=0
+          for proj in $(git ls-files '*.csproj'); do
+            echo "Checking $proj"
+            # 會輸出 Vulnerable packages 的 table；把任何 "Vulnerable" 判成有問題
+            out=$(dotnet list "$proj" package --vulnerable || true)
+            echo "$out"
+            if echo "$out" | grep -qi "vulnerable"; then
+              echo ">>> Vulnerabilities found in $proj"
+              found=1
+            fi
+          done
+          if [ "${{ env.FAIL_ON_NPM_VULNERABLE }}" = "true" ] && [ $found -eq 1 ]; then
+            echo "::error::Vulnerable packages found by dotnet list package --vulnerable"
+            exit 1
+          fi
+        shell: bash
+
+  semgrep:
+    name: Semgrep (SAST-like rules)
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep (OWASP rules)
+        uses: returntocorp/semgrep-action@v2
+        with:
+          config: 'p/owasp-top-10'  # 或換成你自訂 rules repo/path
+          publish: false
+          output: semgrep-report.sarif
+        # 若你要在 PR 中顯示 Annotated results，可以把 publish=true 並設定 SEMGREP_APP_TOKEN
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep-report.sarif
+
+  gitleaks:
+    name: Gitleaks (secret scanning)
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Gitleaks
+        uses: zricethezav/gitleaks-action@v2
+        with:
+          args: detect --source=. --report-format=json --report-path=gitleaks-report.json
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+  trivy:
+    name: Trivy (container image scan)
+    runs-on: ubuntu-latest
+    needs: prepare
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy scan on built image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: temp-security-scan:latest
+          format: 'table'
+          ignore-unfixed: true
+          exit-code: '1'          # 1 -> fail on vuln found; 0 -> don't fail
+          severity: 'CRITICAL,HIGH'  # 嚴重等級門檻
+        env:
+          TZ: Asia/Taipei
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+
+  summary:
+    name: Summary (always)
+    runs-on: ubuntu-latest
+    needs: [dotnet-vuln, semgrep, gitleaks, trivy]
+    steps:
+      - name: Collect artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # 下載 trivy/gitleaks 報告（若有）
+          path: ./security-artifacts
+      - name: Show short summary
+        run: |
+          echo "==== Scan finished ===="
+          echo "Check workflow artifacts for detailed reports (gitleaks/trivy/semgrep)."
