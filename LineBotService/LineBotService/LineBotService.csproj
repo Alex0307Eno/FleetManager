@@ -7,7 +7,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Cars\Cars.csproj" />
 		<PackageReference Include="Hangfire" Version="1.8.21" />
 		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.21" />
 		<PackageReference Include="Hangfire.SqlServer" Version="1.8.21" />
@@ -25,7 +24,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\Cars\Cars.csproj" />
+		<ProjectReference Include="..\Cars\Cars.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
