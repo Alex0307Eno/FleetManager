@@ -352,10 +352,10 @@
                   else console.warn('無定位資訊');
                 }
               }
-                        // ===== 今日排班行程表（司機可重複出現，依時間排序） =====
+               // ===== 今日排班行程表（司機可重複出現，依時間排序） =====
                  const scheduleTable = computed(() => {
                    return (schedules.value || [])
-                     .slice() // 複製一份，避免影響原始資料
+                     .slice() 
                      .sort((a, b) => {
                        const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
                        const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
@@ -395,10 +395,6 @@
                   );
                 });
               }
-
-             
-
-         
 
           // 小汽車圖（橘：執勤中）
           function carSVG(color){
@@ -493,7 +489,7 @@
             }
           });
 
-          // 啟動輪詢（只啟一次）
+          // 啟動輪詢
           if (!_carUpdater) {
             _carUpdater = setInterval(async () => {
               try {
