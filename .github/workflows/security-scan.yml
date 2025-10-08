@@ -31,9 +31,7 @@ jobs:
           dotnet restore Cars.sln
           dotnet build Cars.sln --no-restore --configuration Release
 
-          # Build LineBotService 專案
-          dotnet restore LineBotService.sln
-          dotnet build LineBotService.sln --no-restore --configuration Release
+          
 
       - name: Build Docker image for scanning
         id: build-image
