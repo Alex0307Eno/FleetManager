@@ -18,7 +18,7 @@
 </head>
 
 <body>
-    <main id="dashboard" class="wrap" v-clock>
+    <main id="dashboard" class="wrap" v-cloak>
         <div class="grid">
             <!-- 左側：兩種視圖切換 -->
             <section>
@@ -146,11 +146,26 @@
                     <!-- 上排 3 張 -->
                     <div class="map-grid">
                         <div v-for="(card, idx) in driverCards.slice(0,3)" :key="card.key" class="map-cell">
-                            <div class="gmap" :id="'gmap_'+idx"></div>
+                            <div class="gmap"
+                                 :id="'gmap_'+idx"
+                                 :class="{ 'dimmed': card.statusType !== 'on' }"></div>
                             <div class="badge-row">
                                 <div class="badge-dark">
-                                    {{ card.plate ? card.plate.slice(-4) : '—' }}{{ card.driver }}
+                                    <template v-if="card.statusType === 'on'">
+                                        {{ (card.plate || '—') + ' ' + (card.driver || '') }}
+                                    </template>
+                                    <template v-else-if="card.statusType === 'break'">
+                                        {{ card.driver || '—' }}
+                                    </template>
+                                    <template v-else-if="card.statusType === 'idle'">
+                                        {{ card.plate || '—' }}
+                                    </template>
+                                    <template v-else>
+                                        —
+                                    </template>
                                 </div>
+
+
                                 <div class="badge-pill"
                                      :class="{
                                       'badge-on': card.statusType === 'on',
@@ -165,11 +180,26 @@
                         <!-- 下排 2 張 -->
                         <div class="map-grid-row2">
                             <div v-for="(card, i) in driverCards.slice(3,5)" :key="card.key" class="map-cell">
-                                <div class="gmap" :id="'gmap_'+(i+3)"></div>
+                                <div class="gmap"
+                                     :id="'gmap_'+(i+3)"
+                                     :class="{ 'dimmed': card.statusType !== 'on' }"></div>
                                 <div class="badge-row">
                                     <div class="badge-dark">
-                                        {{ card.plate ? card.plate.slice(-4) : '—' }}{{ card.driver }}
+                                        <template v-if="card.statusType === 'on'">
+                                            {{ (card.plate || '—') + ' ' + (card.driver || '') }}
+                                        </template>
+                                        <template v-else-if="card.statusType === 'break'">
+                                            {{ card.driver || '—' }}
+                                        </template>
+                                        <template v-else-if="card.statusType === 'idle'">
+                                            {{ card.plate || '—' }}
+                                        </template>
+                                        <template v-else>
+                                            —
+                                        </template>
                                     </div>
+
+
                                     <div class="badge-pill"
                                          :class="{
                                          'badge-on': card.statusType === 'on',
@@ -257,7 +287,7 @@
 
     <!-- Vue App -->
     <script>
-            function updateDateTime() {
+     function updateDateTime() {
             var now = new Date();
 
             // 日期 + 星期
@@ -282,15 +312,7 @@
         window.addEventListener('DOMContentLoaded', () => {
           if (!window.Vue) { console.error('❌ Vue 還沒載到'); return; }
           const { createApp, ref, onMounted, computed, nextTick, watch } = window.Vue;
-                  function initMap() {
-          console.log("✅ Google Maps API 載入完成，可以開始初始化地圖");
-          if (window.renderMyMaps) {
-            window.renderMyMaps();
-          }
-        }
-                window.addEventListener("load", ()=>{
-          document.getElementById("loading-overlay").style.display="none";
-        });
+
           createApp({
             setup(){
               // ===== 視圖切換 =====
@@ -342,7 +364,6 @@
                  });
 
               // ===== 我的定位（五張地圖） =====
-              const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
               const myLoc     = ref({ lat:null, lng:null, ts:null });
               const locating  = ref(false);
               const locError  = ref("");
@@ -375,23 +396,7 @@
                 });
               }
 
-              // 地圖 + 車子 marker
-              const maps = [];
-       
-          // 取代舊的 loadGoogleMaps（加入 libraries=marker，供 AdvancedMarkerElement 使用）
-          function loadGoogleMaps(){
-            return new Promise((resolve, reject) => {
-              if (window.google && window.google.maps && google.maps.marker) return resolve();
-              if (!window.GOOGLE_MAPS_KEY) return reject(new Error('未設定 Google Maps 金鑰'));
-              const s = document.createElement('script');
-              // ✅ 拿掉 callback / mapId，只載核心 + marker library
-              s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_KEY}&v=quarterly&libraries=marker`;
-              s.async = true; s.defer = true;
-              s.onload = () => resolve();
-              s.onerror = () => reject(new Error('載入 Google Maps JS 失敗'));
-              document.head.appendChild(s);
-            });
-          }
+             
 
          
 
@@ -405,85 +410,190 @@
                 <circle cx="326" cy="310" r="22" fill="#1f2937"/>
               </svg>`;
           }
+
+                  // ===== 取得目前地圖中心（我的定位或台北101） =====
+         const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
+        function currentCenter() {
+          const lat = toNumOrNull(myLoc.value?.lat);
+          const lng = toNumOrNull(myLoc.value?.lng);
+          return (validLatLng(lat, lng))
+            ? { lat, lng }
+            : FALLBACK_CENTER; // 台北101
+        }
+
+        // ===== 先抓所有車輛目前位置（初始化 + 之後輪詢沿用） =====
+        async function loadVehicleLocations() {
+          try {
+            const res = await fetch("/api/dashboard/vehicle-locations");
+            const list = await res.json(); // 預期: [{ vehicleId, latitude, longitude, status }, ...]
+            // 先把初值放進 miniMapCache，避免初渲染 marker 沒點
+            list.forEach(loc => {
+              const id = Number(loc.vehicleId);
+              if (!Number.isFinite(id)) return;
+              const lat = Number(loc.latitude);
+              const lng = Number(loc.longitude);
+              if (!validLatLng(lat, lng)) return;
+
+              const mapObj = miniMapCache.get(id);
+              if (mapObj && mapObj.marker) {
+                mapObj.marker.position = { lat, lng };
+                mapObj.lastPos = { lat, lng };
+              } else {
+                // 不建地圖，首次 renderMyMaps() 會建；這裡只先記錄
+                miniMapCache.set(id, { map: null, marker: null, lastPos: { lat, lng }, animating: false });
+              }
+            });
+          } catch (e) {
+            console.warn("載入車輛位置失敗，先用中心點顯示：", e);
+          }
+        }
           // 全域快取
-          const miniMapCache = new Map();
-                  function renderMyMaps() {
-          driverCards.value.forEach((card, i) => {
+
+        const miniMapCache = new Map(); // key = vehicleId
+        let _carUpdater = null;
+
+        function renderMyMaps() {
+          const center = currentCenter(); // 用這個取代 myPos
+
+          driverCards.value.slice(0, 5).forEach((card, i) => {
             const el = document.getElementById('gmap_' + i);
             if (!el) return;
 
-            // 狀態樣式
-            if (card.statusType === 'idle') el.classList.add('idle');
-            else el.classList.remove('idle');
+            const id = Number(card.vehicleId ?? (i + 1));
+            let mapObj = miniMapCache.get(id);
 
-            if (card.statusType === 'break') el.classList.add('break');
-            else el.classList.remove('break');
+            // 取得此車初次位置
+            const initialPos = (mapObj && mapObj.lastPos && validLatLng(mapObj.lastPos.lat, mapObj.lastPos.lng))
+              ? mapObj.lastPos
+              : center;
 
-            // 座標
-            const hasLat = Number.isFinite(+card.lat), hasLng = Number.isFinite(+card.lng);
-            const pos = (hasLat && hasLng)
-              ? { lat:+card.lat, lng:+card.lng }
-              : { lat:25.033964, lng:121.564468 }; // fallback 台北101
-
-            // 地圖快取
-            let mapObj = miniMapCache.get(i);
-            if (!mapObj) {
+            if (!mapObj || !mapObj.map) {
               const map = new google.maps.Map(el, {
-                center: pos,
+                   center: currentCenter(),
                 zoom: 16,
                 disableDefaultUI: true,
                 mapId: "add29920b46056c38796ff49"
               });
-              mapObj = { map, marker: null };
-              miniMapCache.set(i, mapObj);
-            }
 
-            // 更新中心
-            mapObj.map.setCenter(pos);
+              const markerEl = document.createElement('div');
+              const color =
+                card.statusType === 'on'   ? '#f97316' :
+                card.statusType === 'idle' ? '#22c55e' :
+                '#94a3b8';
+              markerEl.innerHTML = carSVG(color);
 
-            // Marker 邏輯
-            if (card.statusType === 'on') {
-              if (!mapObj.marker) {
-                const markerEl = document.createElement('div');
-                markerEl.innerHTML = carSVG('#f97316'); // 橘色車子
-                mapObj.marker = new google.maps.marker.AdvancedMarkerElement({
-                  map: mapObj.map,
-                  position: pos,
-                  content: markerEl
-                });
-              } else {
-                mapObj.marker.position = pos;
-              }
-            } else {
-              if (mapObj.marker) {
-                mapObj.marker.map = null;
-                mapObj.marker = null;
-              }
+              const marker = new google.maps.marker.AdvancedMarkerElement({
+                map,
+                position: currentCenter(),  
+                content: markerEl
+              });
+
+              mapObj = { map, marker, lastPos: initialPos, animating: false };
+              miniMapCache.set(id, mapObj);
             }
           });
+
+          // 啟動輪詢（只啟一次）
+          if (!_carUpdater) {
+            _carUpdater = setInterval(async () => {
+              try {
+                   const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
+
+                list.forEach(loc => {
+                  const id = Number(loc.vehicleId);
+                  const mapObj = miniMapCache.get(id);
+                  if (!mapObj || !mapObj.marker) return;
+
+                  const card = driverCards.value.find(c => Number(c.vehicleId) === id);
+                  if (!card || card.statusType !== 'on') return; // 只有執勤中才動
+
+                  const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+                  if (!validLatLng(newPos.lat, newPos.lng)) return;
+
+                  animateMarkerTo(mapObj, newPos);
+                });
+              } catch (err) {
+                console.warn("🚘 更新全部車輛位置失敗", err);
+              }
+            }, 3000);
+          }
         }
 
+        //平滑移動
+        function animateMarkerTo(mapObj, newPos) {
+          if (!mapObj.lastPos) {
+            mapObj.marker.position = newPos;
+            mapObj.lastPos = newPos;
+            if (mapObj.map) mapObj.map.panTo(newPos);
+            return;
+          }
+             // 動畫中就先記住下一個目標，結束後立刻接上
+             if (mapObj.animating) { mapObj.queuedPos = newPos; return; }
 
+          const steps = 40;   // 60 小步
+          const delay = 40;   // 每步 50ms = 約 3 秒完成
+          const old = mapObj.lastPos;
+          const dLat = (newPos.lat - old.lat) / steps;
+          const dLng = (newPos.lng - old.lng) / steps;
+          let i = 0;
+          mapObj.animating = true;
 
-                      window.renderMyMaps = renderMyMaps;
+          function tick() {
+            i++;
+            const lat = old.lat + dLat * i;
+            const lng = old.lng + dLng * i;
+            const pos = { lat, lng };
+            mapObj.marker.position = { lat, lng };
+            mapObj.marker.position = pos;
+            if (mapObj.map) mapObj.map.panTo(pos);
+            if (i < steps) {
+              setTimeout(tick, delay);
+            } else {
+              mapObj.lastPos = newPos;
+              mapObj.animating = false;
+           // 如果期間有新座標排隊，馬上接續下一段
+            if (mapObj.queuedPos) {
+              const q = mapObj.queuedPos;
+              mapObj.queuedPos = null;
+              animateMarkerTo(mapObj, q);
+             }
+            }
+          }
+          tick();
+        }
 
-        window.initMap = initMap;
-              async function enterMyLocationView(){
-                viewMode.value = 'mypos';
-                try {
-                  const saved = JSON.parse(localStorage.getItem('lastMyLoc') || 'null');
-                  if (saved && typeof saved.lat === 'number' && typeof saved.lng === 'number') {
-                    myLoc.value = saved;
-                  }
-                } catch {}
-                try { await getMyLocation(); } catch(e) {}
-                await nextTick();
-                renderMyMaps();
+            async function enterMyLocationView(){
+              viewMode.value = 'mypos';
+
+              try {
+                await getMyLocation().catch(()=>{});
+              } catch(e) {
+                console.warn("定位失敗，改用台北101");
               }
-              function exitMyLocationView(){ viewMode.value = 'schedule'; }
 
-              watch(() => myLoc.value, () => { if (viewMode.value === 'mypos') nextTick(renderMyMaps); });
-              watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
+              await loadVehicleLocations(); //  抓車輛位置
+              await nextTick();
+              renderMyMaps(); //  中心點是自己位置
+              console.log("目前中心：", myLoc.value);
+            }
+        
+
+        function exitMyLocationView(){ viewMode.value = 'schedule'; }
+
+             watch(() => myLoc.value, (val) => {
+               if (viewMode.value === 'mypos' && val && val.lat && val.lng) {
+                 console.log("🧭 定位更新，重新置中：", val);
+                 nextTick(() => {
+                   driverCards.value.forEach((_, i) => {
+                     const el = document.getElementById('gmap_' + i);
+                     if (!el) return;
+                     const mapObj = [...miniMapCache.values()][i];
+                     if (mapObj?.map) mapObj.map.setCenter({ lat: val.lat, lng: val.lng });
+                   });
+                 });
+               }
+             });             
+             watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
 
               // ===== 生成地圖卡片資料（五張） =====
                       const driverCards = computed(() => {
@@ -491,7 +601,7 @@
           const myLat = toNumOrNull(myLoc.value?.lat);
           const myLng = toNumOrNull(myLoc.value?.lng);
 
-                  const base = (driverStatus.value || []).slice(0, 5).map(d => {
+          const base = (driverStatus.value || []).slice(0, 5).map((d, i) => {
           let statusText = d.stateText || '—';
           let statusType = 'idle';
 
@@ -503,12 +613,16 @@
 
           return {
             key: d.key,
+            vehicleId: d.vehicleId ?? (d.driverId ?? i + 1),
             plate: (d.plateNo || '').trim() || '—',
             driver: (d.driverName || '').trim() || '—',
             statusText: statusText,
             statusType: statusType,
-            lat: validLatLng(myLat, myLng) ? myLat : null,
-            lng: validLatLng(myLat, myLng) ? myLng : null
+            lat: toNumOrNull(d.lat),
+            lng: toNumOrNull(d.lng),
+            myLat,
+            myLng
+
           };
         });
 
@@ -653,17 +767,6 @@
           }
         }
 
-              
-
-              // ===== 左下角：駕駛目前狀態（新增） =====
-              const addMinutes = (dateLike, mins) => {
-                if (!dateLike) return null;
-                const d = (dateLike instanceof Date) ? new Date(dateLike) : new Date(dateLike);
-                if (isNaN(d)) return null;
-                d.setMinutes(d.getMinutes() + (mins||0));
-                return d;
-              };
-
         function scheduleToDriverRow(x){
           // 時間
           // 解析用車時間欄位（後端大小寫不一致都包進來）
@@ -672,10 +775,7 @@
 
           // 統一轉成 Date 物件
           const st = rawStart ? new Date(rawStart) : null;
-          const et = rawEnd   ? new Date(rawEnd)   : null;
-          const now = new Date();
-          const onDuty = st && et && !isNaN(st) && !isNaN(et) && now >= st && now <= et;
-          const stDate = st ? new Date(st) : null;
+          const et = rawEnd   ? new Date(rawEnd)   : null;          
           const etDate = et ? new Date(et) : null;
           // 後端提供的休息資訊與請假單
           const restRemainMinutes = Number(x?.restRemainMinutes ?? 0);

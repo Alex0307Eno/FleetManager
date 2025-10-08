@@ -186,13 +186,31 @@ tbody td {
     width: 100%;
     height: 100%;
 }
+    /* 原本地圖樣式照舊 */
 
-    .gmap.idle,
-    .gmap.break
-    {
-        filter: grayscale(0.35) brightness(0.75) saturate(0.7);
-        transition: filter .2s ease;
+    /* 加上遮罩模式 */
+    .gmap.dimmed {
+        position: relative;
+        filter: grayscale(1) brightness(0.9); /* 整張地圖灰暗 */
+        pointer-events: none; /* 禁止互動 */
     }
+
+        .gmap.dimmed::after {
+            content: "待命中";
+            position: absolute;
+            inset: 0;
+            background: rgba(55, 65, 81, 0.15); /* 灰色半透明 */
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-shadow: 0 0 6px rgba(0,0,0,0.6);
+            backdrop-filter: blur(2px);
+        }
+
 
 /* 左下角資訊列 */
 .badge-row {

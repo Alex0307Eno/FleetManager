@@ -530,10 +530,11 @@ namespace LineBotDemo.Controllers
                                     return Ok();
                                 }
 
-                                // 從字串取出 dispatchId，例如 "StartOdometer:123"
+                                Console.WriteLine("=============================================================");
                                 int dispatchId = int.Parse(mode.Split(':')[1]);
+                                Console.WriteLine($"DispatchId={dispatchId}, DriverId={driver.DriverId}");
 
-                                result = await _dispatchService.SaveStartOdometerAsync(driver.DriverId, dispatchId, odo);
+                                result = await _dispatchService.SaveStartOdometerAsync(dispatchId,driver.DriverId, odo);
                                 bot.ReplyMessage(replyToken, result);
 
                                 if (result != null && result.StartsWith("✅"))
@@ -560,7 +561,7 @@ namespace LineBotDemo.Controllers
 
                                 int dispatchId = int.Parse(mode.Split(':')[1]);
 
-                                result = await _dispatchService.SaveEndOdometerAsync(driver.DriverId, dispatchId, odo);
+                                result = await _dispatchService.SaveEndOdometerAsync(dispatchId, driver.DriverId, odo);
                                 bot.ReplyMessage(replyToken, result);
 
                                 if (result != null && result.StartsWith("✅"))
@@ -692,20 +693,43 @@ namespace LineBotDemo.Controllers
 
                             if (msg == "開始行程")
                             {
-                                DispatchService.DriverInputState.Waiting[uid] = $"StartOdometer:{driver.DriverId}";
+                                var dispatch = await _db.Dispatches
+                                    .Where(d => d.DriverId == driver.DriverId && d.DispatchStatus == "已派車")
+                                    .OrderByDescending(d => d.DispatchId)
+                                    .FirstOrDefaultAsync();
+
+                                if (dispatch == null)
+                                {
+                                    bot.ReplyMessage(replyToken, "⚠️ 目前沒有待開始的派車單。");
+                                    return Ok();
+                                }
+
+                                // 正確：記錄派車單 ID
+                                DispatchService.DriverInputState.Waiting[uid] = $"StartOdometer:{dispatch.DispatchId}";
 
                                 bot.ReplyMessage(replyToken, "請輸入出發時的里程數 (公里)：");
-
                                 return Ok();
                             }
                             else // 結束行程
                             {
-                                DispatchService.DriverInputState.Waiting[uid] = $"EndOdometer:{driver.DriverId}";
+                                var dispatch = await _db.Dispatches
+                                    .Where(d => d.DriverId == driver.DriverId && d.DispatchStatus == "行程中")
+                                    .OrderByDescending(d => d.DispatchId)
+                                    .FirstOrDefaultAsync();
+
+                                if (dispatch == null)
+                                {
+                                    bot.ReplyMessage(replyToken, "⚠️ 目前沒有進行中的派車單。");
+                                    return Ok();
+                                }
+
+                                // 正確：記錄派車單 ID
+                                DispatchService.DriverInputState.Waiting[uid] = $"EndOdometer:{dispatch.DispatchId}";
 
                                 bot.ReplyMessage(replyToken, "請輸入回場時的里程數 (公里)：");
-
                                 return Ok();
                             }
+
                         }
 
 

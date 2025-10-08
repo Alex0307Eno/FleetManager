@@ -2,6 +2,7 @@
 using Cars.Dtos;
 using Cars.Features.DashBoard;
 using Cars.Models;
+using Cars.Services.GPS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -171,19 +172,13 @@ namespace Cars.ApiControllers
             ).AsNoTracking().ToListAsync();
 
             // === Step 2. 當前派工（正在執勤的） ===
-
             var dispatchesNow = await (
                 from dis in _db.Dispatches
                 join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
-
-                    // ✅ 改用「用車時間」判斷進行中
-                where a.UseStart  <= now &&
-                      a.UseEnd>= now &&
-                      dis.DriverId != null
-
+                where a.UseStart <= now && a.UseEnd >= now && dis.DriverId != null
                 select new
                 {
                     dis.DriverId,
@@ -194,16 +189,11 @@ namespace Cars.ApiControllers
                     Name = ap.Name,
                     a.PassengerCount
                 }
-            )
-            .OrderByDescending(x => x.UseStart)
-            .ThenBy(x => x.UseEnd)
-            .AsNoTracking()
-            .ToListAsync();
+            ).AsNoTracking().ToListAsync();
 
             var dispatchByDriver = dispatchesNow
                 .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
-
 
             // === Step 3. 查代理人 ===
             var delegs = await (
@@ -231,7 +221,22 @@ namespace Cars.ApiControllers
                 .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.Max(z => z.EndTime!.Value));
 
-            // === Step 5. 組合結果 ===
+            // === 🆕 Step 5. 最近用過的車（若今日沒派工） ===
+            var recentVehicleByDriver = await (
+                from dis in _db.Dispatches
+                join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
+                where dis.DriverId != null && dis.EndTime.HasValue
+                orderby dis.EndTime descending
+                select new { dis.DriverId, v.PlateNo, dis.EndTime }
+            )
+            .AsNoTracking()
+            .ToListAsync();
+
+            var recentMap = recentVehicleByDriver
+                .GroupBy(x => x.DriverId!.Value)
+                .ToDictionary(g => g.Key, g => g.First().PlateNo);
+
+            // === Step 6. 組合結果 ===
             var result = new List<DriverStatusDto>();
 
             foreach (var d in baseDrivers)
@@ -278,12 +283,19 @@ namespace Cars.ApiControllers
                     stateText = "待命中";
                 }
 
+                // 若沒有派工但有最近開過的車 → 顯示那台
+                string plateNo = dispatch?.PlateNo;
+                if (string.IsNullOrEmpty(plateNo) && recentMap.ContainsKey(driverId))
+                {
+                    plateNo = recentMap[driverId];
+                }
+
                 result.Add(new DriverStatusDto
                 {
                     DriverId = driverId,
                     DriverName = driverName ?? "-",
                     Shift = d.Shift,
-                    PlateNo = dispatch?.PlateNo,
+                    PlateNo = plateNo,
                     ApplicantDept = dispatch?.Dept,
                     ApplicantName = dispatch?.Name,
                     PassengerCount = dispatch?.PassengerCount,
@@ -297,6 +309,7 @@ namespace Cars.ApiControllers
 
             return Ok(ApiResponse<List<DriverStatusDto>>.Ok(result, "今日駕駛狀態查詢成功"));
         }
+
 
 
         #endregion
@@ -320,10 +333,6 @@ namespace Cars.ApiControllers
                 where a.UseStart.Date == today
                       && a.UseEnd >= DateTime.Now
                       && a.Status != "駁回"
-
-
-
-
                 orderby a.UseStart,
                 a.UseEnd,             
                 d.DispatchId
@@ -377,8 +386,8 @@ namespace Cars.ApiControllers
 
             var raw = await (
                 from a in _db.CarApplications
-                where (a.Status == "待審核" )
-                      && a.UseStart == today
+                where a.Status == "待審核" 
+                      && a.UseStart.Date == today
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into apj
                 from ap in apj.DefaultIfEmpty()
                 orderby a.UseStart
@@ -434,5 +443,95 @@ namespace Cars.ApiControllers
                 ? (!string.IsNullOrEmpty(single) ? $"{single} 分鐘" : "")
                 : (!string.IsNullOrEmpty(round) ? $"{round} 分鐘" : "");
         }
+        //GPS 位置
+        // 靜態保存目前每台車的座標
+        private static Dictionary<int, (double lat, double lng)> carPositions = new();
+
+        [HttpGet("vehicle-locations")]
+        public IActionResult GetAllVehicleLocations()
+        {
+            // --- Step 1. 嘗試從資料庫抓最新紀錄 ---
+            var latest = _db.VehicleLocationLogs
+                .AsNoTracking()
+                .GroupBy(v => v.VehicleId)
+                .Select(g => g
+                    .OrderByDescending(x => x.GpsTime)
+                    .Select(x => new
+                    {
+                        x.VehicleId,
+                        x.Latitude,
+                        x.Longitude,
+                        x.Speed,
+                        x.Heading,
+                        x.GpsTime
+                    })
+                    .FirstOrDefault()
+                )
+                .ToList();
+
+            if (latest != null && latest.Count > 0)
+            {
+                Console.WriteLine($"✅ 使用資料庫中的 {latest.Count} 筆車輛定位資料。");
+                return Ok(latest);
+            }
+
+            // --- Step 2. 若資料庫沒資料，使用模擬模式 ---
+            Console.WriteLine("⚠️ 資料庫中沒有定位資料，使用模擬資料。");
+            return Ok(GenerateMockVehicleLocations());
+        }
+
+        // -----------------------------
+        // 模擬資料產生器
+        // -----------------------------
+        private static List<object> GenerateMockVehicleLocations()
+        {
+            var rand = new Random();
+
+            // 台中起點、大約位置
+            const double startLat = 24.147735; // 台中市政府附近
+            const double startLng = 120.673648;
+            const double endLat = 25.033964;   // 台北101
+            const double endLng = 121.564468;
+
+            // 每次往北移動一小段（0.001 度約 100m）
+            const double stepLat = (endLat - startLat) / 500; // 分成500段
+            const double stepLng = (endLng - startLng) / 500;
+
+            var list = new List<object>();
+
+            for (int id = 1; id <= 5; id++)
+            {
+                if (!carPositions.ContainsKey(id))
+                    carPositions[id] = (startLat + id * 0.001, startLng + id * 0.001);
+
+                var (lat, lng) = carPositions[id];
+
+                // 每次移動一點點（微隨機偏移）
+                lat += stepLat + (rand.NextDouble() - 0.5) * 0.0001;
+                lng += stepLng + (rand.NextDouble() - 0.5) * 0.0001;
+
+                carPositions[id] = (lat, lng);
+
+                list.Add(new
+                {
+                    VehicleId = id,
+                    Latitude = lat,
+                    Longitude = lng,
+                    Speed = rand.Next(60, 100),
+                    Heading = rand.Next(0, 360),
+                    GpsTime = DateTime.Now
+                });
+            }
+
+            return list;
+        }
+
+
+
+
+
+
+
+
     }
 }

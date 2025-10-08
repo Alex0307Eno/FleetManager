@@ -4,16 +4,9 @@ using System.Threading.Tasks;
 
 namespace Cars.Services.GPS
 {
-    public class GpsLocation
-    {
-        public string DeviceId { get; set; }
-        public double Lat { get; set; }
-        public double Lng { get; set; }
-        public double Speed { get; set; }
-        public DateTime Timestamp { get; set; }
-    }
 
-    public class HttpGpsProvider
+
+    public class HttpGpsProvider : IGpsProvider
     {
         private readonly HttpClient _http;
 
@@ -22,14 +15,35 @@ namespace Cars.Services.GPS
             _http = http;
         }
 
-        public async Task<GpsLocation> GetLocationAsync(string deviceId)
+        public async Task<VehicleLocation> GetLocationAsync(int vehicleId)
         {
-            var res = await _http.GetStringAsync($"https://gps-provider.com/api/location?deviceId={deviceId}");
-            var gps = JsonSerializer.Deserialize<GpsLocation>(res, new JsonSerializerOptions
+            var res = await _http.GetStringAsync("?vehicleId=" + vehicleId);
+            var dto = JsonSerializer.Deserialize<HttpGpsDto>(res, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
-            return gps;
+
+            if (dto == null)
+                throw new Exception("遠端 GPS 回傳為空或格式不正確");
+
+            return new VehicleLocation
+            {
+                VehicleId = vehicleId,
+                Latitude = dto.Lat,
+                Longitude = dto.Lng,
+                Speed = dto.Speed,
+                Heading = dto.Heading,
+                GpsTime = dto.Timestamp.HasValue ? dto.Timestamp.Value : DateTime.UtcNow
+            };
+        }
+
+        private class HttpGpsDto
+        {
+            public double Lat { get; set; }
+            public double Lng { get; set; }
+            public double? Speed { get; set; }
+            public double? Heading { get; set; }
+            public DateTime? Timestamp { get; set; }
         }
     }
 }

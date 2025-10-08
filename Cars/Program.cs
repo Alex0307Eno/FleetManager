@@ -4,11 +4,12 @@ using Cars.Features.Drivers;
 using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.EntityFrameworkCore;
-using Hangfire;
 using Cars.Services.GPS;
 using Cars.Services.Hangfire;
+using DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
+using Hangfire;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cars
 {
@@ -36,6 +37,7 @@ namespace Cars
             // Google Maps 設定
             builder.Services.Configure<GoogleMapsSettings>(builder.Configuration.GetSection("GoogleMaps"));
             // Google Maps 距離服務
+            builder.Services.AddHttpClient();
             builder.Services.AddScoped<IDistanceService, GoogleDistanceService>();
 
             // 其他服務
@@ -47,11 +49,39 @@ namespace Cars
             builder.Services.AddScoped<DispatchService>();
 
             //GPS 服務
-            builder.Services.AddHttpClient<HttpGpsProvider>();
-            builder.Services.AddScoped<IGpsProvider>(sp =>
-                new SerialGpsProvider("COM3")); // 這裡換成你的實際 COM port
+            builder.Services.AddHostedService<VehicleLocationSimulator>();
 
-            builder.Services.AddHttpClient();
+            // === GPS 服務設定 ===
+            var gpsMode = builder.Configuration["GpsMode"];
+
+            if (string.Equals(gpsMode, "Fake", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.Services.AddSingleton<IGpsProvider, FakeGpsProvider>();
+                Console.WriteLine(">>> 使用 FakeGpsProvider 模擬車機");
+            }
+            else if (string.Equals(gpsMode, "Serial", StringComparison.OrdinalIgnoreCase))
+            {
+                var port = builder.Configuration["SerialPort"] ?? "COM3";
+                builder.Services.AddSingleton<IGpsProvider>(new SerialGpsProvider(port));
+                Console.WriteLine($">>> 使用 SerialGpsProvider 串口讀取 ({port})");
+            }
+            else if (string.Equals(gpsMode, "Http", StringComparison.OrdinalIgnoreCase))
+            {
+                var url = builder.Configuration["HttpGpsUrl"];
+                builder.Services.AddHttpClient<IGpsProvider>(c => c.BaseAddress = new Uri(url));
+                builder.Services.AddScoped<IGpsProvider, HttpGpsProvider>();
+                Console.WriteLine($">>> 使用 HttpGpsProvider ({url})");
+            }
+            else
+            {
+                Console.WriteLine("⚠️ 未設定 GpsMode，預設使用 Fake 模式");
+                builder.Services.AddSingleton<IGpsProvider, FakeGpsProvider>();
+            }
+
+
+
+            //模擬車機
+            builder.Services.AddSingleton<IGpsProvider, FakeGpsProvider>();
 
             // MVC
             builder.Services.AddControllersWithViews();

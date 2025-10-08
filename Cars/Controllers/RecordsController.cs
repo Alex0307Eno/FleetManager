@@ -497,9 +497,6 @@ namespace Cars.ApiControllers
                 return raw;
             }
         }
-
-
-
         #endregion
 
 
