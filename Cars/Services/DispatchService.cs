@@ -46,7 +46,12 @@ namespace Cars.Services
             if (dispatch.DriverId != driverId) return "⚠️ 此派車單不是你的，無法開始。";
             if (dispatch.StartTime.HasValue) return "⚠️ 此派車單已開始。";
             if (!string.Equals(dispatch.DispatchStatus, "已派車")) return "⚠️ 尚未派車，不能開始。";
+            //同車輛是否已有行程中紀錄
+            var hasRunning = await _db.Dispatches
+                .AnyAsync(d => d.VehicleId == dispatch.VehicleId && d.StartTime != null && d.EndTime == null);
 
+            if (hasRunning)
+                return "⚠️ 該車輛已有行程進行中，請先結束現有行程再開始新行程。";
             // 防倒退
             var vehicle = dispatch.Vehicle;
             if (vehicle?.Odometer is int cur && odometer < cur)

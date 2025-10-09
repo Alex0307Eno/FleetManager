@@ -181,9 +181,7 @@
                                         
 
                                     </div>
-                                    <div class="actions" v-else>
-                                        <button class="icon-btn view" title="檢視" @@click="openHistory(r.dispatchId)"><i class="fa-solid fa-eye"></i></button>
-                                    </div>
+                                    
                                 </td>
                             </tr>
                             <tr v-if="!shown.length">
@@ -211,19 +209,32 @@
                     <select v-model.number="selectedDriverId" class="form-control"
                             :disabled="currentDriver && (!availDrivers || availDrivers.length === 0)">
                         <option :value="null">（不指定）</option>
+
                         <!-- 當下的駕駛 -->
                         <option v-if="currentDriver" :value="currentDriver.driverId">
                             ★ 當前指派：{{ currentDriver.driverName }}
                         </option>
-                        <!-- 其他可用駕駛 -->
-                        <option v-for="d in availDrivers" :key="d.driverId" :value="d.driverId">
-                            {{ d.driverName }}
-                        </option>
+
+                        <!-- 正式駕駛 -->
+                        <optgroup label="正式駕駛" v-if="normalDrivers.length">
+                            <option v-for="d in normalDrivers" :key="'normal_' + d.driverId" :value="d.driverId">
+                                🚗 {{ d.driverName }}
+                            </option>
+                        </optgroup>
+
+                        <!-- 代理駕駛 -->
+                        <optgroup label="代理駕駛" v-if="agentDrivers.length">
+                            <option v-for="a in agentDrivers" :key="'agent_' + a.driverId" :value="a.driverId">
+                                👥 {{ a.driverName }}（代理 {{ a.principalName }}）
+                            </option>
+                        </optgroup>
                     </select>
+
                     <div v-if="currentDriver && (!availDrivers || availDrivers.length === 0)"
                          style="color:#b91c1c; margin-top:6px;">
                         ⚠️ 當下沒有可用司機
                     </div>
+
                 </div>
 
                 <div class="form-group">
@@ -823,7 +834,13 @@
               const selectedVehicleId = ref(null);
               const availDrivers = ref([]);
               const availVehicles = ref([]);
+              const normalDrivers = computed(() =>
+               availDrivers.value.filter(d => !d.isAgent)
+             );
 
+             const agentDrivers = computed(() =>
+               availDrivers.value.filter(d => d.isAgent)
+             );
               
 
               function canEdit(r) {
@@ -1088,7 +1105,7 @@
                 // group 收合
                 isGroupHead, isCollapsed, toggleGroup,
                 // 下拉清單
-                uniqueDrivers, uniqueApplicants, uniquePlates, dispatchOptions,
+                uniqueDrivers, uniqueApplicants, uniquePlates, dispatchOptions, normalDrivers, agentDrivers,
                 // 更新時間
                 lastUpdated,
                 // 開始/結束行程

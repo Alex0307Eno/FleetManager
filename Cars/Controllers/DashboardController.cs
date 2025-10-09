@@ -2,7 +2,6 @@
 using Cars.Dtos;
 using Cars.Features.DashBoard;
 using Cars.Models;
-using Cars.Services.GPS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -160,8 +159,20 @@ namespace Cars.ApiControllers
 
             // === Step 1. 駕駛基本資料 + 今日班別 ===
             var baseDrivers = await (
-                from d in _db.Drivers.Where(d => d.IsAgent == false)
-                join s in _db.Schedules.Where(s => s.WorkDate == today) on d.DriverId equals s.DriverId into sg
+                from d in _db.Drivers.Where(x => !x.IsAgent)
+                    // 找出今天是否有代理
+                join del in _db.DriverDelegations
+                    .Where(x => x.StartDate <= today && today <= x.EndDate)
+                    on d.DriverId equals del.PrincipalDriverId into delg
+                from dg in delg.DefaultIfEmpty()
+
+                    // 找出代理人
+                join agent in _db.Drivers on dg.AgentDriverId equals agent.DriverId into ag
+                from a in ag.DefaultIfEmpty()
+                let showDriverId = (dg != null && a != null) ? a.DriverId : d.DriverId
+
+                join s in _db.Schedules.Where(s => s.WorkDate == today)
+                    on showDriverId equals s.DriverId into sg
                 from s in sg.DefaultIfEmpty()
                 select new
                 {
@@ -178,21 +189,30 @@ namespace Cars.ApiControllers
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId into vv
                 from v in vv.DefaultIfEmpty()
-                where a.UseStart <= now && a.UseEnd >= now && dis.DriverId != null
-                select new
+                where dis.DriverId != null
+                      && dis.VehicleId != null
+                      //  若 EndTime 沒填，則以申請單的時間區間為準
+                      && (
+                           (!dis.EndTime.HasValue && a.UseStart <= now && a.UseEnd >= now)
+                           //  若 EndTime 已填，代表任務結束，不該再視為執勤
+                           || (dis.EndTime.HasValue && dis.EndTime > now.AddMinutes(-5))
+                         )
+                select new DispatchMapView
                 {
-                    dis.DriverId,
+                    DriverId = dis.DriverId.Value,
                     UseStart = a.UseStart,
                     UseEnd = a.UseEnd,
                     PlateNo = v != null ? v.PlateNo : null,
                     Dept = ap.Dept,
                     Name = ap.Name,
-                    a.PassengerCount
+                    PassengerCount = a.PassengerCount
                 }
             ).AsNoTracking().ToListAsync();
 
+
+
             var dispatchByDriver = dispatchesNow
-                .GroupBy(x => x.DriverId!.Value)
+                .GroupBy(x => x.DriverId!)
                 .ToDictionary(g => g.Key, g => g.First());
 
             // === Step 3. 查代理人 ===
@@ -206,95 +226,137 @@ namespace Cars.ApiControllers
             var delegMap = delegs
                 .GroupBy(x => x.PrincipalDriverId)
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(z => z.CreatedAt).First().Agent);
+            // 讓本尊與代理都能命中派工
+            var expandedDispatch = new Dictionary<int, DispatchMapView>(dispatchByDriver);
+            foreach (var kv in delegMap)
+            {
+                var principalId = kv.Key;
+                var agentId = kv.Value.DriverId;
+                if (dispatchByDriver.ContainsKey(principalId))
+                    expandedDispatch[agentId] = dispatchByDriver[principalId];
+                if (dispatchByDriver.ContainsKey(agentId))
+                    expandedDispatch[principalId] = dispatchByDriver[agentId];
+            }
 
-            // === Step 4. 查「最近一小時內結束」的任務 ===
-            var endedWithinHour = await (
+            // === Step 4. 計算每位駕駛的最後完工時間 (EndTime 或 UseEnd) ===
+            var tomorrow = today.AddDays(1);
+            var restSpan = TimeSpan.FromHours(1);
+
+            // === 找每位駕駛今日最後一次派工結束 ===
+            var lastEndRaw = await (
                 from dis in _db.Dispatches
-                where dis.EndTime.HasValue &&
-                      dis.EndTime.Value <= now &&
-                      dis.EndTime.Value >= oneHourAgo &&
-                      dis.DriverId != null
-                select new { dis.DriverId, dis.EndTime }
+                join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                where dis.DriverId != null
+                      && (
+                           (dis.EndTime != null && dis.EndTime >= today && dis.EndTime < tomorrow)
+                           || (a.UseEnd >= today && a.UseEnd < tomorrow)
+                         )
+                select new
+                {
+                    dis.DriverId,
+                    EndTime = dis.EndTime,
+                    UseEnd = a.UseEnd
+                }
             ).AsNoTracking().ToListAsync();
 
-            var lastEndByDriver = endedWithinHour
+            // lastEndByDriver: 若有 EndTime 用它，否則用 UseEnd
+            var lastEndByDriver = lastEndRaw
                 .GroupBy(x => x.DriverId!.Value)
-                .ToDictionary(g => g.Key, g => g.Max(z => z.EndTime!.Value));
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Max(z =>
+                        (DateTime?)z.EndTime
+                        ?? (DateTime?)z.UseEnd
+                        ?? DateTime.MinValue
+                    )
+                );
 
-            // === 🆕 Step 5. 最近用過的車（若今日沒派工） ===
+
+            // === Step 5. 最近用過的車（若今日沒派工） ===
             var recentVehicleByDriver = await (
                 from dis in _db.Dispatches
                 join v in _db.Vehicles on dis.VehicleId equals v.VehicleId
-                where dis.DriverId != null && dis.EndTime.HasValue
+                where dis.DriverId != null && (dis.EndTime.HasValue || dis.StartTime.HasValue)
                 orderby dis.EndTime descending
                 select new { dis.DriverId, v.PlateNo, dis.EndTime }
-            )
-            .AsNoTracking()
-            .ToListAsync();
+            ).AsNoTracking().ToListAsync();
 
             var recentMap = recentVehicleByDriver
                 .GroupBy(x => x.DriverId!.Value)
                 .ToDictionary(g => g.Key, g => g.First().PlateNo);
 
-            // === Step 6. 組合結果 ===
+            // === 組合結果 ===
             var result = new List<DriverStatusDto>();
 
             foreach (var d in baseDrivers)
             {
-                bool isAgenting = false;
                 var driverId = d.DriverId;
                 var driverName = d.DriverName;
+                var attendance = "正常";
+                string shift = d.Shift;
 
-                // 缺勤 → 代理人頂替
                 if (delegMap.TryGetValue(d.DriverId, out var proxyAgent))
                 {
-                    isAgenting = true;
                     driverId = proxyAgent.DriverId;
                     driverName = $"{proxyAgent.DriverName}(代)";
+                    attendance = $"請假({d.DriverName})";
                 }
 
                 var dispatch = dispatchByDriver.ContainsKey(driverId)
                     ? dispatchByDriver[driverId]
                     : null;
 
-                // 狀態判斷
-                bool isResting = false;
+                string stateText = "待命中";
                 DateTime? restUntil = null;
                 int? restRemainMinutes = null;
-                string stateText;
 
+                // 根據派工判斷狀態
                 if (dispatch != null)
                 {
-                    stateText = "執勤中";
-                }
-                else if (lastEndByDriver.TryGetValue(driverId, out var lastEnd))
-                {
-                    var until = lastEnd.AddHours(1);
-                    if (now < until)
+                    // 若有開始時間、但未結束 → 執勤中
+                    if (dispatch.UseStart <= now && (dispatch.UseEnd == null || dispatch.UseEnd > now))
                     {
-                        isResting = true;
-                        restUntil = until;
-                        restRemainMinutes = (int)Math.Ceiling((until - now).TotalMinutes);
+                        stateText = "執勤中";
                     }
-                    stateText = isResting ? "休息中" : "待命中";
+                    // 若已結束 → 進入休息中
+                    else if (dispatch.UseEnd != null && dispatch.UseEnd <= now)
+                    {
+                        var end = dispatch.UseEnd;
+                        restUntil = end.AddHours(1);
+                        var remaining = (restUntil.Value - now).TotalMinutes;
+                        if (remaining > 0 && remaining <= 60)
+                        {
+                            restRemainMinutes = (int)Math.Ceiling(remaining);
+                            stateText = "休息中";
+                        }
+                        else
+                        {
+                            restRemainMinutes = null;
+                            stateText = "待命中";
+                        }
+
+                    }
                 }
-                else
+                else if (lastEndByDriver.TryGetValue(driverId, out var lastEnd) && lastEnd > DateTime.MinValue)
                 {
-                    stateText = "待命中";
+                    // 沒有正在執勤，但今天有完成過任務
+                    restUntil = lastEnd.AddHours(1);
+                    if (now < restUntil)
+                    {
+                        restRemainMinutes = (int)Math.Ceiling((restUntil.Value - now).TotalMinutes);
+                        stateText = "休息中";
+                    }
                 }
 
-                // 若沒有派工但有最近開過的車 → 顯示那台
                 string plateNo = dispatch?.PlateNo;
                 if (string.IsNullOrEmpty(plateNo) && recentMap.ContainsKey(driverId))
-                {
                     plateNo = recentMap[driverId];
-                }
 
                 result.Add(new DriverStatusDto
                 {
                     DriverId = driverId,
                     DriverName = driverName ?? "-",
-                    Shift = d.Shift,
+                    Shift = shift,
                     PlateNo = plateNo,
                     ApplicantDept = dispatch?.Dept,
                     ApplicantName = dispatch?.Name,
@@ -303,16 +365,20 @@ namespace Cars.ApiControllers
                     UseEnd = dispatch?.UseEnd,
                     StateText = stateText,
                     RestUntil = restUntil,
-                    RestRemainMinutes = restRemainMinutes
+                    RestRemainMinutes = restRemainMinutes,
+                    Attendance = attendance
                 });
             }
 
+
             return Ok(ApiResponse<List<DriverStatusDto>>.Ok(result, "今日駕駛狀態查詢成功"));
+
         }
 
 
 
         #endregion
+
 
         #region 今日未完成任務
         //  未完成派工
@@ -386,7 +452,7 @@ namespace Cars.ApiControllers
 
             var raw = await (
                 from a in _db.CarApplications
-                where a.Status == "待審核" 
+                where a.Status == "待審核"
                       && a.UseStart.Date == today
                 join ap in _db.Applicants on a.ApplicantId equals ap.ApplicantId into apj
                 from ap in apj.DefaultIfEmpty()
@@ -399,7 +465,7 @@ namespace Cars.ApiControllers
                     a.Origin,
                     a.Destination,
                     a.ApplyReason,
-                    ApplicantName = ap != null ? ap.Name : null,   
+                    ApplicantName = ap != null ? ap.Name : null,
                     a.PassengerCount,
                     a.TripType,
                     a.VehicleId,
@@ -425,8 +491,8 @@ namespace Cars.ApiControllers
                               )).ToList();
 
             return ApiResponse<List<PendingAppDto>>.Ok(data);
-            #endregion
         }
+            #endregion
 
         /// <summary>依照單程/來回，格式化距離</summary>
         private static string FormatDistance(string tripType, decimal? single, decimal? round)
@@ -450,35 +516,89 @@ namespace Cars.ApiControllers
         [HttpGet("vehicle-locations")]
         public IActionResult GetAllVehicleLocations()
         {
-            // --- Step 1. 嘗試從資料庫抓最新紀錄 ---
-            var latest = _db.VehicleLocationLogs
-                .AsNoTracking()
-                .GroupBy(v => v.VehicleId)
-                .Select(g => g
-                    .OrderByDescending(x => x.GpsTime)
-                    .Select(x => new
-                    {
-                        x.VehicleId,
-                        x.Latitude,
-                        x.Longitude,
-                        x.Speed,
-                        x.Heading,
-                        x.GpsTime
-                    })
-                    .FirstOrDefault()
-                )
-                .ToList();
+            var now = DateTime.Now;
 
-            if (latest != null && latest.Count > 0)
+            // === Step 1. 找出每台車最後一筆 GPS ===
+            var latestTimes = (
+                from loc in _db.VehicleLocationLogs
+                group loc by loc.VehicleId into g
+                select new
+                {
+                    VehicleId = g.Key,
+                    MaxGpsTime = g.Max(x => x.GpsTime)
+                }
+            );
+
+            // === Step 2. 找出目前正在執勤的派工（含駕駛）===
+            var activeAssignments = (
+                from dis in _db.Dispatches
+                join a in _db.CarApplications on dis.ApplyId equals a.ApplyId
+                join d in _db.Drivers on dis.DriverId equals d.DriverId
+                where dis.VehicleId != null
+                      && dis.DriverId != null
+                      &&
+                      (
+                          //  Case 1: 有派工結束時間，用它判斷是否還沒完工
+                          (dis.StartTime.HasValue && (!dis.EndTime.HasValue || dis.EndTime > now))
+                          ||
+                          //  Case 2: 沒 EndTime（尚未完工或未設定），用申請單時間區間判斷
+                          (!dis.EndTime.HasValue && a.UseStart <= now && a.UseEnd >= now)
+                      )
+                select new
+                {
+                    dis.VehicleId,
+                    dis.DriverId,
+                    d.DriverName
+                }
+            ).Distinct().ToList();
+
+
+            var activeMap = activeAssignments
+                .GroupBy(x => x.VehicleId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new { g.First().DriverId, g.First().DriverName } 
+                );
+
+            // === Step 3. GPS + 車牌 + 駕駛 ===
+            var latest = (
+                from loc in _db.VehicleLocationLogs
+                join lt in latestTimes
+                    on new { loc.VehicleId, loc.GpsTime } equals new { lt.VehicleId, GpsTime = lt.MaxGpsTime }
+                join v in _db.Vehicles on loc.VehicleId equals v.VehicleId
+                select new
+                {
+                    loc.VehicleId,
+                    v.PlateNo,
+                    loc.Latitude,
+                    loc.Longitude,
+                    loc.Speed,
+                    loc.Heading,
+                    loc.GpsTime,
+                    IsOnDuty = activeMap.ContainsKey(loc.VehicleId),
+                    DriverId = activeMap.ContainsKey(loc.VehicleId)
+                        ? activeMap[loc.VehicleId].DriverId
+                        : (int?)null,
+                    DriverName = activeMap.ContainsKey(loc.VehicleId)
+                        ? activeMap[loc.VehicleId].DriverName
+                        : null
+                }
+            ).AsNoTracking().ToList();
+
+
+            // === Step 4. 無資料時使用模擬 ===
+            if (latest.Count > 0)
             {
                 Console.WriteLine($"✅ 使用資料庫中的 {latest.Count} 筆車輛定位資料。");
                 return Ok(latest);
             }
 
-            // --- Step 2. 若資料庫沒資料，使用模擬模式 ---
             Console.WriteLine("⚠️ 資料庫中沒有定位資料，使用模擬資料。");
             return Ok(GenerateMockVehicleLocations());
         }
+
+
+
 
         // -----------------------------
         // 模擬資料產生器

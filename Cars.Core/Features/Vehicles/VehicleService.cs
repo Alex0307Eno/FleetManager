@@ -1,5 +1,4 @@
 ﻿using Cars.Data;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cars.Features.Vehicles

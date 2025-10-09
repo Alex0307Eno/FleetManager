@@ -152,7 +152,7 @@
                             <div class="badge-row">
                                 <div class="badge-dark">
                                     <template v-if="card.statusType === 'on'">
-                                        {{ (card.plate || '—') + ' ' + (card.driver || '') }}
+                                        {{ card.plateWithDriver }}
                                     </template>
                                     <template v-else-if="card.statusType === 'break'">
                                         {{ card.driver || '—' }}
@@ -186,7 +186,7 @@
                                 <div class="badge-row">
                                     <div class="badge-dark">
                                         <template v-if="card.statusType === 'on'">
-                                            {{ (card.plate || '—') + ' ' + (card.driver || '') }}
+                                            {{ card.plateWithDriver }}
                                         </template>
                                         <template v-else-if="card.statusType === 'break'">
                                             {{ card.driver || '—' }}
@@ -363,6 +363,13 @@
                      });
                  });
 
+              const vehicleMeta = ref(new Map());
+              const plateByVehicleId = ref(new Map());   
+              const statusByVehicleId = ref(new Map());
+              const driverNameByVehicleId = ref(new Map()); 
+              const driverNameByDriverId  = ref(new Map()); 
+
+
               // ===== 我的定位（五張地圖） =====
               const myLoc     = ref({ lat:null, lng:null, ts:null });
               const locating  = ref(false);
@@ -420,15 +427,20 @@
         // ===== 先抓所有車輛目前位置（初始化 + 之後輪詢沿用） =====
         async function loadVehicleLocations() {
           try {
-            const res = await fetch("/api/dashboard/vehicle-locations");
-            const list = await res.json(); // 預期: [{ vehicleId, latitude, longitude, status }, ...]
-            // 先把初值放進 miniMapCache，避免初渲染 marker 沒點
+            const res = await axios.get("/api/dashboard/vehicle-locations");
+            const list = res.data; // 預期: [{ vehicleId, latitude, longitude, status }, ...]
+
             list.forEach(loc => {
               const id = Number(loc.vehicleId);
               if (!Number.isFinite(id)) return;
+
               const lat = Number(loc.latitude);
               const lng = Number(loc.longitude);
               if (!validLatLng(lat, lng)) return;
+
+              if (loc.plateNo) plateByVehicleId.value.set(id, loc.plateNo);
+              if (loc.driverName) driverNameByVehicleId.value.set(id, loc.driverName);
+              statusByVehicleId.value.set(id, loc.isOnDuty ? 'on' : 'idle');
 
               const mapObj = miniMapCache.get(id);
               if (mapObj && mapObj.marker) {
@@ -443,7 +455,7 @@
             console.warn("載入車輛位置失敗，先用中心點顯示：", e);
           }
         }
-          // 全域快取
+        // 全域快取
 
         const miniMapCache = new Map(); // key = vehicleId
         let _carUpdater = null;
@@ -490,30 +502,47 @@
           });
 
           // 啟動輪詢
-          if (!_carUpdater) {
-            _carUpdater = setInterval(async () => {
-              try {
-                   const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
+                          if (!_carUpdater) {
+          _carUpdater = setInterval(async () => {
+            try {
+              const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
 
-                list.forEach(loc => {
-                  const id = Number(loc.vehicleId);
-                  const mapObj = miniMapCache.get(id);
-                  if (!mapObj || !mapObj.marker) return;
+              list.forEach(loc => {
+                const id = Number(loc.vehicleId);
+                const mapObj = miniMapCache.get(id);
+                if (!mapObj || !mapObj.marker) return;
 
-                  const card = driverCards.value.find(c => Number(c.vehicleId) === id);
-                  if (!card || card.statusType !== 'on') return; // 只有執勤中才動
+                const isOnDuty = loc.isOnDuty === true;
+                const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+                if (!validLatLng(newPos.lat, newPos.lng)) return;
 
-                  const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
-                  if (!validLatLng(newPos.lat, newPos.lng)) return;
+                // === 更新 marker 顏色 ===
+                const color = isOnDuty ? "#f97316" : "#94a3b8";
+                if (mapObj.marker?.content) {
+                  mapObj.marker.content.innerHTML = carSVG(color);
+                }
 
+                // === 平滑移動 ===
+                if (isOnDuty) {
                   animateMarkerTo(mapObj, newPos);
-                });
-              } catch (err) {
-                console.warn("🚘 更新全部車輛位置失敗", err);
-              }
-            }, 3000);
-          }
+                }
+
+                // === 🔥 同步更新小卡狀態 ===
+                const card = driverCards.value.find(c => Number(c.vehicleId) === id);
+                if (card) {
+                  card.statusText = isOnDuty ? "執勤中" : "待命中";
+                  card.statusType = isOnDuty ? "on" : "idle";
+                }
+              });
+            } catch (err) {
+              console.warn("🚘 更新全部車輛位置失敗", err);
+            }
+          }, 3000);
         }
+        }
+
+
+        
 
         //平滑移動
         function animateMarkerTo(mapObj, newPos) {
@@ -560,7 +589,8 @@
 
             async function enterMyLocationView(){
               viewMode.value = 'mypos';
-
+                // ⚠️ 清除舊地圖快取
+                miniMapCache.clear();
               try {
                 await getMyLocation().catch(()=>{});
               } catch(e) {
@@ -592,51 +622,38 @@
              watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
 
               // ===== 生成地圖卡片資料（五張） =====
-                      const driverCards = computed(() => {
-          // 抓我的即時定位
-          const myLat = toNumOrNull(myLoc.value?.lat);
-          const myLng = toNumOrNull(myLoc.value?.lng);
+                   const driverCards = computed(() => {
+          const allIds = Array.from(new Set([
+            ...statusByVehicleId.value.keys(),
+            ...plateByVehicleId.value.keys(),
+            ...Array.from(miniMapCache.keys())
+          ])).sort((a, b) => a - b);
 
-          const base = (driverStatus.value || []).slice(0, 5).map((d, i) => {
-          let statusText = d.stateText || '—';
-          let statusType = 'idle';
+          return allIds.slice(0, 5).map(vid => {
+            const plate = plateByVehicleId.value.get(vid) ?? '—';
+            const statusType = statusByVehicleId.value.get(vid) ?? 'idle';
+            const driver = driverNameByVehicleId.value.get(vid) ?? ''; // ← 關鍵
 
-          if (statusText === '執勤中') {
-            statusType = 'on';
-          } else if (statusText === '休息中') { 
-            statusType = 'break';  
-          }
-
-          return {
-            key: d.key,
-            vehicleId: d.vehicleId ?? (d.driverId ?? i + 1),
-            plate: (d.plateNo || '').trim() || '—',
-            driver: (d.driverName || '').trim() || '—',
-            statusText: statusText,
-            statusType: statusType,
-            lat: toNumOrNull(d.lat),
-            lng: toNumOrNull(d.lng),
-            myLat,
-            myLng
-
-          };
-        });
-
-        while (base.length < 5) {
-          base.push({
-            key: 'placeholder_' + base.length,
-            plate: '—',
-            driver: '—',
-            statusText: '待機中',
-            statusType: 'idle',
-            lat: validLatLng(myLat, myLng) ? myLat : null,
-            lng: validLatLng(myLat, myLng) ? myLng : null
+            return {
+              key: `veh_${vid}`,
+              vehicleId: vid,
+              plate,
+              driver,
+              // UI 顯示文字直接合併車牌與司機名
+              plateWithDriver: `${plate}${driver ? ' ' + driver : ''}`,
+              statusText:
+                statusType === 'on' ? '執勤中' :
+                statusType === 'break' ? '休息中' : '待命中',
+              statusType
+            };
           });
-        }
-
-        return base;
-
         });
+
+
+
+        
+
+
                       
          
 
@@ -743,7 +760,20 @@
                 schedules.value  = norm(s);
                 unfinished.value = u || [];
                 driverStatus.value = (ds || []).map(scheduleToDriverRow);
+                        plateByVehicleId.value = new Map();
+        statusByVehicleId.value = new Map();
 
+        for (const d of driverStatus.value) {
+          const vid = Number(d.vehicleId);  // ← 確保 today-status 有回 VehicleId
+          if (!Number.isFinite(vid)) continue;
+
+          if (d.plateNo) plateByVehicleId.value.set(vid, d.plateNo);
+
+          let t = 'idle';
+          if (d.stateText === '執勤中') t = 'on';
+          else if (d.stateText === '休息中') t = 'break';
+          statusByVehicleId.value.set(vid, t);
+        }
                 // 1) 先把各種可能的欄位統一成 .status（處理大小寫與空白）
                const cleaned = (p || []).map(x => {
                const rawStatus =
@@ -785,6 +815,7 @@
             } else {
               stateText = (restRemainMinutes > 0) ? '休息中' : '待命中';
             }
+         
 
 
           // 燈號
@@ -843,7 +874,7 @@
             taskWindow,
             useEnd,
             earliestOut,
-            attendance: leave === '請假' ? '請假' : '正常',
+            attendance,
             applicantDept: arrivalPlaceRaw || '-',
             applicantName: x?.applicantName ?? '-',
             passengerCount: x?.passengerCount ?? '-',

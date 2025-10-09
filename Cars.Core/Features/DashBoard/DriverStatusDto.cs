@@ -14,6 +14,7 @@
         public string StateText { get; set; } = "";
         public DateTime? RestUntil { get; set; }
         public int? RestRemainMinutes { get; set; }
+        public string Attendance { get; set; }
     }
 
 }

@@ -334,11 +334,60 @@ namespace Cars.ApiControllers
 
             return Ok(data);
         }
-       
+
 
         #endregion
 
-        
+        #region 查詢出勤駕駛
+        [HttpGet("Available")]
+        public async Task<IActionResult> GetAvailableDrivers([FromQuery] DateTime? start, [FromQuery] DateTime? end)
+        {
+            var from = start?.Date ?? DateTime.Today;
+            var to = end?.Date ?? DateTime.Today;
+            var today = DateTime.Today;
+
+            // 取出查詢範圍內的每一天
+            var queryDates = Enumerable.Range(0, (to - from).Days + 1)
+                .Select(offset => from.AddDays(offset))
+                .ToList();
+
+            // === 1. 找出在這段期間「任一天」有請假的駕駛 ===
+            var leaveDrivers = await _db.Leaves
+                .Where(l => l.Status == "核准" && l.End >= from && l.Start <= to)
+                .Select(l => l.DriverId)
+                .Distinct()
+                .ToListAsync();
+
+            // === 2. 找出代理期間主駕 ===
+            var delegatedDrivers = await _db.DriverDelegations
+                .Where(d => d.StartDate <= to && (d.EndDate == null || d.EndDate >= from))
+                .Select(d => d.PrincipalDriverId)
+                .Distinct()
+                .ToListAsync();
+
+            // === 3. 合併排除清單 ===
+            var excluded = leaveDrivers.Concat(delegatedDrivers).Distinct().ToList();
+
+            // === 4. 找出可用駕駛 ===
+            var availableDrivers = await _db.Drivers
+                .AsNoTracking()
+                .Where(d => !d.IsAgent && !excluded.Contains(d.DriverId))
+                .Select(d => new {
+                    d.DriverId,
+                    d.DriverName,
+                    d.Phone,
+                    d.Mobile
+                })
+                .OrderBy(d => d.DriverName)
+                .ToListAsync();
+
+            return Ok(availableDrivers);
+        }
+
+
+
+        #endregion
+
 
         #region 自動指派代理人(暫不使用)
         //自動指派代理人

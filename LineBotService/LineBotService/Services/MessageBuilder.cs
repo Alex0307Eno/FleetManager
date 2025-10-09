@@ -173,7 +173,7 @@ namespace LineBotService.Services
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 5;
 
-            // 只取同部門 + 待審核
+            // 取待審核
             var q = apps
                 .Where(a => string.Equals(a.Status, "待審核", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(a => a.UseStart)
@@ -184,100 +184,136 @@ namespace LineBotService.Services
 
             var items = q.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
-            // 每筆一個盒子 + 按鈕
+            // 每筆申請格式
             var cardContents = string.Join(",\n", items.Select(a => $@"
-                            {{
-                              ""type"": ""box"",
-                              ""layout"": ""vertical"",
-                              ""margin"": ""md"",
-                              ""spacing"": ""xs"",
-                              ""borderWidth"": ""1px"",
-                              ""borderColor"": ""#dddddd"",
-                              ""cornerRadius"": ""md"",
-                              ""paddingAll"": ""10px"",
-                              ""contents"": [
-                                {{ ""type"": ""text"", ""text"": ""申請單 #{a.ApplyId}"", ""weight"": ""bold"" }},
-                                {{ ""type"": ""text"", ""text"": ""時間：{a.UseStart:yyyy/MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"" }},
-                                {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination}"", ""size"": ""sm"", ""wrap"": true }},
-                                {{ ""type"": ""text"", ""text"": ""人數：{a.PassengerCount}、行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"" }},
-                                {{ ""type"": ""box"", ""layout"": ""horizontal"", ""spacing"": ""md"", ""margin"": ""sm"", ""contents"": [
-                                  {{
-                                    ""type"": ""button"",
-                                    ""style"": ""primary"",
-                                    ""height"": ""sm"",
-                                    ""action"": {{
-                                      ""type"": ""postback"",
-                                      ""label"": ""同意"",
-                                      ""data"": ""action=reviewApprove&applyId={a.ApplyId}""
-                                    }}
-                                  }},
-                                  {{
-                                    ""type"": ""button"",
-                                    ""style"": ""secondary"",
-                                    ""height"": ""sm"",
-                                    ""action"": {{
-                                      ""type"": ""postback"",
-                                      ""label"": ""拒絕"",
-                                      ""data"": ""action=reviewReject&applyId={a.ApplyId}""
-                                    }}
-                                  }}
-                                ]}}
-                              ]
-                            }}"));
+    {{
+      ""type"": ""box"",
+      ""layout"": ""vertical"",
+      ""spacing"": ""xs"",
+      ""margin"": ""md"",
+      ""paddingAll"": ""10px"",
+      ""borderWidth"": ""1px"",
+      ""borderColor"": ""#d1d5db"",
+      ""cornerRadius"": ""md"",
+      ""contents"": [
+        {{ ""type"": ""text"", ""text"": ""申請單 #{a.ApplyId}"", ""weight"": ""bold"", ""size"": ""md"", ""color"": ""#0f172a"" }},
+        {{ ""type"": ""text"", ""text"": ""申請人：{a.ApplicantName ?? "—"} ({a.ApplicantDept ?? "—"})"", ""size"": ""sm"", ""color"": ""#334155"" }},
+        {{ ""type"": ""text"", ""text"": ""用車時間：{a.UseStart:MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"", ""color"": ""#334155"", ""wrap"": true }},
+        {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination ?? "未填寫"}"", ""size"": ""sm"", ""color"": ""#475569"", ""wrap"": true }},
+        {{ ""type"": ""text"", ""text"": ""乘客：{a.PassengerCount ?? 1} 人｜行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"", ""color"": ""#475569"" }},
+        {{ ""type"": ""text"", ""text"": ""事由：{a.ApplyReason ?? "—"}"", ""size"": ""sm"", ""color"": ""#64748b"", ""wrap"": true }},
+        {{ ""type"": ""separator"", ""margin"": ""sm"" }},
+        {{
+          ""type"": ""box"",
+          ""layout"": ""horizontal"",
+          ""spacing"": ""md"",
+          ""margin"": ""sm"",
+          ""contents"": [
+            {{
+              ""type"": ""button"",
+              ""style"": ""secondary"",
+              ""color"": ""#ef4444"",
+              ""height"": ""sm"",
+              ""action"": {{
+                ""type"": ""postback"",
+                ""label"": ""❌ 駁回"",
+                ""data"": ""action=reviewReject&applyId={a.ApplyId}""
+              }}
+            }},
+            {{
+              ""type"": ""button"",
+              ""style"": ""primary"",
+              ""color"": ""#22c55e"",
+              ""height"": ""sm"",
+              ""action"": {{
+                ""type"": ""postback"",
+                ""label"": ""✅ 同意"",
+                ""data"": ""action=reviewApprove&applyId={a.ApplyId}""
+              }}
+            }}
+          ]
+        }}
+      ]
+    }}"));
 
+            // 頁尾
             var totalPages = (int)Math.Ceiling(total / (double)pageSize);
             var hasPrev = page > 1;
             var hasNext = page < totalPages;
 
             var footerButtons = new List<string>();
+
             if (hasPrev)
             {
                 footerButtons.Add(@$"{{
           ""type"": ""button"",
           ""style"": ""secondary"",
-          ""action"": {{ ""type"": ""postback"", ""label"": ""上一頁"", ""data"": ""action=reviewListPage&page={page - 1}"" }}
+          ""height"": ""sm"",
+          ""action"": {{
+            ""type"": ""postback"",
+            ""label"": ""⬅️ 上一頁"",
+            ""data"": ""action=reviewListPage&page={page - 1}""
+          }}
         }}");
             }
+
+            footerButtons.Add(@$"{{
+        ""type"": ""text"",
+        ""text"": ""第 {page}/{totalPages} 頁"",
+        ""align"": ""center"",
+        ""size"": ""sm"",
+        ""color"": ""#64748b""
+    }}");
+
             if (hasNext)
             {
                 footerButtons.Add(@$"{{
           ""type"": ""button"",
           ""style"": ""secondary"",
-          ""action"": {{ ""type"": ""postback"", ""label"": ""下一頁"", ""data"": ""action=reviewListPage&page={page + 1}"" }}
+          ""height"": ""sm"",
+          ""action"": {{
+            ""type"": ""postback"",
+            ""label"": ""下一頁 ➡️"",
+            ""data"": ""action=reviewListPage&page={page + 1}""
+          }}
         }}");
             }
 
-            var footer = footerButtons.Count > 0
-                ? string.Join(",", footerButtons)
-                : @"{ ""type"": ""text"", ""text"": ""已到清單底部"", ""align"": ""center"", ""size"": ""sm"", ""color"": ""#888888"" }";
+            var footer = string.Join(",", footerButtons);
 
-            // Flex bubble
+            // 組合 Flex
             var bubble = $@"
-            {{
-              ""type"": ""flex"",
-              ""altText"": ""待審核清單"",
-              ""contents"": {{
-                ""type"": ""bubble"",
-                ""size"": ""mega"",
-                ""body"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""vertical"",
-                  ""spacing"": ""md"",
-                  ""contents"": [
-                    {{ ""type"": ""text"", ""text"": ""待審核清單"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                    {cardContents}
-                  ]
-                }},
-                ""footer"": {{
-                  ""type"": ""box"",
-                  ""layout"": ""horizontal"",
-                  ""spacing"": ""md"",
-                  ""contents"": [
-                    {footer}
-                  ]
-                }}
-              }}
-            }}";
+    {{
+      ""type"": ""flex"",
+      ""altText"": ""待審核派車清單"",
+      ""contents"": {{
+        ""type"": ""bubble"",
+        ""size"": ""mega"",
+        ""header"": {{
+          ""type"": ""box"",
+          ""layout"": ""horizontal"",
+          ""contents"": [
+            {{ ""type"": ""text"", ""text"": ""🚗 派車申請審核清單"", ""weight"": ""bold"", ""size"": ""md"", ""color"": ""#0f172a"" }}
+          ]
+        }},
+        ""body"": {{
+          ""type"": ""box"",
+          ""layout"": ""vertical"",
+          ""spacing"": ""md"",
+          ""contents"": [
+            {cardContents}
+          ]
+        }},
+        ""footer"": {{
+          ""type"": ""box"",
+          ""layout"": ""horizontal"",
+          ""spacing"": ""md"",
+          ""contents"": [
+            {footer}
+          ]
+        }}
+      }}
+    }}";
 
             return bubble;
         }

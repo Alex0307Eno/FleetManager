@@ -1,5 +1,4 @@
-﻿using static Cars.ApiControllers.DriversController;
-
+﻿
 namespace Cars.Features.Drivers
 {
     public record BulkSetDto

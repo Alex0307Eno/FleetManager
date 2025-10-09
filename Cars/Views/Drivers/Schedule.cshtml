@@ -454,15 +454,41 @@
         });
 
         // ==== 載資料 ====
-        async function loadDrivers() {
-          try {
-            const res = await axios.get('/api/Drivers/Records');
-            drivers.value = res.data || [];
-          } catch (err) {
-            console.error("讀取駕駛失敗:", err);
-            drivers.value = [];
-          }
+
+        async function loadDriversAvailable() {
+      try {
+        let start, end;
+
+        if (viewMode.value === 'day') {
+          // 🔹每日模式：單日
+          const date = current.value.toISOString().slice(0, 10);
+          start = end = date;
+
+        } else if (viewMode.value === 'week') {
+          // 🔹每週模式：週一到週日
+          start = weekStart.value.toISOString().slice(0, 10);
+          end = weekEnd.value.toISOString().slice(0, 10);
+
+        } else if (viewMode.value === 'month') {
+          // 🔹每月模式：整月
+          const y = yearAD.value;
+          const m = month.value;
+          const monthStart = new Date(y, m - 1, 1);
+          const monthEnd = new Date(y, m, 0); // 當月最後一天
+          start = monthStart.toISOString().slice(0, 10);
+          end = monthEnd.toISOString().slice(0, 10);
         }
+
+        const res = await axios.get('/api/Drivers/Available', { params: { start, end } });
+        drivers.value = res.data || [];
+      } catch (err) {
+        console.error("讀取駕駛失敗:", err);
+        drivers.value = [];
+      }
+    }
+
+
+
         async function loadAgents() {
           try {
             const res = await axios.get('/api/Agents/profiles');
@@ -921,6 +947,7 @@
       } else if (viewMode.value === 'day') {
         selectedOption.value = d.getDate()
         loadDayDispatches()
+        loadDriversAvailable();
       }
     })
 
@@ -1124,7 +1151,7 @@
 
         // 初始載入
     onMounted(async () => {
-      await loadDrivers()
+      await loadDriversAvailable();
       await loadAgents()
       await loadSchedules()
       await loadDayDispatches()
@@ -1166,9 +1193,9 @@
           // funcs
           prev, next, openAgentModal, loadSchedules, loadDayDispatches,
           linesFor, getDisp, hhmm, toYMD,isFirstWeek,isLastWeek,
-              getDriverNameByDateShift, getLineCodeByDateShift,
+          getDriverNameByDateShift, getLineCodeByDateShift,
           // right panel
-          assign, allCandidates, applyAssignments,
+          assign, allCandidates, applyAssignments, loadDriversAvailable,
           // helpers
           isSameDay,exportCSV
         };
