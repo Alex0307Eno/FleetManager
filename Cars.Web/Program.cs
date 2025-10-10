@@ -1,12 +1,8 @@
 ﻿using Cars.Data;
-using Cars.Features.CarApplications;
-using Cars.Features.Drivers;
-using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
 using Cars.Services.GPS;
 using Cars.Services.Hangfire;
-using DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +21,8 @@ namespace Cars
 
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddHttpContextAccessor();
+
             // 加入 Hangfire
             builder.Services.AddHangfire(config =>
             {
@@ -75,7 +73,6 @@ namespace Cars
             else
             {
                 Console.WriteLine("⚠️ 未設定 GpsMode，預設使用 Fake 模式");
-                builder.Services.AddSingleton<IGpsProvider, FakeGpsProvider>();
             }
 
 
@@ -112,10 +109,18 @@ namespace Cars
             var app = builder.Build();
             using (var scope = app.Services.CreateScope())
             {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                db.Database.EnsureCreated();
+                try
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    db.Database.EnsureCreated();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Database initialization failed: {ex.Message}");
+                }
             }
-    
+
+
 
             // 注意：不要在這裡額外放一條「無條件」CSP，避免覆蓋與衝突
             if (app.Environment.IsDevelopment())

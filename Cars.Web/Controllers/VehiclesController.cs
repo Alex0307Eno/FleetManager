@@ -1,9 +1,9 @@
 ﻿using Cars.Data;
-using Cars.Features.Vehicles;
 using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Cars.Services;
 
 namespace Cars.ApiControllers
 {

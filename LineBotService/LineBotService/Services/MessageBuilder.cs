@@ -1,6 +1,6 @@
 ﻿using Cars.Data;
-using Cars.Features.CarApplications;
 using Cars.Models;
+using Cars.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineBotService.Services

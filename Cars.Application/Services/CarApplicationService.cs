@@ -1,17 +1,21 @@
 ﻿using Cars.Data;
 using Cars.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
-namespace Cars.Features.CarApplications
+
+namespace Cars.Services
 {
     public class CarApplicationService
     {
         private readonly ApplicationDbContext _db;
+        private readonly IHttpContextAccessor _http;
 
-        public CarApplicationService(ApplicationDbContext db)
+        public CarApplicationService(ApplicationDbContext db, IHttpContextAccessor http)
         {
             _db = db;
+            _http = http;
         }
 
         public async Task<List<CarApplicationDto>> GetAll(

@@ -1,7 +1,4 @@
 ﻿using Cars.Data;
-using Cars.Features.CarApplications;
-using Cars.Features.Drivers;
-using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
 using Hangfire;
@@ -40,6 +37,7 @@ namespace LineBotService
 
             // 註冊 HttpClient + DistanceService
             builder.Services.AddHttpClient<IDistanceService, GoogleDistanceService>();
+            builder.Services.AddHttpContextAccessor();
 
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));

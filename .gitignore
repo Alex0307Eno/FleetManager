@@ -169,3 +169,5 @@ ClientBin/
 .DS_Store
 .localhistory/
 Migrations/
+/Cars.Core/Cars.Core.csproj
+/Cars.Shared/Cars.Shared.csproj

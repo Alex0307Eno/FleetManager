@@ -1,6 +1,5 @@
 ﻿using Cars.Data;
 using Cars.Features.CarApplications;
-using Cars.Features.Vehicles;
 using Cars.Models;
 using Cars.Services;
 using Cars.Services.Hangfire;

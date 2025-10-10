@@ -1,5 +1,4 @@
 ﻿using Cars.Data;
-using DocumentFormat.OpenXml.Drawing.Charts;
 using isRock.LineBot;
 using isRock.LineBot.RichMenu;
 using LineBotDemo.Services;

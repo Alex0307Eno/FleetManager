@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 
-namespace Cars.Features.Drivers
+namespace Cars.Services
 {
     public class DriverService
     {
