@@ -1,4 +1,6 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Core.Models;
+using Cars.Data;
 using Cars.Features.CarApplications;
 using Cars.Models;
 using Cars.Services;
@@ -43,141 +45,42 @@ namespace Cars.ApiControllers
 
         [HttpPost]
         [Authorize(Roles = "Admin,Applicant,Manager")]
-        public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
+        public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] CarApplicationUseCase usecase)
         {
-            if (dto == null || dto.Application == null)
-                return BadRequest("申請資料不得為空");
+            if (dto?.Application == null) return BadRequest("申請資料不得為空");
 
-            var model = dto.Application;
-
-            // 1) 取得登入者
             var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(uid, out var userId))
-                return Unauthorized("尚未登入或 Session 遺失");
+            if (!int.TryParse(uid, out var userId)) return Unauthorized("尚未登入");
 
-            // 2) 找申請人
-            Cars.Models.Applicant applicant = null;
-            if (model.ApplyFor == "self")
-                applicant = await _db.Applicants.FirstOrDefaultAsync(ap => ap.UserId == userId);
-            else if (model.ApplyFor == "other" && model.ApplicantId.HasValue)
-                applicant = await _db.Applicants.FirstOrDefaultAsync(ap => ap.ApplicantId == model.ApplicantId.Value);
-
-            if (applicant == null)
-                return BadRequest("找不到對應的申請人資料");
-
-            model.ApplicantId = applicant.ApplicantId;
-
-            // 3) 基本驗證
-            if (model.UseStart == default || model.UseEnd == default)
-                return BadRequest("起訖時間不得為空");
-            if (model.UseEnd <= model.UseStart)
-                return BadRequest("結束時間必須晚於起始時間");
-
-            // 4) 如果前端沒帶距離，就呼叫 Distance API 自動計算
-            if (model.SingleDistance == null || model.SingleDistance == 0)
+            var req = new CreateCarApplicationRequest
             {
-                try
-                {
-                    var (km, minutes) = await _distance.GetDistanceAsync(model.Origin, model.Destination);
-
-                    model.SingleDistance = km;
-                    model.SingleDuration = $"{(int)(minutes / 60)}小時{(int)(minutes % 60)}分";
-                    model.RoundTripDistance = km * 2;
-                    model.RoundTripDuration = $"{(int)((minutes * 2) / 60)}小時{(int)((minutes * 2) % 60)}分";
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("⚠️ 距離計算失敗: " + ex.Message);
-                }
-            }
-
-            // 5) 計算是否長差
-            var checkKm = model.TripType == "單程" || model.TripType?.Equals("single", StringComparison.OrdinalIgnoreCase) == true
-                ? (model.SingleDistance ?? 0)
-                : (model.RoundTripDistance ?? 0);
-
-            model.IsLongTrip = checkKm > 30;
-
-            // 6) 驗證當下是否有車輛能承載這麼多人
-            var maxCap = await _vehicleService.GetMaxAvailableCapacityAsync(model.UseStart, model.UseEnd);
-            if (maxCap == 0)
-            {
-                return BadRequest("目前時段沒有任何可用車輛");
-            }
-            if (model.PassengerCount > maxCap)
-            {
-                return BadRequest($"申請乘客數 {model.PassengerCount} 超過可用車輛最大載客量 {maxCap}");
-            }
-            using var tx = await _db.Database.BeginTransactionAsync();
-
-            // === 7) 先存「申請單」
-            _db.CarApplications.Add(model);
-            var (ok,err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-
-            // 8) 乘客寫入
-            if (dto.Passengers?.Any() == true)
-            {
-                dto.Passengers.ForEach(p => p.ApplyId = model.ApplyId);
-                _db.CarPassengers.AddRange(dto.Passengers);
-            }
-
-           
-
-            // 10) 建立派工（待指派）
-            var dispatch = new Cars.Models.Dispatch
-            {
-                ApplyId = model.ApplyId,
-                DriverId = null,
-                VehicleId = null,
-                CreatedAt = DateTime.Now,
-                DispatchStatus = "待指派"
+                Source = AppSource.Web,
+                WebUserId = userId,
+                ApplyFor = dto.Application.ApplyFor,
+                VehicleType = dto.Application.VehicleType,
+                PurposeType = dto.Application.PurposeType,
+                ReasonType = dto.Application.ReasonType,
+                PassengerCount = dto.Application.PassengerCount,
+                ApplyReason = dto.Application.ApplyReason,
+                Origin = dto.Application.Origin,
+                Destination = dto.Application.Destination,
+                UseStart = dto.Application.UseStart,
+                UseEnd = dto.Application.UseEnd,
+                TripType = dto.Application.TripType,
+                Passengers = dto.Passengers
             };
 
-            _db.Dispatches.Add(dispatch);
-            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
-            DispatchJobScheduler.ScheduleRideReminders(dispatch);
-            if (!ok2)
-
-            {
-                await tx.RollbackAsync();
-                return err2!;
-            }
-            await tx.CommitAsync();
-            var app = await _db.CarApplications
-                .Include(c => c.Applicant)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ApplyId == model.ApplyId);
-
-
-            await LogAppAuditAsync(
-                app.ApplyId,
-                "建立",
-                User.Identity?.Name ?? "系統",
-                oldValue: null,
-                newValue: new
-                {
-                    app.ApplyId,
-                    申請人 = app.Applicant?.Name,
-                    部門 = app.Applicant?.Dept,
-                    事由 = app.ApplyReason,
-                    起訖時間 = $"{app.UseStart:yyyy/MM/dd HH:mm} - {app.UseEnd:yyyy/MM/dd HH:mm}"
-                }
-            );
-
-
-
+            var (ok, msg, applyId) = await usecase.CreateAsync(req);
+            if (!ok) return BadRequest(msg);
 
             return Ok(ApiResponse<CarApplicationResultDto>.Ok(
-             new CarApplicationResultDto(model.ApplyId, model.IsLongTrip),
-             "申請完成，已建立派車單 (待指派)"
+                new CarApplicationResultDto(applyId, dto.Application.IsLongTrip), "申請完成，已建立派車單(待指派)"
             ));
-
-
         }
-        
 
-        
+
+
+
 
 
         #endregion
@@ -672,20 +575,14 @@ namespace Cars.ApiControllers
         //LINE專用新增申請單
         [AllowAnonymous]
         [HttpPost("auto-create")]
-        public async Task<IActionResult> AutoCreate([FromQuery] string lineUserId, [FromBody] CarApplication input)
+        public async Task<IActionResult> AutoCreate([FromQuery] string lineUserId, [FromBody] CarApplication input, [FromServices] CarApplicationUseCase usecase)
         {
-            if (string.IsNullOrEmpty(lineUserId))
-                return BadRequest("缺少 lineUserId");
+            if (string.IsNullOrWhiteSpace(lineUserId)) return BadRequest("缺少 lineUserId");
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
-            if (user == null) return BadRequest("找不到使用者");
-
-            var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
-            if (applicant == null) return BadRequest("找不到對應的申請人");
-
-            // 用 input 的值，如果沒傳就 fallback 預設
-            var app = new CarApplication
+            var req = new CreateCarApplicationRequest
             {
+                Source = AppSource.Line,
+                LineUserId = lineUserId,
                 ApplyFor = input.ApplyFor ?? "申請人",
                 VehicleType = input.VehicleType ?? "汽車",
                 PurposeType = input.PurposeType ?? "公務車(不可選車)",
@@ -696,41 +593,15 @@ namespace Cars.ApiControllers
                 Destination = input.Destination ?? "",
                 UseStart = input.UseStart != default ? input.UseStart : DateTime.UtcNow,
                 UseEnd = input.UseEnd != default ? input.UseEnd : DateTime.UtcNow.AddMinutes(30),
-                TripType = input.TripType ?? "single",
-                ApplicantId = applicant.ApplicantId,
-                Status = "待審核",
-                SingleDistance = input.SingleDistance,
-                SingleDuration = input.SingleDuration,
-                RoundTripDistance = input.RoundTripDistance,
-                RoundTripDuration = input.RoundTripDuration,
+                TripType = input.TripType ?? "single"
             };
 
-            _db.CarApplications.Add(app);
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
+            var (ok, msg, applyId) = await usecase.CreateAsync(req);
+            if (!ok) return BadRequest(msg);
 
-            // === 異動紀錄 ===
-            var newData = new
-            {
-                app.ApplyId,
-                申請人 = applicant.Name,
-                部門 = applicant.Dept,
-                app.Status,
-                app.Origin,
-                app.Destination
-            };
-            var newJson = JsonSerializer.Serialize(newData);
-
-            await LogAppAuditAsync(
-                app.ApplyId,
-                "建立",
-                user.DisplayName ?? "LineBot",
-                null,
-                newJson
-            );
-
-            return Ok(new { message = "新增成功", app.ApplyId });
+            return Ok(new { message = "新增成功", applyId });
         }
+
 
 
         // 建立派車單

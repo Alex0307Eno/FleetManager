@@ -1,4 +1,5 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Data;
 using Cars.Models;
 using Cars.Services;
 using Cars.Services.GPS;
@@ -45,6 +46,7 @@ namespace Cars
             builder.Services.AddScoped<CarApplicationService>();
             builder.Services.AddScoped<LineBotNotificationService>();
             builder.Services.AddScoped<DispatchService>();
+            builder.Services.AddScoped<CarApplicationUseCase>();
 
             //GPS 服務
             builder.Services.AddHostedService<VehicleLocationSimulator>();
