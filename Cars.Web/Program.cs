@@ -1,11 +1,12 @@
-﻿using Cars.Application.Services;
+﻿using Cars.Application;
 using Cars.Data;
 using Cars.Models;
 using Cars.Services;
 using Cars.Services.GPS;
-using Cars.Services.Hangfire;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cars
@@ -19,7 +20,6 @@ namespace Cars
 
             // === Services ===
             // DbContext
-
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.AddHttpContextAccessor();
@@ -40,13 +40,7 @@ namespace Cars
             builder.Services.AddScoped<IDistanceService, GoogleDistanceService>();
 
             // 其他服務
-            builder.Services.AddScoped<AutoDispatcher>();
-            builder.Services.AddScoped<VehicleService>();
-            builder.Services.AddScoped<DriverService>();
-            builder.Services.AddScoped<CarApplicationService>();
-            builder.Services.AddScoped<LineBotNotificationService>();
-            builder.Services.AddScoped<DispatchService>();
-            builder.Services.AddScoped<CarApplicationUseCase>();
+            builder.Services.AddApplication();
 
             //GPS 服務
             builder.Services.AddHostedService<VehicleLocationSimulator>();
@@ -68,22 +62,21 @@ namespace Cars
             else if (string.Equals(gpsMode, "Http", StringComparison.OrdinalIgnoreCase))
             {
                 var url = builder.Configuration["HttpGpsUrl"];
-                builder.Services.AddHttpClient<IGpsProvider>(c => c.BaseAddress = new Uri(url));
+                builder.Services.AddHttpClient<HttpGpsProvider>(c => c.BaseAddress = new Uri(url));
                 builder.Services.AddScoped<IGpsProvider, HttpGpsProvider>();
                 Console.WriteLine($">>> 使用 HttpGpsProvider ({url})");
             }
             else
             {
+                builder.Services.AddSingleton<IGpsProvider,
+                FakeGpsProvider>(); 
                 Console.WriteLine("⚠️ 未設定 GpsMode，預設使用 Fake 模式");
             }
 
 
 
-            //模擬車機
-            builder.Services.AddSingleton<IGpsProvider, FakeGpsProvider>();
 
             // MVC
-            builder.Services.AddControllersWithViews();
             builder.Services.AddDistributedMemoryCache(); // Session 的暫存
             builder.Services.AddSession(options =>
             {
@@ -101,20 +94,69 @@ namespace Cars
                 options.LogoutPath = "/Auth/Logout"; // 登出路徑
             });
 
+            // ProblemDetails
+            builder.Services.AddProblemDetails();
             // JSON 序列化設定
-            builder.Services.AddControllers().AddJsonOptions(o =>
-            {
-                o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-            });
+            builder.Services
+                .AddControllersWithViews()
+                .AddJsonOptions(o =>
+                {
+                    o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                    
+                    
+                });
 
             builder.Services.AddAuthorization();
             var app = builder.Build();
+            // 把所有未處理例外轉成 RFC7807
+            app.UseExceptionHandler(a => a.Run(async ctx =>
+            {
+                var feat = ctx.Features.Get<IExceptionHandlerFeature>();
+                var ex = feat?.Error;
+
+                var problem = new ProblemDetails
+                {
+                    Title = "伺服器錯誤",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = app.Environment.IsDevelopment() ? ex?.ToString() : "請聯絡系統管理員",
+                    Instance = ctx.Request.Path
+                };
+
+                ctx.Response.ContentType = "application/problem+json";
+                ctx.Response.StatusCode = problem.Status!.Value;
+                await ctx.Response.WriteAsJsonAsync(problem);
+            }));
+            app.UseStatusCodePages(async context =>
+            {
+                var res = context.HttpContext.Response;
+                var req = context.HttpContext.Request;
+
+                // 只處理非 200 的情況
+                if (res.StatusCode >= 400)
+                {
+                    var problem = new ProblemDetails
+                    {
+                        Title = res.StatusCode switch
+                        {
+                            401 => "未授權",
+                            403 => "禁止存取",
+                            404 => "找不到資源",
+                            _ => "請求錯誤"
+                        },
+                        Status = res.StatusCode,
+                        Instance = req.Path
+                    };
+                    res.ContentType = "application/problem+json";
+                    await res.WriteAsJsonAsync(problem);
+                }
+            });
+
             using (var scope = app.Services.CreateScope())
             {
                 try
                 {
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    db.Database.EnsureCreated();
+                    db.Database.Migrate();
                 }
                 catch (Exception ex)
                 {
@@ -127,6 +169,7 @@ namespace Cars
             // 注意：不要在這裡額外放一條「無條件」CSP，避免覆蓋與衝突
             if (app.Environment.IsDevelopment())
             {
+            app.UseDeveloperExceptionPage();
                 // 開發環境：放寬 connect-src 讓 Browser Link / 熱更新正常；放行 Google Maps 與常見 CDN
                 app.Use(async (ctx, next) =>
                 {
@@ -150,7 +193,6 @@ namespace Cars
                     "img-src 'self' data: https://*.google.com https://*.ggpht.com https://*.googleapis.com https://*.gstatic.com; " +
 
                     "object-src 'none';";
-                    app.UseDeveloperExceptionPage();
 
                     await next();
                 });
@@ -176,10 +218,10 @@ namespace Cars
             // === Pipeline ===
             if (!app.Environment.IsDevelopment())
             {
-                app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
-            app.UseHangfireDashboard("/hangfire");
+           
+
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
@@ -188,6 +230,10 @@ namespace Cars
             app.UseSession();
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseHangfireDashboard("/hangfire", new DashboardOptions
+            {
+                Authorization = new[] { new Cars.Web.Security.MyHangfireAuthFilter() }
+            });
             app.MapControllers();
             app.MapControllerRoute(
                 name: "default",

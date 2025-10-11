@@ -1,4 +1,5 @@
-﻿using Cars.Services;
+﻿using Cars.Application.Services;
+using Cars.Services;
 using Cars.Services.Hangfire;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +15,7 @@ namespace Cars.Application
             services.AddScoped<CarApplicationService>();
             services.AddScoped<LineBotNotificationService>();
             services.AddScoped<DispatchService>();
+            services.AddScoped<CarApplicationUseCase>();
             return services;
         }
     }
