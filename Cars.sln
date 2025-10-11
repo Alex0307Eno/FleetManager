@@ -5,8 +5,6 @@ VisualStudioVersion = 17.14.36401.2
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineBotService", "LineBotService\LineBotService\LineBotService.csproj", "{8FE30894-A3EF-4692-95DC-7C9C70895943}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cars", "Cars\Cars.csproj", "{4EC73912-B439-A011-EDC8-8BD347750960}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cars.Shared", "Cars.Shared\Cars.Shared.csproj", "{E6AF5AD1-B083-4BF4-BAB2-E97D467540BB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cars.Core", "Cars.Core\Cars.Core.csproj", "{AD1765D9-EDDC-4480-B2BB-6ADA6693DC58}"
@@ -27,10 +25,6 @@ Global
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FE30894-A3EF-4692-95DC-7C9C70895943}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4EC73912-B439-A011-EDC8-8BD347750960}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E6AF5AD1-B083-4BF4-BAB2-E97D467540BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E6AF5AD1-B083-4BF4-BAB2-E97D467540BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E6AF5AD1-B083-4BF4-BAB2-E97D467540BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
