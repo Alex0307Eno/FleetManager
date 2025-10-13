@@ -1,11 +1,8 @@
 ﻿using Cars.Application.Services;
-using Cars.Core.Models;
 using Cars.Data;
-using Cars.Features.CarApplications;
 using Cars.Models;
-using Cars.Services;
-using Cars.Services.Hangfire;
-using DocumentFormat.OpenXml.Office2010.Excel;
+using Cars.Web.Services;
+using Cars.Shared.Dtos.CarApplications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,16 +23,27 @@ namespace Cars.ApiControllers
         private readonly CarApplicationService _carApplicationService;
         private readonly VehicleService _vehicleService;
         private readonly AutoDispatcher _dispatcher;
+        private readonly CarApplicationUseCase _usecase;
 
 
 
-        public CarApplicationsController(ApplicationDbContext db,  IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService, AutoDispatcher dispatcher)
+
+        public CarApplicationsController(ApplicationDbContext db,  IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService, AutoDispatcher dispatcher, CarApplicationUseCase usecase)
         {
             _db = db;
             _distance = distance;
             _carApplicationService = carApplicationService;
             _vehicleService = vehicleService;
             _dispatcher = dispatcher;
+            _usecase = usecase;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetApplications(DateTime? from, DateTime? to, string? q)
+        {
+            // 這裡的 User 就是 ControllerBase 提供的 ClaimsPrincipal
+            var list = await _carApplicationService.GetAll(from, to, q, User);
+            return Ok(list);
         }
 
         #region 建立申請單
@@ -45,7 +53,7 @@ namespace Cars.ApiControllers
 
         [HttpPost]
         [Authorize(Roles = "Admin,Applicant,Manager")]
-        public async Task<IActionResult> Create([FromBody] CarApplyDto dto, [FromServices] CarApplicationUseCase usecase)
+        public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
         {
             if (dto?.Application == null) return BadRequest("申請資料不得為空");
 
@@ -60,17 +68,16 @@ namespace Cars.ApiControllers
                 VehicleType = dto.Application.VehicleType,
                 PurposeType = dto.Application.PurposeType,
                 ReasonType = dto.Application.ReasonType,
-                PassengerCount = dto.Application.PassengerCount,
+                PassengerCount = dto.Application.PassengerCount.Value,
                 ApplyReason = dto.Application.ApplyReason,
                 Origin = dto.Application.Origin,
                 Destination = dto.Application.Destination,
                 UseStart = dto.Application.UseStart,
                 UseEnd = dto.Application.UseEnd,
-                TripType = dto.Application.TripType,
+                TripType = dto.Application.IsLongTrip,
                 Passengers = dto.Passengers
             };
-
-            var (ok, msg, applyId) = await usecase.CreateAsync(req);
+            var (ok, msg, applyId) = await _usecase.CreateAsync(req);
             if (!ok) return BadRequest(msg);
 
             return Ok(ApiResponse<CarApplicationResultDto>.Ok(
@@ -115,7 +122,7 @@ namespace Cars.ApiControllers
         public async Task<IActionResult> GetAll(DateTime? dateFrom, DateTime? dateTo, string? q)
         {
             var list = await _carApplicationService.GetAll(dateFrom, dateTo, q, User);
-            return Ok(ApiResponse<List<CarApplicationDto>>.Ok(list, "查詢成功"));
+                return Ok(ApiResponse<List<CarApplicationDto>>.Ok(list, "查詢成功"));
         }
 
 

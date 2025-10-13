@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
-namespace Cars.Services
+namespace Cars.Application.Services
 {
     public class DispatchService
     {

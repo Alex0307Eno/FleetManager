@@ -1,6 +1,5 @@
 ﻿using Cars.Data;
-using Cars.Dtos;
-using Cars.Features.DashBoard;
+using Cars.Shared.Dtos.DashBoard;
 using Cars.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

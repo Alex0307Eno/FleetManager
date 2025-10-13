@@ -1,8 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-
+﻿
 namespace Cars.Models
 {
-    [Keyless]
     public class ResolvedSchedule
     {
         public DateTime WorkDate { get; set; }

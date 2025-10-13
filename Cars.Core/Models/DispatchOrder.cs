@@ -1,8 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-
+﻿
 namespace Cars.Models
 {
-    [Keyless] // View 沒有主鍵
     public class DispatchOrder
     {
         public int DispatchId { get; set; }                 // 派車單號

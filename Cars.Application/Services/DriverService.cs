@@ -1,8 +1,7 @@
 ﻿using Cars.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
-namespace Cars.Services
+namespace Cars.Application.Services
 {
     public class DriverService
     {

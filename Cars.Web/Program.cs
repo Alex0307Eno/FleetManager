@@ -1,7 +1,6 @@
-﻿using Cars.Application;
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Models;
-using Cars.Services;
+using Cars.Application.Services;
 using Cars.Services.GPS;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -20,8 +19,23 @@ namespace Cars
 
             // === Services ===
             // DbContext
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+            {
+                options.UseSqlServer(
+                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    sql =>
+                    {
+                        // 查詢逾時時間（秒）
+                        sql.CommandTimeout(60);
+
+                        // 連線中斷自動重試
+                        sql.EnableRetryOnFailure(
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10),
+                            errorNumbersToAdd: null);
+                    });
+            });
+
             builder.Services.AddHttpContextAccessor();
 
             // 加入 Hangfire

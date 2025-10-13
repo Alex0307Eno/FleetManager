@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using Cars.Services;
-using Cars.Features.Maintenance;
+using Cars.Web.Services;
+using Cars.Shared.Dtos.Maintenance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

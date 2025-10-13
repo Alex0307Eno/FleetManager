@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cars.Services
+namespace Cars.Application.Services
 {
     public class VehicleService
     {

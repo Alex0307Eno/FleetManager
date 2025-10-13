@@ -1,6 +1,6 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using Cars.Services;
+using Cars.Application.Services;
 using isRock.LineBot;
 using LineBotDemo.Services;
 using LineBotService.Helpers;
@@ -733,7 +733,7 @@ namespace LineBotDemo.Controllers
                         if (msg.Contains("預約車輛"))
                         {
                             var role = await GetUserRole(uid);
-                            if (role == "Driver")
+                            if (role == "Driver" || role == "Manager")
                             {
                                 bot.ReplyMessage(replyToken, "⚠️ 您沒有申請派車的權限，請聯絡管理員開通帳號");
                                 continue;

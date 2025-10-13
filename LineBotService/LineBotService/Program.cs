@@ -1,4 +1,5 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Data;
 using Cars.Models;
 using Cars.Services;
 using Hangfire;
@@ -19,10 +20,12 @@ namespace LineBotService
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
             //builder.Services.AddScoped<AutoDispatcher>();
-            builder.Services.AddScoped<CarApplicationService>();
-            builder.Services.AddScoped<VehicleService>();
-            builder.Services.AddScoped<DriverService>();
-            builder.Services.AddScoped<DispatchService>();
+            //builder.Services.AddScoped<CarApplicationService>();
+            //builder.Services.AddScoped<VehicleService>();
+            //builder.Services.AddScoped<DriverService>();
+            //builder.Services.AddScoped<DispatchService>();
+            builder.Services.AddApplication();
+
             builder.Services.Configure<RichMenuOptions>(builder.Configuration.GetSection("RichMenus"));
             builder.Services.AddScoped<ILinePush, LinePush>();
             builder.Services.AddScoped<NotificationService>();
@@ -59,7 +62,16 @@ namespace LineBotService
 
             // Swagger
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+                {
+                    Title = "LineBotService API",
+                    Version = "v1",
+                    Description = "Line Bot 與公務車派車系統整合服務"
+                });
+            });
+
 
             var app = builder.Build();
 
@@ -67,7 +79,10 @@ namespace LineBotService
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwaggerUI(c =>
+                {
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LineBotService API v1");
+                });
             }
             app.UseHangfireDashboard("/hangfire");
             app.UseStaticFiles();

@@ -3,7 +3,7 @@ using Cars.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 
-namespace Cars.Services
+namespace Cars.Application.Services
 {
     public class AutoDispatcher
     {

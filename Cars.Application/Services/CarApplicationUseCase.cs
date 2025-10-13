@@ -1,12 +1,7 @@
-﻿using Cars.Core.Models;
-using Cars.Data;
+﻿using Cars.Data;
 using Cars.Models;
 using Cars.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Cars.Shared.Dtos.CarApplications;
 using Microsoft.EntityFrameworkCore;
 namespace Cars.Application.Services
 {
@@ -92,11 +87,18 @@ namespace Cars.Application.Services
             await _db.SaveChangesAsync();
 
             // 6) 乘客
-            if (req.Passengers?.Count > 0)
-            {
-                foreach (var p in req.Passengers) p.ApplyId = app.ApplyId;
-                _db.CarPassengers.AddRange(req.Passengers);
-            }
+            var passengers = (req.Passengers ?? new List<CarPassengerDto>())
+                .Select(p => new CarPassenger
+                {
+                    ApplyId = app.ApplyId,
+                    Name = p.Name,
+                    DeptTitle = p.DeptTitle,
+                })
+                .ToList();
+
+            if (passengers.Count > 0)
+                _db.CarPassengers.AddRange(passengers);   
+
 
             // 7) 建立「待指派」派工
             _db.Dispatches.Add(new Dispatch

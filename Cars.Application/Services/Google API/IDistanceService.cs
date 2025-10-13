@@ -1,4 +1,4 @@
-﻿namespace Cars.Services
+﻿namespace Cars.Application.Services
 {
     public interface IDistanceService
     {

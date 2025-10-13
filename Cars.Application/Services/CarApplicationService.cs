@@ -1,11 +1,11 @@
 ﻿using Cars.Data;
-using Cars.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Cars.Shared.Dtos.CarApplications;
 
 
-namespace Cars.Services
+namespace Cars.Application.Services
 {
     public class CarApplicationService
     {
@@ -25,7 +25,7 @@ namespace Cars.Services
             ClaimsPrincipal user)
         {
             // ===== 取出 user 資訊 =====
-            var uidStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var uidStr = user?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var userName = user.Identity?.Name;
 
             var baseQuery = _db.CarApplications
@@ -44,6 +44,7 @@ namespace Cars.Services
                 if (int.TryParse(uidStr, out var userId))
                 {
                     var myDept = await _db.Applicants
+                        .AsNoTracking()
                         .Where(a => a.UserId == userId)
                         .Select(a => a.Dept)
                         .FirstOrDefaultAsync();
@@ -72,7 +73,7 @@ namespace Cars.Services
             {
                 if (int.TryParse(uidStr, out var userId))
                 {
-                    var myApplicantId = await _db.Applicants
+                    var myApplicantId = await _db.Applicants.AsNoTracking()
                         .Where(a => a.UserId == userId)
                         .Select(a => (int?)a.ApplicantId)
                         .FirstOrDefaultAsync();
@@ -126,7 +127,7 @@ namespace Cars.Services
                     UseEnd = a.UseEnd,
                     Origin = a.Origin,
                     Destination = a.Destination,
-                    TripType = a.TripType,
+                    IsLongTrip = a.TripType,
                     SingleDistance = a.SingleDistance,
                     RoundTripDistance = a.RoundTripDistance,
                     MaterialName = a.MaterialName,
@@ -142,27 +143,5 @@ namespace Cars.Services
         }
     }
 
-    public class CarApplicationDto
-    {
-        public int ApplyId { get; set; }
-        public int? VehicleId { get; set; }
-        public string? PlateNo { get; set; }
-        public int? DriverId { get; set; }
-        public string? DriverName { get; set; }
-        public int? ApplicantId { get; set; }
-        public string? ApplicantName { get; set; }
-        public string? ApplicantDept { get; set; }
-        public int? PassengerCount { get; set; }
-        public DateTime UseStart { get; set; }
-        public DateTime UseEnd { get; set; }
-        public string? Origin { get; set; }
-        public string? Destination { get; set; }
-        public string? TripType { get; set; }
-        public decimal? SingleDistance { get; set; }
-        public decimal? RoundTripDistance { get; set; }
-        public string? MaterialName { get; set; }
-        public string? Status { get; set; }
-        public string? ReasonType { get; set; }
-        public string? ApplyReason { get; set; }
-    }
+    
 }

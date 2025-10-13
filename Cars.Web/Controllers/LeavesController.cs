@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using Cars.Services;
-using Cars.Features.Leaves;
+using Cars.Web.Services;
+using Cars.Shared.Dtos.Leaves;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

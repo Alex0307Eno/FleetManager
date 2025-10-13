@@ -1,8 +1,8 @@
 ﻿using Cars.Data;
-using Cars.Features.CarApplications;
-using Cars.Migrations;
 using Cars.Models;
-using Cars.Services;
+using Cars.Web.Services;
+using Cars.Application.Services;
+using Cars.Shared.Dtos.CarApplications;
 using Cars.Services.Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
