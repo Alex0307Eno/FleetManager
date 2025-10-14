@@ -12,7 +12,6 @@ using System.Text.Json;
 
 namespace Cars.ApiControllers
 {
-    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     
@@ -37,11 +36,11 @@ namespace Cars.ApiControllers
             _dispatcher = dispatcher;
             _usecase = usecase;
         }
-
-        [HttpGet]
+        // 取得申請單列表
+        [HttpGet("all")]
         public async Task<IActionResult> GetApplications(DateTime? from, DateTime? to, string? q)
         {
-            // 這裡的 User 就是 ControllerBase 提供的 ClaimsPrincipal
+            
             var list = await _carApplicationService.GetAll(from, to, q, User);
             return Ok(list);
         }
@@ -49,40 +48,20 @@ namespace Cars.ApiControllers
         #region 建立申請單
         // 建立申請單（含搭乘人員清單）
 
-
-
-        [HttpPost]
+        [HttpPost("create")]
         [Authorize(Roles = "Admin,Applicant,Manager")]
-        public async Task<IActionResult> Create([FromBody] CarApplyDto dto)
+        public async Task<IActionResult> Create([FromBody] CarApplicationDto dto)
         {
-            if (dto?.Application == null) return BadRequest("申請資料不得為空");
-
             var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(uid, out var userId)) return Unauthorized("尚未登入");
+            if (!int.TryParse(uid, out var userId))
+                return Unauthorized("尚未登入");
 
-            var req = new CreateCarApplicationRequest
-            {
-                Source = AppSource.Web,
-                WebUserId = userId,
-                ApplyFor = dto.Application.ApplyFor,
-                VehicleType = dto.Application.VehicleType,
-                PurposeType = dto.Application.PurposeType,
-                ReasonType = dto.Application.ReasonType,
-                PassengerCount = dto.Application.PassengerCount.Value,
-                ApplyReason = dto.Application.ApplyReason,
-                Origin = dto.Application.Origin,
-                Destination = dto.Application.Destination,
-                UseStart = dto.Application.UseStart,
-                UseEnd = dto.Application.UseEnd,
-                TripType = dto.Application.IsLongTrip,
-                Passengers = dto.Passengers
-            };
-            var (ok, msg, applyId) = await _usecase.CreateAsync(req);
-            if (!ok) return BadRequest(msg);
+            var (ok, msg, app) = await _carApplicationService.CreateAsync(dto, userId);
+            if (!ok)
+                return BadRequest(new { success = false, message = msg });
 
-            return Ok(ApiResponse<CarApplicationResultDto>.Ok(
-                new CarApplicationResultDto(applyId, dto.Application.IsLongTrip), "申請完成，已建立派車單(待指派)"
-            ));
+            return Ok(new { success = true, message = msg, data = ToResponseData(app) });
+
         }
 
 
@@ -90,8 +69,8 @@ namespace Cars.ApiControllers
 
 
 
-        #endregion
 
+        #endregion
 
         #region dispatches頁面功能
 
@@ -127,7 +106,6 @@ namespace Cars.ApiControllers
 
 
         #endregion
-
 
         #region 刪除申請單
         // 刪除申請單（連同搭乘人員）
@@ -581,78 +559,51 @@ namespace Cars.ApiControllers
         #region LINE專用申請單
         //LINE專用新增申請單
         [AllowAnonymous]
-        [HttpPost("auto-create")]
-        public async Task<IActionResult> AutoCreate([FromQuery] string lineUserId, [FromBody] CarApplication input, [FromServices] CarApplicationUseCase usecase)
+        [HttpPost("line-create")]
+        public async Task<IActionResult> LineCreate([FromQuery] string lineUserId, [FromBody] CarApplicationDto dto)
         {
-            if (string.IsNullOrWhiteSpace(lineUserId)) return BadRequest("缺少 lineUserId");
+            if (string.IsNullOrWhiteSpace(lineUserId))
+                return BadRequest(new { success = false, message = "缺少 lineUserId" });
 
-            var req = new CreateCarApplicationRequest
+            var (ok, msg, app) = await _carApplicationService.CreateForLineAsync(dto, lineUserId);
+
+            if (!ok)
+                return BadRequest(new { success = false, message = msg });
+
+            return Ok(new
             {
-                Source = AppSource.Line,
-                LineUserId = lineUserId,
-                ApplyFor = input.ApplyFor ?? "申請人",
-                VehicleType = input.VehicleType ?? "汽車",
-                PurposeType = input.PurposeType ?? "公務車(不可選車)",
-                ReasonType = input.ReasonType ?? "公務用",
-                PassengerCount = input.PassengerCount > 0 ? input.PassengerCount : 1,
-                ApplyReason = input.ApplyReason ?? "",
-                Origin = input.Origin ?? "公司",
-                Destination = input.Destination ?? "",
-                UseStart = input.UseStart != default ? input.UseStart : DateTime.UtcNow,
-                UseEnd = input.UseEnd != default ? input.UseEnd : DateTime.UtcNow.AddMinutes(30),
-                TripType = input.TripType ?? "single"
-            };
-
-            var (ok, msg, applyId) = await usecase.CreateAsync(req);
-            if (!ok) return BadRequest(msg);
-
-            return Ok(new { message = "新增成功", applyId });
+                success = true,
+                message = msg,
+                data = ToResponseData(app)
+            });
         }
 
 
 
-        // 建立派車單
-        [AllowAnonymous]
-        [HttpPost("{applyId}/dispatch")]
 
-        public async Task<IActionResult> CreateDispatch(int applyId)
-        {
-            var app = await _db.CarApplications.FindAsync(applyId);
-            if (app == null)
-                return NotFound(new { success = false, message = "找不到申請單" });
 
-            if (app.UseStart == default || app.UseEnd == default)
-                return BadRequest(new { success = false, message = "申請單時間無效，無法建立派工" });
-
-            // 檢查是否已經有派車單
-            var exists = await _db.Dispatches.AnyAsync(d => d.ApplyId == applyId);
-            if (exists)
-                return Conflict(new { success = false, message = "已經有派車單存在" });
-
-            var dispatch = new Cars.Models.Dispatch
-            {
-                ApplyId = applyId,
-                DriverId = null,
-                VehicleId = null,
-                DispatchStatus = "待指派",
-                CreatedAt = DateTime.Now
-            };
-
-            _db.Dispatches.Add(dispatch);
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-            var dto = new DispatchDto(
-                dispatch.DispatchId,
-                dispatch.ApplyId,
-                dispatch.DispatchStatus
-            );
-           
-
-            return Ok(ApiResponse<DispatchDto>.Ok(dto, "派車單建立成功"));
-
-        }
         #endregion
-
+        //共用申請單回傳格式
+        private object ToResponseData(CarApplication app)
+        {
+            return new
+            {
+                app.ApplyId,
+                app.Origin,
+                app.Destination,
+                app.ApplyFor,
+                app.MaterialName,
+                app.UseStart,
+                app.UseEnd,
+                app.TripType,
+                app.PassengerCount,
+                app.RoundTripDistance,
+                app.SingleDistance,
+                app.RoundTripDuration,
+                app.SingleDuration,
+                app.Status
+            };
+        }
 
 
 

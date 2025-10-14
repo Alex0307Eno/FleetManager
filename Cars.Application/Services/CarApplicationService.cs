@@ -1,8 +1,9 @@
 ﻿using Cars.Data;
+using Cars.Models;
+using Cars.Shared.Dtos.CarApplications;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Cars.Shared.Dtos.CarApplications;
 
 
 namespace Cars.Application.Services
@@ -11,13 +12,14 @@ namespace Cars.Application.Services
     {
         private readonly ApplicationDbContext _db;
         private readonly IHttpContextAccessor _http;
-
-        public CarApplicationService(ApplicationDbContext db, IHttpContextAccessor http)
+        private readonly IDistanceService _distance;
+        public CarApplicationService(ApplicationDbContext db, IHttpContextAccessor http, IDistanceService distance)
         {
             _db = db;
             _http = http;
+            _distance = distance;
         }
-
+        #region 取得申請單列表
         public async Task<List<CarApplicationDto>> GetAll(
             DateTime? dateFrom,
             DateTime? dateTo,
@@ -34,7 +36,7 @@ namespace Cars.Application.Services
                 .AsNoTracking()
                 .AsQueryable();
 
-            // ===== 權限過濾 (跟原本 Controller 一樣) =====
+            // ===== 權限過濾  =====
             if (user.IsInRole("Admin"))
             {
                 // Admin 看全部
@@ -141,7 +143,111 @@ namespace Cars.Application.Services
 
             return list;
         }
+        #endregion
+
+        #region 建立申請單與派車單
+        // 建立申請單 (Web)
+        public async Task<(bool ok, string msg, CarApplication app)> CreateAsync(CarApplicationDto dto, int userId)
+        {
+            var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == userId);
+            if (applicant == null)
+                return (false, "找不到申請人", null);
+
+            return await CreateInternalAsync(dto, applicant);
+        }
+
+
+        // 建立申請單 (LINE)
+        public async Task<(bool ok, string msg, CarApplication app)> CreateForLineAsync(CarApplicationDto dto, string lineUserId)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+            if (user == null)
+                return (false, "此 LINE 帳號未綁定使用者", null);
+
+            var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
+            if (applicant == null)
+                return (false, "找不到對應申請人", null);
+
+            return await CreateInternalAsync(dto, applicant);
+        }
+
+        #endregion
+
+        #region 共用方法
+        // ===== 轉換區 =====
+        private CarApplication BuildEntityFromDto(CarApplicationDto dto, Applicant applicant)
+        {
+            return new CarApplication
+            {
+                ApplicantId = applicant.ApplicantId,
+                ApplyFor = dto.ApplyFor ?? applicant.Name,
+                VehicleType = dto.VehicleType ?? "汽車",
+                PurposeType = dto.PurposeType ?? "公務車",
+                ReasonType = dto.ReasonType ?? "公務用",
+                PassengerCount = (dto.PassengerCount ?? 1) > 0 ? dto.PassengerCount ?? 1 : 1,
+                ApplyReason = dto.ApplyReason ?? "",
+                Origin = dto.Origin ?? "公司",
+                Destination = dto.Destination ?? "",
+                UseStart = dto.UseStart != default ? dto.UseStart : DateTime.Now,
+                UseEnd = dto.UseEnd != default ? dto.UseEnd : DateTime.Now.AddMinutes(30),
+                RoundTripDistance = dto.RoundTripDistance,
+                SingleDistance = dto.SingleDistance,
+                RoundTripDuration = dto.RoundTripDuration,
+                SingleDuration = dto.SingleDuration,
+                TripType = dto.IsLongTrip ?? "single",
+                Status = "待審核"
+            };
+        }
+
+        private Dispatch BuildDispatchFromDto(CarApplicationDto dto, CarApplication app)
+        {
+            return new Dispatch
+            {
+                ApplyId = app.ApplyId,
+                VehicleId = dto.VehicleId,
+                DriverId = dto.DriverId,
+                DispatchStatus = "待派車",
+                CreatedAt = DateTime.Now
+            };
+        }
+        #endregion
+        public async Task<(bool ok, string msg, CarApplication app)> CreateInternalAsync(CarApplicationDto dto, Applicant applicant)
+        {
+            // === 自動補距離 ===
+            if (!string.IsNullOrWhiteSpace(dto.Origin) && !string.IsNullOrWhiteSpace(dto.Destination))
+            {
+                var result = await _distance.GetDistanceAsync(dto.Origin, dto.Destination);
+                if (result.km > 0)
+                {
+                    dto.SingleDistance = result.km;
+                    dto.RoundTripDistance = result.km * 2;
+                    dto.SingleDuration = ToHourMinuteString(result.minutes);
+                    dto.RoundTripDuration = ToHourMinuteString(result.minutes * 2);
+                }
+            }
+
+            var app = BuildEntityFromDto(dto, applicant);
+            _db.CarApplications.Add(app);
+            await _db.SaveChangesAsync();
+
+            var order = BuildDispatchFromDto(dto, app);
+            _db.Dispatches.Add(order);
+            await _db.SaveChangesAsync();
+
+            return (true, "申請與派車單建立成功", app);
+        }
+
+        private static string ToHourMinuteString(double minutes)
+        {
+            var h = (int)(minutes / 60);
+            var m = (int)(minutes % 60);
+            if (h > 0 && m > 0) return $"{h} 小時 {m} 分";
+            if (h > 0) return $"{h} 小時";
+            if (m > 0) return $"{m} 分";
+            return "0 分";
+        }
+
     }
 
-    
+
 }

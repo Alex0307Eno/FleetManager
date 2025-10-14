@@ -1071,7 +1071,7 @@ namespace LineBotDemo.Controllers
                             var jsonBody = JsonConvert.SerializeObject(appInput);
                             var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
-                            var res = await _http.PostAsync($"{_baseUrl}/api/CarApplications/auto-create?lineUserId={uid}", content);
+                            var res = await _http.PostAsync($"{_baseUrl}/api/CarApplications/line-create?lineUserId={uid}", content);
                             if (!res.IsSuccessStatusCode)
                             {
                                 var errText = await res.Content.ReadAsStringAsync();
@@ -1093,17 +1093,9 @@ namespace LineBotDemo.Controllers
                                 continue;
                             }
 
-                            // === Step 4. 建立派車單 (待指派) ===
-                            var resDispatch = await _http.PostAsync($"{_baseUrl}/api/CarApplications/{created.ApplyId}/dispatch", null);
-                            if (!resDispatch.IsSuccessStatusCode)
-                            {
-                                var errText2 = await resDispatch.Content.ReadAsStringAsync();
-                                Console.WriteLine($"建立派車單失敗: {(int)resDispatch.StatusCode} {errText2}");
-                                bot.ReplyMessage(replyToken, "⚠️ 已建立申請，但派車單建立失敗，請通知管理員協助處理。");
-                                continue;
-                            }
+                           
 
-                            // === Step 5. 推播管理員卡片 ===
+                            // === Step 4. 推播管理員卡片 ===
                             var profile = isRock.LineBot.Utility.GetUserInfo(uid, _token);
                             var displayName = profile?.displayName ?? "申請人";
 
@@ -1128,10 +1120,10 @@ namespace LineBotDemo.Controllers
                             foreach (var aid in adminIds)
                                 bot.PushMessageWithJSON(aid, $"[{adminFlex}]");
 
-                            // === Step 6. 紀錄申請單對應 ===
+                            // === Step 5. 紀錄申請單對應 ===
                             _applyToApplicant[created.ApplyId] = uid;
 
-                            // === Step 7. 回覆申請人 ===
+                            // === Step 6. 回覆申請人 ===
                             bot.ReplyMessage(replyToken, $"✅ 已送出派車申請（編號 {created.ApplyId}），等待管理員指派。");
 
                             _flow.TryRemove(uid, out _);

@@ -779,49 +779,38 @@ ViewData["Title"] = "用車申請";
           const pax = (passengers.value || []).filter(p => p && p.name && p.name.trim());
           console.log("👥 passengers:", pax);
 
+         const dto = {
+          applyFor: applyFor.value,
+          vehicleType: vehicleType.value,
+          purposeType: purposeType.value,
+          passengerCount: pax.length,
+          useStart: normUseStart,
+          useEnd: normUseEnd,
+          reasonType: reasonType.value,
+          applyReason: applyReason.value,
+          origin: origin.value,
+          destination: destination.value,
+          tripType: tripType.value,
+          singleDistance: toDecimalOrNull(singleDistance.value),
+          singleDuration: String(singleDuration.value ?? ''),
+          roundTripDistance: toDecimalOrNull(roundTripDistance.value),
+          roundTripDuration: String(roundTripDuration.value ?? ''),
+          materialName: materialName.value,
+          vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
+          status: '待審核'
+        };
 
-
-          const payload = {
-            applyFor: applyFor.value,
-            vehicleType: vehicleType.value,
-            purposeType: purposeType.value,
-            passengerCount: pax.length,
-            useStart: normUseStart,
-            useEnd: normUseEnd,
-            reasonType: reasonType.value,
-            applyReason: applyReason.value,
-            origin: origin.value,
-            destination: destination.value,
-            tripType: tripType.value,
-            singleDistance: toDecimalOrNull(singleDistance.value),
-            singleDuration: String(singleDuration.value ?? ''),
-            roundTripDistance: toDecimalOrNull(roundTripDistance.value),
-            roundTripDuration: String(roundTripDuration.value ?? ''),
-            materialName: materialName.value,
-            vehicleId: (purposeType.value === '公務車(可選車)') ? (Number(assign.vehicleId) || null) : null,
-            status: '待審核'
-          };
-          
-          console.log("📦 payload (application):", payload);
-
-          const dto = {
-            application: payload,
-            passengers: pax.map(p => ({
-              name: p.name.trim(),
-              deptTitle: p.deptTitle || null
-            })),
-          };
 
           console.log("🚚 DTO 最終送出內容:", dto);
 
           try {
-            const res = await axios.post('/api/CarApplications', dto, {
+            const res = await axios.post('/api/CarApplications/create', dto, {
               withCredentials: true,
               headers: { 'Content-Type': 'application/json' }
             });
             console.log("✅ 後端回應:", res);
             alert(res.data?.message || "申請成功");
-            window.location.href = '/Dispatches/Dispatch';
+            // window.location.href = '/Dispatches/Dispatch';
                   } catch (err) {
           if (err.response) {
             const data = err.response.data;
@@ -884,7 +873,7 @@ ViewData["Title"] = "用車申請";
             }
           });
 
-          // 📅 點擊圖示才開啟日曆
+          //  點擊圖示才開啟日曆
           document.getElementById("calendarStart").addEventListener("click", () => {
             startPicker.open();
           });

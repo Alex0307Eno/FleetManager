@@ -21,5 +21,6 @@ namespace Cars.Models
         public decimal? TripDistance { get; set; }          // 預計行駛公里數
         public string? TripType { get; set; }               // 單程/來回
         public string? Status { get; set; }                 // 派車單狀態
+        public DateTime CreatedAt { get; set; }             // 建立時間
     }
 }

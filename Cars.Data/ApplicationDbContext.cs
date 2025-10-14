@@ -35,7 +35,6 @@ namespace Cars.Data
         public DbSet<VehicleInspection> VehicleInspections { get; set; }
         public DbSet<VehicleViolation> VehicleViolations { get; set; }
 
-        public DbSet<FavoriteLocation> FavoriteLocations { get; set; }
         public DbSet<DispatchLink> DispatchLinks { get; set; }
         public DbSet<DriverLineAssignment> DriverLineAssignments { get; set; }
         public DbSet<ResolvedSchedule> ResolvedSchedules { get; set; } // 對應 View

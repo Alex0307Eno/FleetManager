@@ -45,11 +45,7 @@
                 <ul class="navbar-nav">
                     @if (User.IsInRole("Admin"))
                     {
-                        @*常用地點*@
-                        @* <li class="nav-item">
-                            <a class="nav-link @(isActive("Places", "Place") ? "is-active" : "")"
-                               href="/Places/Place">常用地點</a>
-                        </li> *@
+                       
                         @* 派車管理 *@
                         <li class="nav-item">
                             <a class="nav-link @(isActive("Dispatches", "Dispatch") ? "is-active" : "")"

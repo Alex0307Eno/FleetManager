@@ -23,6 +23,8 @@ namespace Cars.Shared.Dtos.CarApplications
         public string? IsLongTrip { get; set; }
         public decimal? SingleDistance { get; set; }
         public decimal? RoundTripDistance { get; set; }
+        public string? SingleDuration { get; set; }
+        public string? RoundTripDuration { get; set; }
         public string? MaterialName { get; set; }
         public string? Status { get; set; }
         public string? ReasonType { get; set; }

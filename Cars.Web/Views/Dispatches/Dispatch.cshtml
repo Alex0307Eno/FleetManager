@@ -291,8 +291,8 @@
         if (filters.value.q && filters.value.q.trim()) {
           params.q = filters.value.q.trim();
         }
-            const res = await axios.get('/api/carApplications', { params });
-            const arr = Array.isArray(res.data?.data) ? res.data.data : [];
+            const res = await axios.get('/api/carApplications/all', { params });
+            const arr = Array.isArray(res.data) ? res.data : [];
             rows.value = arr.map(shapeRow);
             console.log("API回傳", res.data);
 

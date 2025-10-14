@@ -241,9 +241,9 @@ namespace Cars
             app.UseStaticFiles();
 
             app.UseRouting();
-            app.UseSession();
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseSession();
             app.UseHangfireDashboard("/hangfire", new DashboardOptions
             {
                 Authorization = new[] { new Cars.Web.Security.MyHangfireAuthFilter() }
