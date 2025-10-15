@@ -1,6 +1,6 @@
 ﻿using Cars.Data;
-using LineBotService.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Cars.Shared.Line;
 
 namespace Cars.Application.Services.Line
 {
@@ -26,7 +26,7 @@ namespace Cars.Application.Services.Line
                 .ToListAsync();
 
             var list = availableDrivers.Select(d => (d.DriverId, d.DriverName)).ToList();
-            return MessageBuilder.BuildDriverSelectBubble(applyId, list);
+            return LineMessageBuilder.BuildDriverSelectBubble(applyId, list);
         }
     }
 

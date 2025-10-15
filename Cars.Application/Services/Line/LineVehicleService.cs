@@ -1,6 +1,6 @@
 ﻿using Cars.Data;
-using LineBotService.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Cars.Shared.Line;
 
 namespace Cars.Application.Services.Line
 {
@@ -30,7 +30,7 @@ namespace Cars.Application.Services.Line
                 .ToListAsync();
 
             var list = cars.Select(c => (c.VehicleId, c.PlateNo)).ToList();
-            return MessageBuilder.BuildCarSelectBubble(applyId, list);
+            return LineMessageBuilder.BuildManagerReviewBubble(applyId, list);
         }
     }
 
