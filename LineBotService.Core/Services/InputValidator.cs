@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace LineBotService.Services
+namespace LineBotService.Core.Services
 {
     public class InputValidator
     {

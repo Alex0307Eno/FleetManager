@@ -1,7 +1,7 @@
 ﻿using Cars.Data;
 using isRock.LineBot;
 using isRock.LineBot.RichMenu;
-using LineBotDemo.Services;
+using LineBotService.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;

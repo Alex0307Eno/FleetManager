@@ -2,7 +2,7 @@
 using System.Web;
 using System.Linq;
 
-namespace LineBotService.Services
+namespace LineBotService.Core.Services
 {
    
     public static class InputSanitizer

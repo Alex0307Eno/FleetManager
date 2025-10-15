@@ -1,18 +1,25 @@
 ﻿using Cars.Data;
 using Cars.Models;
-using LineBotService.Services;
+using LineBotService.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
+using System.Net.Http.Headers;
+using System.Text;
 
-
+namespace Cars.Application.Services.Line;
 public class NotificationService
 {
     private readonly ApplicationDbContext _db;
     private readonly ILinePush _push;
+    private readonly string _token;
 
-    public NotificationService(ApplicationDbContext db, ILinePush push)
+    public NotificationService(ApplicationDbContext db, ILinePush push, IConfiguration config)
     {
         _db = db;
         _push = push;
+        _token = config["LineBot:ChannelAccessToken"] ?? string.Empty;
+
     }
 
     public async Task SendRideReminderAsync(int dispatchId, string type)
@@ -64,6 +71,30 @@ public class NotificationService
                 await _push.PushAsync(driverUser.LineUserId, text);
             }
         }
+
+
     }
+    // 直接發送 Flex Message
+    public async Task PushAsync(string to, string flexJson)
+    {
+        if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(flexJson))
+            return;
+
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _token);
+
+        var payload = $@"{{ ""to"": ""{to}"", ""messages"": [ {flexJson} ] }}";
+        var content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+        var res = await client.PostAsync("https://api.line.me/v2/bot/message/push", content);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync();
+            Console.WriteLine($"❌ LINE Push failed: {res.StatusCode} - {err}");
+        }
+    }
+
+
 
 }

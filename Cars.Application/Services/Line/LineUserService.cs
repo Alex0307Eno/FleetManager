@@ -1,8 +1,6 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using Cars.Data;
+﻿using Cars.Data;
 
-namespace LineBotDemo.Services
+namespace Cars.Application.Services.Line
 {
     public class LineUserService
     {

@@ -257,8 +257,7 @@
           applicantDept: x.applicantDept || "",
           passengerCount: x.passengerCount ?? 0,
           materialName: x.materialName  || "",
-          tripType: x.tripType || "",
-           tripDistance: (() => {
+          tripDistance: (() => {
           const t = (x.tripType || "").toString().trim().toLowerCase();
           const single = x.singleDistance || "";
           const round  = x.roundTripDistance || "";

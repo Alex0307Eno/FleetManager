@@ -1,4 +1,4 @@
-﻿namespace LineBotService.Services
+﻿namespace LineBotService.Core.Services
 {
     public interface ILinePush
     {

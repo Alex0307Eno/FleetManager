@@ -1,6 +1,6 @@
-﻿namespace Cars.Models
+﻿namespace  Cars.Shared.Dtos.Line
 {
-    public class BookingState
+    public class BookingStateDto
     {
         public string? ReserveTime { get; set; }
         public string? ArrivalTime { get; set; }

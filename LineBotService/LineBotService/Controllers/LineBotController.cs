@@ -1,10 +1,12 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Data;
 using Cars.Models;
-using Cars.Application.Services;
+using Cars.Shared.Dtos.CarApplications;
+using Cars.Shared.Dtos.Line;
+using Cars.Shared.Line;
 using isRock.LineBot;
-using LineBotDemo.Services;
+using LineBotService.Core.Services;
 using LineBotService.Helpers;
-using LineBotService.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -57,7 +59,7 @@ namespace LineBotDemo.Controllers
         #region 暫存方法
 
         // 對話進度暫存
-        private static readonly ConcurrentDictionary<string, BookingState> _flow = new();
+        private static readonly ConcurrentDictionary<string, BookingStateDto> _flow = new();
 
         // 把「申請單 ApplyId 對應 申請人 LINE userId」暫存起來，方便審核後通知申請人
         private static readonly ConcurrentDictionary<int, string> _applyToApplicant = new();
@@ -108,7 +110,7 @@ namespace LineBotDemo.Controllers
                         // Step 1: 使用者輸入「綁定帳號」
                         if (msg == "綁定帳號")
                         {
-                            var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                            var state = _flow.GetOrAdd(uid, _ => new BookingStateDto());
                             state.Reason = null;          // 當帳號暫存用
                             state.PassengerCount = null;  // 當密碼暫存用
                             bot.ReplyMessage(replyToken, "🔑 請輸入您的帳號：");
@@ -176,7 +178,7 @@ namespace LineBotDemo.Controllers
                             "⚠️ 您確定要解除綁定嗎？\n回覆「是」進行解除，回覆「否」取消操作。");
 
                         // 在 _flow 紀錄一個狀態，讓下一步判斷
-                        var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                        var state = _flow.GetOrAdd(uid, _ => new BookingStateDto());
                         state.Reason = "UnbindConfirm"; // 用 Reason 當暫存狀態
                         continue;
                     }
@@ -348,10 +350,30 @@ namespace LineBotDemo.Controllers
                             app.Status = "審核通過(待指派)";
                             if (!TrySave(replyToken)) continue;
 
-                            var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, _db);
+                            var useStart = app.UseStart;
+                            var useEnd = app.UseEnd;
+
+                            // ✅ 查駕駛清單
+                            var drivers = await _db.Drivers
+                                .Where(d => !d.IsAgent &&
+                                    !_db.CarApplications.Any(ca =>
+                                        ca.DriverId == d.DriverId &&
+                                        ca.ApplyId != applyId &&
+                                        ca.UseStart < useEnd &&
+                                        ca.UseEnd > useStart))
+                                .Select(d => new { d.DriverId, d.DriverName })
+                                .Take(5)
+                                .ToListAsync();
+
+                            var driverList = drivers.Select(d => (d.DriverId, d.DriverName)).ToList();
+
+                            //  傳給 MessageBuilder
+                            var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, driverList);
+
                             bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
                             return Ok();
                         }
+
 
                         // ====== 拒絕申請 ======
                         if (action == "reviewReject")
@@ -391,16 +413,35 @@ namespace LineBotDemo.Controllers
                                 return Ok();
                             }
 
-                            var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                            var state = _flow.GetOrAdd(uid, _ => new BookingStateDto());
                             state.SelectedDriverId = driverId;
                             state.SelectedDriverName = driverName;
 
                             bot.ReplyMessage(replyToken, $"✅ 已選擇駕駛：{driverName}");
 
-                            var carBubble = MessageBuilder.BuildCarSelectBubble(applyId, _db);
+                            // === 查出車輛清單 ===
+                            var useStart = app.UseStart;
+                            var useEnd = app.UseEnd;
+
+                            var cars = await _db.Vehicles
+                                .Where(v => v.Status == "可用" &&
+                                    !_db.CarApplications.Any(ca =>
+                                        ca.VehicleId == v.VehicleId &&
+                                        ca.ApplyId != applyId &&
+                                        ca.UseStart < useEnd &&
+                                        ca.UseEnd > useStart))
+                                .Select(v => new { v.VehicleId, v.PlateNo })
+                                .Take(5)
+                                .ToListAsync();
+
+                            var carList = cars.Select(c => (c.VehicleId, c.PlateNo)).ToList();
+
+                            // === 傳入車輛清單產生 Flex ===
+                            var carBubble = MessageBuilder.BuildCarSelectBubble(applyId, carList);
                             bot.PushMessageWithJSON(uid, $"[{carBubble}]");
                             return Ok();
                         }
+
 
                         // ========== 指派車輛 ==========
                         if (action == "assignVehicle")
@@ -486,9 +527,23 @@ namespace LineBotDemo.Controllers
 
                             if (!string.IsNullOrEmpty(driverLineId))
                             {
-                                var notice = MessageBuilder.BuildDriverDispatchBubble(app, driverState.SelectedDriverName, plateNo, km, minutes);
+                                var dto = new CarApplicationDto
+                                {
+                                    ApplyId = app.ApplyId,
+                                    ApplicantName = app.Applicant?.Name,
+                                    ApplyReason = app.ApplyReason,
+                                    PassengerCount = app.PassengerCount,
+                                    UseStart = app.UseStart,
+                                    UseEnd = app.UseEnd,
+                                    Origin = app.Origin,
+                                    Destination = app.Destination,
+                                    TripType = app.TripType
+                                };
+
+                                var notice = MessageBuilder.BuildDriverDispatchBubble(dto, driverState.SelectedDriverName, plateNo, km, minutes);
                                 bot.PushMessageWithJSON(driverLineId, $"[{notice}]");
                             }
+
 
 
                             _flow.TryRemove(uid, out _);
@@ -500,7 +555,7 @@ namespace LineBotDemo.Controllers
                     if (ev.type == "message")
                     {
 
-                        var state = _flow.GetOrAdd(uid, _ => new BookingState());
+                        var state = _flow.GetOrAdd(uid, _ => new BookingStateDto());
                         var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == uid);
                         var driver = (user != null) ? await _db.Drivers.FirstOrDefaultAsync(d => d.UserId == user.UserId) : null;
 
@@ -739,7 +794,7 @@ namespace LineBotDemo.Controllers
                                 continue;
                             }
 
-                            _flow[uid] = new BookingState(); // reset
+                            _flow[uid] = new BookingStateDto(); // reset
                             bot.ReplyMessageWithJSON(replyToken, MessageBuilder.BuildStep1());
                             continue;
                         }
@@ -994,12 +1049,13 @@ namespace LineBotDemo.Controllers
                         {
                             state.TripType = (msg == "單程") ? "single" : "round";
 
-                            // 確認卡片
                             var safeReserveTime = SafeText(state.ReserveTime);
                             var safeReason = SafeText(state.Reason);
                             var safePax = state.PassengerCount ?? 1;
                             var safeOrigin = SafeText(state.Origin);
                             var safeDest = SafeText(state.Destination);
+
+                            // 確認卡片
                             string confirmBubble = MessageBuilder.BuildConfirmBubble(state);
                             bot.ReplyMessageWithJSON(replyToken, $"[{confirmBubble}]");
 
@@ -1075,6 +1131,7 @@ namespace LineBotDemo.Controllers
                             if (!res.IsSuccessStatusCode)
                             {
                                 var errText = await res.Content.ReadAsStringAsync();
+                                
                                 Console.WriteLine($"建單 API 失敗: {(int)res.StatusCode} {errText}");
                                 bot.ReplyMessage(replyToken, "⚠️ 建單失敗，請稍後再試");
                                 continue;
@@ -1082,18 +1139,20 @@ namespace LineBotDemo.Controllers
 
                             var raw = await res.Content.ReadAsStringAsync();
                             CarApplication created = null;
-                            try { created = JsonConvert.DeserializeObject<CarApplication>(raw); }
+                            try
+                            {
+                                var wrapper = JsonConvert.DeserializeObject<JObject>(raw);
+                                var data = wrapper?["data"]?.ToString();
+                                if (data != null)
+                                    created = JsonConvert.DeserializeObject<CarApplication>(data);
+                            }
                             catch (Exception ex)
                             {
                                 Console.WriteLine("⚠️ 建單回應解析失敗: " + ex.Message);
                             }
-                            if (created == null)
-                            {
-                                bot.ReplyMessage(replyToken, "⚠️ 建單回應解析失敗");
-                                continue;
-                            }
 
-                           
+
+
 
                             // === Step 4. 推播管理員卡片 ===
                             var profile = isRock.LineBot.Utility.GetUserInfo(uid, _token);
@@ -1102,15 +1161,28 @@ namespace LineBotDemo.Controllers
                             var forBubble = new CarApplication
                             {
                                 ApplyId = created.ApplyId,
+                                Applicant = new Applicant { Name = displayName },
                                 ApplyReason = state.Reason ?? "—",
                                 PassengerCount = state.PassengerCount ?? 1,
                                 UseStart = start,
                                 UseEnd = end,
                                 Destination = state.Destination ?? "—",
-                                Applicant = new Applicant { Name = displayName }
+                            };
+                            // 手動映射成 DTO
+                            var adminDto = new CarApplicationDto
+                            {
+                                ApplyId = forBubble.ApplyId,
+                                ApplicantName = forBubble.Applicant?.Name,
+                                UseStart = forBubble.UseStart,
+                                UseEnd = forBubble.UseEnd,
+                                Origin = forBubble.Origin,
+                                Destination = forBubble.Destination,
+                                PassengerCount = forBubble.PassengerCount,
+                                TripType = forBubble.TripType,
+                                ApplyReason = forBubble.ApplyReason
                             };
 
-                            var adminFlex = MessageBuilder.BuildAdminFlexBubble(forBubble);
+                            var adminFlex = MessageTemplates.BuildManagerReviewBubble(adminDto);
 
                             var adminIds = _db.Users
                                 .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
@@ -1157,11 +1229,38 @@ namespace LineBotDemo.Controllers
 
                             if (msg.StartsWith("同意申請"))
                             {
-                                // 顯示「選擇駕駛人」卡片
-                                var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, _db);
+                                var parts = msg.Split(' ');
+                                if (parts.Length > 1) int.TryParse(parts[1], out applyId);
+
+                                if (app == null)
+                                {
+                                    bot.ReplyMessage(replyToken, "⚠️ 找不到該申請單");
+                                    continue;
+                                }
+
+                                var useStart = app.UseStart;
+                                var useEnd = app.UseEnd;
+
+                                // 查出可用駕駛
+                                var drivers = await _db.Drivers
+                                    .Where(d => !d.IsAgent &&
+                                        !_db.CarApplications.Any(ca =>
+                                            ca.DriverId == d.DriverId &&
+                                            ca.ApplyId != applyId &&
+                                            ca.UseStart < useEnd &&
+                                            ca.UseEnd > useStart))
+                                    .Select(d => new { d.DriverId, d.DriverName })
+                                    .Take(5)
+                                    .ToListAsync();
+
+                                var driverList = drivers.Select(d => (d.DriverId, d.DriverName)).ToList();
+
+                                //  傳給模板方法
+                                var selectDriverBubble = MessageBuilder.BuildDriverSelectBubble(applyId, driverList);
                                 bot.ReplyMessageWithJSON(replyToken, $"[{selectDriverBubble}]");
                                 continue;
                             }
+
 
                             if (msg.StartsWith("拒絕申請"))
                             {
@@ -1314,7 +1413,7 @@ namespace LineBotDemo.Controllers
             }
         }
         // ====== 共用方法：嘗試解析使用者手動輸入的時間 ======
-        private bool TryHandleManualTime(BookingState state, string msg, string type, out string error)
+        private bool TryHandleManualTime(BookingStateDto state, string msg, string type, out string error)
         {
             error = null;
             DateTime parsed;

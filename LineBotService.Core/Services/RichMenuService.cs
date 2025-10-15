@@ -1,8 +1,9 @@
 ﻿using Line.Messaging;
+using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-namespace LineBotDemo.Services
+namespace LineBotService.Core.Services
 {
     public class RichMenuService
     {

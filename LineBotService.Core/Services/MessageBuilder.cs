@@ -1,9 +1,8 @@
-﻿using Cars.Data;
-using Cars.Models;
-using Cars.Shared.Dtos.CarApplications;
-    
+﻿using Cars.Shared.Dtos.CarApplications;
+using Cars.Shared.Dtos.Line;
 
-namespace LineBotService.Services
+
+namespace LineBotService.Core.Services
 {
     public static class MessageBuilder
     {
@@ -70,7 +69,7 @@ namespace LineBotService.Services
             ]";
         }
         // 確認申請資訊
-        public static string BuildConfirmBubble(BookingState state)
+        public static string BuildConfirmBubble(BookingStateDto state)
         {
             return $@"
             {{
@@ -200,7 +199,7 @@ namespace LineBotService.Services
         {{ ""type"": ""text"", ""text"": ""申請人：{a.ApplicantName ?? "—"} ({a.ApplicantDept ?? "—"})"", ""size"": ""sm"", ""color"": ""#334155"" }},
         {{ ""type"": ""text"", ""text"": ""用車時間：{a.UseStart:MM/dd HH:mm} - {a.UseEnd:HH:mm}"", ""size"": ""sm"", ""color"": ""#334155"", ""wrap"": true }},
         {{ ""type"": ""text"", ""text"": ""路線：{(a.Origin ?? "公司")} → {a.Destination ?? "未填寫"}"", ""size"": ""sm"", ""color"": ""#475569"", ""wrap"": true }},
-        {{ ""type"": ""text"", ""text"": ""乘客：{a.PassengerCount ?? 1} 人｜行程：{(a.IsLongTrip == "round" ? "來回" : "單程")}"", ""size"": ""sm"", ""color"": ""#475569"" }},
+        {{ ""type"": ""text"", ""text"": ""乘客：{a.PassengerCount ?? 1} 人｜行程：{(a.TripType == "round" ? "來回" : "單程")}"", ""size"": ""sm"", ""color"": ""#475569"" }},
         {{ ""type"": ""text"", ""text"": ""事由：{a.ApplyReason ?? "—"}"", ""size"": ""sm"", ""color"": ""#64748b"", ""wrap"": true }},
         {{ ""type"": ""separator"", ""margin"": ""sm"" }},
         {{
@@ -321,7 +320,7 @@ namespace LineBotService.Services
         #region 通知
 
         //申請人通知卡片
-        public static string BuildAdminFlexBubble(CarApplication app) =>
+        public static string BuildAdminFlexBubble(CarApplicationDto app) =>
             $@"
         {{
           ""type"": ""flex"",
@@ -333,7 +332,7 @@ namespace LineBotService.Services
               ""layout"": ""vertical"",
               ""contents"": [
                 {{ ""type"": ""text"", ""text"": ""派車申請"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.Applicant?.Name}"" }},        
+                {{ ""type"": ""text"", ""text"": ""■ 申請人：{app.ApplicantName}"" }},        
                 {{ ""type"": ""text"", ""text"": ""■ 用車事由：{app.ApplyReason}"" }},
                 {{ ""type"": ""text"", ""text"": ""■ 乘客人數：{app.PassengerCount}"" }},
                 {{ ""type"": ""text"", ""text"": ""■ 派車時間：{app.UseStart:yyyy/MM/dd HH:mm}"" }},
@@ -351,107 +350,73 @@ namespace LineBotService.Services
           }}
         }}";
         //選擇司機卡片
-        public static string BuildDriverSelectBubble(int applyId, ApplicationDbContext db)
+        public static string BuildDriverSelectBubble(int applyId, List<(int DriverId, string DriverName)> drivers)
         {
-            var app = db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
-            if (app == null)
-                return @"{ ""type"": ""text"", ""text"": ""⚠️ 找不到該申請單"" }";
+            if (drivers == null || !drivers.Any())
+                return @"{ ""type"": ""text"", ""text"": ""⚠️ 沒有可用的駕駛人"" }";
 
-            var useStart = app.UseStart;
-            var useEnd = app.UseEnd;
-
-            var drivers = db.Drivers
-                .Where(d => !d.IsAgent &&
-                    !db.CarApplications.Any(ca =>
-                        ca.DriverId == d.DriverId &&
-                        ca.ApplyId != applyId && // 排除自己
-                        ca.UseStart < useEnd &&  // 交疊判斷
-                        ca.UseEnd > useStart
-                    )
-                )
-                .Select(d => new { d.DriverId, d.DriverName })
-                .Take(5)
-                .ToList();
-
-
-
-            var btns = string.Join(",\n        ", drivers.Select(d =>
-                $@"{{
-            ""type"": ""button"",
-            ""action"": {{
-                ""type"": ""postback"",
-                ""label"": ""{d.DriverName}"",
-                ""data"": ""action=assignDriver&applyId={applyId}&driverId={d.DriverId}&driverName={d.DriverName}""
-            }}
-        }}"));
+            var btns = string.Join(",\n", drivers.Select(d => $@"
+    {{
+      ""type"": ""button"",
+      ""action"": {{
+        ""type"": ""postback"",
+        ""label"": ""{d.DriverName}"",
+        ""data"": ""action=assignDriver&applyId={applyId}&driverId={d.DriverId}&driverName={d.DriverName}""
+      }}
+    }}"));
 
             return $@"
-                    {{
-                      ""type"": ""flex"",
-                      ""altText"": ""選擇駕駛人"",
-                      ""contents"": {{
-                        ""type"": ""bubble"",
-                        ""body"": {{
-                          ""type"": ""box"",
-                          ""layout"": ""vertical"",
-                          ""contents"": [
-                            {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                            {btns}
-                          ]
-                        }}
-                      }}
-                    }}";
+    {{
+      ""type"": ""flex"",
+      ""altText"": ""選擇駕駛人"",
+      ""contents"": {{
+        ""type"": ""bubble"",
+        ""body"": {{
+          ""type"": ""box"",
+          ""layout"": ""vertical"",
+          ""contents"": [
+            {{ ""type"": ""text"", ""text"": ""請選擇駕駛人"", ""weight"": ""bold"", ""size"": ""lg"" }},
+            {btns}
+          ]
+        }}
+      }}
+    }}";
         }
+
         //選擇車輛卡片
-        public static string BuildCarSelectBubble(int applyId, ApplicationDbContext db)
+        public static string BuildCarSelectBubble(int applyId, List<(int VehicleId, string PlateNo)> cars)
         {
-            var app = db.CarApplications.FirstOrDefault(a => a.ApplyId == applyId);
-            if (app == null)
-                return @"[{ ""type"": ""text"", ""text"": ""⚠️ 找不到該申請單"" }]";
+            if (cars == null || cars.Count == 0)
+                return @"[{ ""type"": ""text"", ""text"": ""⚠️ 無可用車輛"" }]";
 
-            var useStart = app.UseStart;
-            var useEnd = app.UseEnd;
-
-            var cars = db.Vehicles
-                .Where(v => v.Status == "可用" &&
-                    !db.CarApplications.Any(ca =>
-                        ca.VehicleId == v.VehicleId &&
-                        ca.ApplyId != applyId && // 排除自己
-                        ca.UseStart < useEnd &&
-                        ca.UseEnd > useStart
-                    )
-                )
-                .Select(v => new { v.VehicleId, v.PlateNo })
-                .Take(5)
-                .ToList();
-
-            var btns = string.Join(",\n        ", cars.Select(c =>
-                $@"{{
-            ""type"": ""button"",
-            ""action"": {{
-                ""type"": ""postback"",
-                ""label"": ""{c.PlateNo}"",
-                ""data"": ""action=assignVehicle&applyId={applyId}&vehicleId={c.VehicleId}&plateNo={c.PlateNo}""
-            }}
-        }}"));
+            var btns = string.Join(",\n        ", cars.Select(c => $@"
+    {{
+        ""type"": ""button"",
+        ""action"": {{
+            ""type"": ""postback"",
+            ""label"": ""{c.PlateNo}"",
+            ""data"": ""action=assignVehicle&applyId={applyId}&vehicleId={c.VehicleId}&plateNo={c.PlateNo}""
+        }}
+    }}"));
 
             return $@"
-                    {{
-                      ""type"": ""flex"",
-                      ""altText"": ""選擇車輛"",
-                      ""contents"": {{
-                        ""type"": ""bubble"",
-                        ""body"": {{
-                          ""type"": ""box"",
-                          ""layout"": ""vertical"",
-                          ""contents"": [
-                            {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
-                            {btns}
-                          ]
-                        }}
-                      }}
-                    }}";
+    {{
+        ""type"": ""flex"",
+        ""altText"": ""選擇車輛"",
+        ""contents"": {{
+            ""type"": ""bubble"",
+            ""body"": {{
+                ""type"": ""box"",
+                ""layout"": ""vertical"",
+                ""contents"": [
+                    {{ ""type"": ""text"", ""text"": ""請選擇車輛"", ""weight"": ""bold"", ""size"": ""lg"" }},
+                    {btns}
+                ]
+            }}
+        }}
+    }}";
         }
+
 
         //通知申請人已安排駕駛人員
         public static string BuildDoneBubble(string driverName, string carNo) => $@"
@@ -473,7 +438,7 @@ namespace LineBotService.Services
         }}";
 
         // 駕駛—派車通知
-        public static string BuildDriverDispatchBubble(CarApplication app, string driverName, string carNo, double km, double minutes)
+        public static string BuildDriverDispatchBubble(CarApplicationDto app, string driverName, string carNo, double km, double minutes)
         {
             // 根據行程類型決定顯示距離/時間
             bool isRound = app.TripType == "round";

@@ -1,11 +1,10 @@
 ﻿using Cars.Application.Services;
+using Cars.Application.Services.Line;
 using Cars.Data;
 using Cars.Models;
-using Cars.Services;
 using Hangfire;
 using Hangfire.SqlServer;
-using LineBotDemo.Services;
-using LineBotService.Services;
+using LineBotService.Core.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineBotService
@@ -19,11 +18,6 @@ namespace LineBotService
             // Add services to the container.
             builder.Services.AddSingleton<RichMenuService>();
             builder.Services.AddScoped<LineUserService>();
-            //builder.Services.AddScoped<AutoDispatcher>();
-            //builder.Services.AddScoped<CarApplicationService>();
-            //builder.Services.AddScoped<VehicleService>();
-            //builder.Services.AddScoped<DriverService>();
-            //builder.Services.AddScoped<DispatchService>();
             builder.Services.AddApplication();
 
             builder.Services.Configure<RichMenuOptions>(builder.Configuration.GetSection("RichMenus"));

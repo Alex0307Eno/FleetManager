@@ -36,9 +36,8 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\Cars.Application\Cars.Application.csproj" />
-	  <ProjectReference Include="..\..\Cars.Core\Cars.Core.csproj" />
-	  <ProjectReference Include="..\..\Cars.Data\Cars.Data.csproj" />
 	  <ProjectReference Include="..\..\Cars.Shared\Cars.Shared.csproj" />
+	  <ProjectReference Include="..\..\LineBotService.Core\LineBotService.Core.csproj" />
 	</ItemGroup>
 
 </Project>

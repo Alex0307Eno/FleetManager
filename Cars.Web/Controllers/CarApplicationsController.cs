@@ -9,7 +9,9 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-
+using Cars.Shared.Line;
+using LineBotService.Core.Services;
+using Cars.Application.Services.Line;
 namespace Cars.ApiControllers
 {
     [ApiController]
@@ -23,11 +25,12 @@ namespace Cars.ApiControllers
         private readonly VehicleService _vehicleService;
         private readonly AutoDispatcher _dispatcher;
         private readonly CarApplicationUseCase _usecase;
+        private readonly NotificationService _notificationService;
 
 
 
 
-        public CarApplicationsController(ApplicationDbContext db,  IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService, AutoDispatcher dispatcher, CarApplicationUseCase usecase)
+        public CarApplicationsController(ApplicationDbContext db,  IDistanceService distance, CarApplicationService carApplicationService, VehicleService vehicleService, AutoDispatcher dispatcher, CarApplicationUseCase usecase, NotificationService notificationService)
         {
             _db = db;
             _distance = distance;
@@ -35,6 +38,7 @@ namespace Cars.ApiControllers
             _vehicleService = vehicleService;
             _dispatcher = dispatcher;
             _usecase = usecase;
+            _notificationService = notificationService;
         }
         // 取得申請單列表
         [HttpGet("all")]
@@ -59,8 +63,35 @@ namespace Cars.ApiControllers
             var (ok, msg, app) = await _carApplicationService.CreateAsync(dto, userId);
             if (!ok)
                 return BadRequest(new { success = false, message = msg });
+            // 轉成 DTO 給 Flex 模板
+            var notifyDto = new CarApplicationDto
+            {
+                ApplyId = app.ApplyId,
+                ApplicantName = app.Applicant?.Name,
+                ApplicantDept = app.Applicant?.Dept,
+                UseStart = app.UseStart,
+                UseEnd = app.UseEnd,
+                Origin = app.Origin,
+                Destination = app.Destination,
+                PassengerCount = app.PassengerCount,
+                TripType = app.TripType,
+                ApplyReason = app.ApplyReason
+            };
+
+
+            // 找管理員
+            var adminIds = await _db.Users
+                .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
+                .Select(u => u.LineUserId)
+                .ToListAsync();
+
+            // 發通知
+            var flexJson = MessageTemplates.BuildManagerReviewBubble(notifyDto);
+            foreach (var lineId in adminIds)
+                await _notificationService.PushAsync(lineId, flexJson);
 
             return Ok(new { success = true, message = msg, data = ToResponseData(app) });
+
 
         }
 

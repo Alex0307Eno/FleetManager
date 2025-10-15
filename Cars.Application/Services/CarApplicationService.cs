@@ -1,6 +1,7 @@
 ﻿using Cars.Data;
 using Cars.Models;
 using Cars.Shared.Dtos.CarApplications;
+using Cars.Shared.Line;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -124,12 +125,13 @@ namespace Cars.Application.Services
                     ApplicantId = ap != null ? ap.ApplicantId : null,
                     ApplicantName = ap != null ? ap.Name : null,
                     ApplicantDept = ap != null ? ap.Dept : null,
+                    TripType = a.TripType,
                     PassengerCount = a.PassengerCount,
                     UseStart = a.UseStart,
                     UseEnd = a.UseEnd,
                     Origin = a.Origin,
                     Destination = a.Destination,
-                    IsLongTrip = a.TripType,
+                    IsLongTrip = a.IsLongTrip,
                     SingleDistance = a.SingleDistance,
                     RoundTripDistance = a.RoundTripDistance,
                     MaterialName = a.MaterialName,
@@ -153,8 +155,14 @@ namespace Cars.Application.Services
             if (applicant == null)
                 return (false, "找不到申請人", null);
 
+            // 準備 CarApplicationDto 給訊息模板
+            var msgJson = MessageTemplates.BuildManagerReviewBubble(dto);
+
+            
+
             return await CreateInternalAsync(dto, applicant);
         }
+
 
 
         // 建立申請單 (LINE)
@@ -167,6 +175,9 @@ namespace Cars.Application.Services
             var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
             if (applicant == null)
                 return (false, "找不到對應申請人", null);
+            // 準備 CarApplicationDto 給訊息模板
+            var msgJson = MessageTemplates.BuildManagerReviewBubble(dto);
+
 
             return await CreateInternalAsync(dto, applicant);
         }
@@ -179,6 +190,7 @@ namespace Cars.Application.Services
         {
             return new CarApplication
             {
+                ApplyId = dto.ApplyId,
                 ApplicantId = applicant.ApplicantId,
                 ApplyFor = dto.ApplyFor ?? applicant.Name,
                 VehicleType = dto.VehicleType ?? "汽車",
@@ -194,7 +206,7 @@ namespace Cars.Application.Services
                 SingleDistance = dto.SingleDistance,
                 RoundTripDuration = dto.RoundTripDuration,
                 SingleDuration = dto.SingleDuration,
-                TripType = dto.IsLongTrip ?? "single",
+                TripType = dto.TripType ?? "single",
                 Status = "待審核"
             };
         }

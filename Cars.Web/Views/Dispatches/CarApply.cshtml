@@ -810,7 +810,7 @@ ViewData["Title"] = "用車申請";
             });
             console.log("✅ 後端回應:", res);
             alert(res.data?.message || "申請成功");
-            // window.location.href = '/Dispatches/Dispatch';
+            window.location.href = '/Dispatches/Dispatch';
                   } catch (err) {
           if (err.response) {
             const data = err.response.data;
