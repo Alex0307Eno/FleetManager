@@ -5,8 +5,20 @@ namespace Cars.Shared.Line
 {
     public static class LineFlexBuilder
     {
-        public static object Text(string text, string weight = null, string size = "sm", string color = "#333", string wrap = "true")
-            => new { type = "text", text, weight, size, color, wrap };
+        public static object Text(string text, string weight = null, string size = null, string color = null, bool wrap = false)
+        {
+            var obj = new Dictionary<string, object>
+    {
+        { "type", "text" },
+        { "text", text }
+    };
+            if (!string.IsNullOrEmpty(weight)) obj["weight"] = weight;
+            if (!string.IsNullOrEmpty(size)) obj["size"] = size;
+            if (!string.IsNullOrEmpty(color)) obj["color"] = color;
+            if (wrap) obj["wrap"] = true;
+            return obj;
+        }
+
 
         public static object Button(string label, string data, string style = "primary", string color = "#22c55e")
             => new
@@ -35,7 +47,6 @@ namespace Cars.Shared.Line
             return bubble;
         }
 
-       
         public static string ToJson(object bubble, string altText = "Flex Message")
         {
             var obj = new
@@ -44,8 +55,14 @@ namespace Cars.Shared.Line
                 altText,
                 contents = bubble
             };
-            return JsonConvert.SerializeObject(obj, Formatting.Indented);
-        }
 
+            // 忽略 null 屬性
+            return JsonConvert.SerializeObject(
+                obj,
+                new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+        }
     }
 }

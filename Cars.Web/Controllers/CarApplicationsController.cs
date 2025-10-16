@@ -86,7 +86,7 @@ namespace Cars.ApiControllers
                 .ToListAsync();
 
             // 發通知
-            var flexJson = MessageTemplates.BuildManagerReviewBubble(notifyDto);
+            var flexJson = ManagerTemplate.BuildManagerReviewBubble(notifyDto);
             foreach (var lineId in adminIds)
                 await _notificationService.PushAsync(lineId, flexJson);
 
@@ -530,64 +530,8 @@ namespace Cars.ApiControllers
         }
         #endregion
 
-        [Obsolete]
-        #region 更新申請單(無功能)
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] CarApplication model)
-        {
-            var app = await _db.CarApplications.FindAsync(id);
-            if (app == null) return NotFound();
 
-            // 基本驗證
-            if (model.UseStart == default(DateTime) || model.UseEnd == default(DateTime))
-                return BadRequest("起訖時間不得為空");
-            if (model.UseEnd <= model.UseStart)
-                return BadRequest("結束時間必須晚於起始時間");
-
-            // === 申請單欄位更新 ===
-            app.ApplyFor = model.ApplyFor;
-            app.VehicleType = model.VehicleType;
-            app.PurposeType = model.PurposeType;
-            app.VehicleId = model.VehicleId; // 可為 null
-            app.PassengerCount = model.PassengerCount;
-            app.UseStart = model.UseStart;
-            app.UseEnd = model.UseEnd;
-            app.DriverId = model.DriverId; // 可為 null
-            app.ReasonType = model.ReasonType;
-            app.ApplyReason = model.ApplyReason;
-            app.Origin = model.Origin;
-            app.Destination = model.Destination;
-            app.TripType = model.TripType;
-            app.SingleDistance = model.SingleDistance;
-            app.SingleDuration = model.SingleDuration;
-            app.RoundTripDistance = model.RoundTripDistance;
-            app.RoundTripDuration = model.RoundTripDuration;
-            app.Status = string.IsNullOrWhiteSpace(model.Status) ? app.Status : model.Status;
-
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // 資料被別人改過 → 可以提示用戶重試
-                return Conflict(new { message = "資料已被更新，請重新整理後再試。", detail = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                // 一般資料庫錯誤
-                return BadRequest(new { message = "資料儲存失敗，請確認輸入是否正確。", detail = ex.InnerException?.Message ?? ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // 500 錯誤
-                return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
-            }
-            return Ok(new { message = "更新成功" });
-        }
-        #endregion
-
-        #region LINE專用申請單
+        #region LINE專用申請單(測試用)
         //LINE專用新增申請單
         [AllowAnonymous]
         [HttpPost("line-create")]

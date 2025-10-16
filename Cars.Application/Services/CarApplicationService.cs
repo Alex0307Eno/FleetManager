@@ -156,7 +156,7 @@ namespace Cars.Application.Services
                 return (false, "找不到申請人", null);
 
             // 準備 CarApplicationDto 給訊息模板
-            var msgJson = MessageTemplates.BuildManagerReviewBubble(dto);
+            var msgJson = ManagerTemplate.BuildManagerReviewBubble(dto);
 
             
 
@@ -176,7 +176,7 @@ namespace Cars.Application.Services
             if (applicant == null)
                 return (false, "找不到對應申請人", null);
             // 準備 CarApplicationDto 給訊息模板
-            var msgJson = MessageTemplates.BuildManagerReviewBubble(dto);
+            var msgJson = ManagerTemplate.BuildManagerReviewBubble(dto);
 
 
             return await CreateInternalAsync(dto, applicant);
@@ -192,12 +192,13 @@ namespace Cars.Application.Services
             {
                 ApplyId = dto.ApplyId,
                 ApplicantId = applicant.ApplicantId,
-                ApplyFor = dto.ApplyFor ?? applicant.Name,
+                ApplyFor = "申請人",
                 VehicleType = dto.VehicleType ?? "汽車",
                 PurposeType = dto.PurposeType ?? "公務車",
                 ReasonType = dto.ReasonType ?? "公務用",
                 PassengerCount = (dto.PassengerCount ?? 1) > 0 ? dto.PassengerCount ?? 1 : 1,
                 ApplyReason = dto.ApplyReason ?? "",
+                MaterialName = dto.MaterialName ?? "",
                 Origin = dto.Origin ?? "公司",
                 Destination = dto.Destination ?? "",
                 UseStart = dto.UseStart != default ? dto.UseStart : DateTime.Now,

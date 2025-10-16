@@ -37,7 +37,7 @@ namespace LineBotService.Core.Services
             {
                 LineFlexBuilder.Text("確認派車申請", "bold", "lg"),
                 LineFlexBuilder.Separator(),
-                LineFlexBuilder.Text($"出發：{s.ReserveTime}"),
+                LineFlexBuilder.Text($"出發：{s.DepartureTime}"),
                 LineFlexBuilder.Text($"抵達：{s.ArrivalTime}"),
                 LineFlexBuilder.Text($"事由：{s.Reason}"),
                 LineFlexBuilder.Text($"人數：{s.PassengerCount}"),

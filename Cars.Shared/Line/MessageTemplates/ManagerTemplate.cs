@@ -18,7 +18,7 @@ namespace Cars.Shared.Line
         {
             var body = new List<object>
             {
-                LineFlexBuilder.Text("🚗 新派車申請", "bold", "lg", "#0f172a"),
+                LineFlexBuilder.Text("🚗 新派車申請", "bold", "#0f172a"),
                 LineFlexBuilder.Text($"申請人：{a.ApplicantName ?? "—"}", "sm", "#334155"),
                 LineFlexBuilder.Text($"時間：{a.UseStart:MM/dd HH:mm} - {a.UseEnd:HH:mm}", "sm", "#334155"),
                 LineFlexBuilder.Text($"路線：{(a.Origin ?? "公司")} → {a.Destination ?? "未填寫"}", "sm", "#475569"),

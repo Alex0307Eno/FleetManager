@@ -16,7 +16,7 @@ namespace Cars.Shared.Line
 
             var contents = new List<object>
             {
-                LineFlexBuilder.Text("請選擇駕駛人", "bold", "lg", "#0f172a")
+                LineFlexBuilder.Text("請選擇駕駛人", "bold", "#0f172a")
             };
 
             contents.AddRange(drivers.Select(d =>
@@ -42,7 +42,7 @@ namespace Cars.Shared.Line
 
             var contents = new List<object>
             {
-                LineFlexBuilder.Text("請選擇車輛", "bold", "lg", "#0f172a")
+                LineFlexBuilder.Text("請選擇車輛", "bold", "#0f172a")
             };
 
             contents.AddRange(cars.Select(c =>
@@ -65,10 +65,10 @@ namespace Cars.Shared.Line
         {
             var contents = new List<object>
             {
-                LineFlexBuilder.Text("✅ 已安排駕駛人員", "bold", "lg", "#0f172a"),
+                LineFlexBuilder.Text("✅ 已安排駕駛人員", "bold", "#0f172a"),
                 LineFlexBuilder.Separator(),
-                LineFlexBuilder.Text($"駕駛人：{driverName}", size: "sm"),
-                LineFlexBuilder.Text($"使用車輛：{carNo}", size: "sm")
+                LineFlexBuilder.Text($"駕駛人：{driverName}"),
+                LineFlexBuilder.Text($"使用車輛：{carNo}")
             };
 
             var bubble = LineFlexBuilder.Bubble(LineFlexBuilder.Box("vertical", contents));

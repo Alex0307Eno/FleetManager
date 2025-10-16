@@ -103,7 +103,7 @@ namespace Cars.Shared.Line
                 }
             }
 
-            var body = new List<object> { LineFlexBuilder.Text("請選擇出發時間", "bold", "lg", "#0f172a") };
+            var body = new List<object> { LineFlexBuilder.Text("請選擇出發時間", "bold", "#0f172a") };
 
             foreach (var t in times.Take(10))
                 body.Add(LineFlexBuilder.Button($"{t:HH:mm}", $"action=setReserveTime&value={t:yyyyMMddHHmm}", "primary", "#3b82f6"));

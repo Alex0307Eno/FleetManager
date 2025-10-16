@@ -13,6 +13,7 @@ namespace Cars.Shared.Dtos.CarApplications
         public string? LineUserId { get; init; }    // LINE 走這個
 
         // 申請內容（兩邊共用）
+        public string? ReserveType { get; init; }    // 即時預約 or 預訂時間
         public string? ApplyFor { get; init; }
         public string? VehicleType { get; init; }
         public string? PurposeType { get; init; }
