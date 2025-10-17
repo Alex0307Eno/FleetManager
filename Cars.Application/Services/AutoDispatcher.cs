@@ -435,33 +435,27 @@ namespace Cars.Application.Services
         #region 審核後派車
         // 管理員審核用：指定派工 ID，直接派車
         public async Task<DispatchResult> ApproveAndAssignVehicleAsync(
-      int dispatchId,
-      int passengerCount,
-      int? preferredVehicleId = null)
+    int dispatchId,
+    int passengerCount,
+    int? preferredVehicleId = null)
         {
             var d = await _db.Dispatches.FirstOrDefaultAsync(x => x.DispatchId == dispatchId);
-            if (d == null) return new DispatchResult { Success = false, Message = "派工不存在" };
+            if (d == null)
+                return new DispatchResult { Success = false, Message = "派工不存在" };
 
-            // 駕駛必須已經指派
-            //if (d.DriverId == null)
-            //    return new DispatchResult { Success = false, Message = "此派工尚未指派駕駛" };
-            // 從 CarApplications 取得用車時間
             var app = await _db.CarApplications
-                .AsNoTracking()
+                .Include(a => a.Vehicle)
                 .FirstOrDefaultAsync(a => a.ApplyId == d.ApplyId);
-
             if (app == null)
                 return new DispatchResult { Success = false, Message = "找不到對應的用車申請單。" };
 
             if (app.UseStart == default || app.UseEnd == default)
                 return new DispatchResult { Success = false, Message = "申請單未設定起訖時間，無法派車。" };
 
-            var start = app.UseStart;
-            var end = app.UseEnd;
-            // 已經派過車就回覆現況
+            // 已經派過車
             if (d.VehicleId != null)
             {
-                var plateExisting = await _db.Vehicles
+                var plate = await _db.Vehicles
                     .Where(v => v.VehicleId == d.VehicleId)
                     .Select(v => v.PlateNo)
                     .FirstOrDefaultAsync();
@@ -469,179 +463,131 @@ namespace Cars.Application.Services
                 return new DispatchResult
                 {
                     Success = true,
-                    Message = $"已派車 - {plateExisting}",
-                    DriverId = d.DriverId,
+                    Message = $"已派車 - {plate}",
                     VehicleId = d.VehicleId,
-                    PlateNo = plateExisting,
+                    PlateNo = plate
                 };
             }
 
+            var start = app.UseStart;
+            var end = app.UseEnd;
 
-            // 檢查可用/載客量/時段衝突
+            // 嘗試派指定車
             if (preferredVehicleId.HasValue)
             {
                 var v = await _db.Vehicles
-                    .FirstOrDefaultAsync(x => x.VehicleId == preferredVehicleId.Value && (x.Status ?? "") == "可用");
-                if (v == null) return new DispatchResult { Success = false, Message = "指定車輛不可用或不存在" };
+                    .FirstOrDefaultAsync(x => x.VehicleId == preferredVehicleId && (x.Status ?? "") == "可用");
 
-                if (v.Capacity.HasValue && passengerCount > 0 && v.Capacity.Value < passengerCount)
-                    return new DispatchResult { Success = false, Message = "指定車輛座位數不足" };
+                if (v == null)
+                    return new DispatchResult { Success = false, Message = "指定車輛不存在或不可用。" };
 
-                var used = await _db.Dispatches
-                    .Where(d => d.VehicleId == v.VehicleId)
-                    .Join(_db.CarApplications,
-                        dis => dis.ApplyId,
-                        app => app.ApplyId,
-                        (dis, app) => new { dis, app })
-                    .AnyAsync(x => start < x.app.UseEnd && x.app.UseStart < end);
+                var conflict = await HasConflict(v.VehicleId, start, end);
+                if (conflict)
+                    return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用。" };
+
+                return await AssignVehicleAsync(d, app, v);
+            }
+
+            // 自動派車（平均使用量）
+            var candidate = await FindBestAvailableVehicle(passengerCount, start, end, app.ApplyId);
+            if (candidate == null)
+                return new DispatchResult { Success = false, Message = "沒有符合條件的可用車輛。" };
+
+            return await AssignVehicleAsync(d, app, candidate);
+        }
 
 
+        #endregion
+        #region 衝突檢查
+        private async Task<bool> HasConflict(int vehicleId, DateTime start, DateTime end)
+        {
+            return await (
+                from dis in _db.Dispatches
+                join app in _db.CarApplications on dis.ApplyId equals app.ApplyId
+                where dis.VehicleId == vehicleId
+                      && start < app.UseEnd
+                      && app.UseStart < end
+                select dis
+            ).AnyAsync();
+        }
+        #endregion
 
-                if (used) return new DispatchResult { Success = false, Message = "指定車輛該時段已被使用" };
+        #region 派車輔助
+        private async Task<DispatchResult> AssignVehicleAsync(Dispatch d, CarApplication app, Vehicle v)
+        {
+            d.VehicleId = v.VehicleId;
+            d.DispatchStatus = "已派車";
+            app.VehicleId = v.VehicleId; 
 
-                d.VehicleId = v.VehicleId;
-                d.DispatchStatus = "已派車";
-                app.VehicleId = v.VehicleId;
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "資料已被更新，請重新整理後再試：" + ex.Message
-                    };
-                }
-                catch (DbUpdateException ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "資料儲存失敗，請確認輸入是否正確：" + (ex.InnerException?.Message ?? ex.Message)
-                    };
-                }
-                catch (Exception ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "伺服器內部錯誤：" + ex.Message
-                    };
-                }
-
+            try
+            {
+                await _db.SaveChangesAsync();
                 return new DispatchResult
                 {
                     Success = true,
                     Message = "已派車",
-                    DriverId = d.DriverId,
-                    VehicleId = d.VehicleId,
+                    VehicleId = v.VehicleId,
                     PlateNo = v.PlateNo
                 };
             }
+            catch (Exception ex)
+            {
+                return new DispatchResult
+                {
+                    Success = false,
+                    Message = "派車儲存失敗：" + ex.Message
+                };
+            }
+        }
+        #endregion
 
-            // ── 自動挑車（平均使用）
-            // 1) 候選車（可用 + 座位數夠）
+        #region 找出最佳可用車輛
+        private async Task<Vehicle> FindBestAvailableVehicle(int passengerCount, DateTime start, DateTime end, int currentApplyId)
+        {
             var candidates = await _db.Vehicles
-                .Where(v => (v.Status ?? "") == "可用"
-                         && (passengerCount <= 0 || v.Capacity == null || v.Capacity >= passengerCount))
-                .AsNoTracking()
+                .Where(v => (v.Status ?? "") == "可用" &&
+                            (passengerCount <= 0 || v.Capacity == null || v.Capacity >= passengerCount))
                 .ToListAsync();
 
-            // 2) 累積里程（排除取消單）
-            var vehicleUsage = await _db.Dispatches
-                .Where(x => x.VehicleId != null)   
+            var usage = await _db.Dispatches
+                .Where(x => x.VehicleId != null)
                 .Join(_db.CarApplications,
-                    dis => dis.ApplyId,
-                    app => app.ApplyId,
-                    (dis, app) => new {
-                        dis.VehicleId,
-                        Distance = dis.IsLongTrip
-                            ? (app.RoundTripDistance ?? app.SingleDistance ?? 0)
-                            : (app.SingleDistance ?? app.RoundTripDistance ?? 0),
-                        LastUsedAt = dis.EndTime
-                    })
+                      dis => dis.ApplyId,
+                      app => app.ApplyId,
+                      (dis, app) => new
+                      {
+                          dis.VehicleId,
+                          Distance = app.RoundTripDistance ?? app.SingleDistance ?? 0,
+                          LastUsedAt = dis.EndTime
+                      })
                 .GroupBy(x => x.VehicleId.Value)
-                .Select(g => new {
+                .Select(g => new
+                {
                     VehicleId = g.Key,
                     TotalKm = g.Sum(x => x.Distance),
-                    LastUsedAt = g.Max(x => x.LastUsedAt)   // 取最後一次使用時間
+                    LastUsedAt = g.Max(x => x.LastUsedAt)
                 })
                 .ToListAsync();
 
-            var kmDict = vehicleUsage.ToDictionary(x => x.VehicleId, x => x.TotalKm);
-            var lastDict = vehicleUsage.ToDictionary(x => x.VehicleId, x => x.LastUsedAt ?? DateTime.MinValue);
+            var kmDict = usage.ToDictionary(x => x.VehicleId, x => x.TotalKm);
+            var lastDict = usage.ToDictionary(x => x.VehicleId, x => x.LastUsedAt ?? DateTime.MinValue);
 
-            // 3) 平均排序：TotalKm 少 → LastUsedAt 越久沒用 → VehicleId
             var ordered = candidates
                 .OrderBy(v => kmDict.ContainsKey(v.VehicleId) ? kmDict[v.VehicleId] : 0)
                 .ThenBy(v => lastDict.ContainsKey(v.VehicleId) ? lastDict[v.VehicleId] : DateTime.MinValue)
                 .ThenBy(v => v.VehicleId)
                 .ToList();
 
-            // 4) 逐台檢查時段衝突（排除取消），選到即用
-            foreach (var v in ordered) 
+            foreach (var v in ordered)
             {
-                var used = await (
-                    from dis in _db.Dispatches
-                    join app2 in _db.CarApplications on dis.ApplyId equals app2.ApplyId
-                    where dis.VehicleId == v.VehicleId
-                          && app2.ApplyId != app.ApplyId  
-                          && start < app2.UseEnd
-                          && app2.UseStart < end
-                    select dis
-                ).AnyAsync();
-
-
-                if (used) continue;
-
-                d.VehicleId = v.VehicleId;
-                d.DispatchStatus = "已派車";
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "資料已被更新，請重新整理後再試：" + ex.Message
-                    };
-                }
-                catch (DbUpdateException ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "資料儲存失敗，請確認輸入是否正確：" + (ex.InnerException?.Message ?? ex.Message)
-                    };
-                }
-                catch (Exception ex)
-                {
-                    return new DispatchResult
-                    {
-                        Success = false,
-                        Message = "伺服器內部錯誤：" + ex.Message
-                    };
-                }
-
-                return new DispatchResult
-                {
-                    Success = true,
-                    Message = "已派車",
-                    DriverId = d.DriverId,
-                    VehicleId = d.VehicleId,
-                    PlateNo = v.PlateNo
-                };
+                if (!await HasConflict(v.VehicleId, start, end))
+                    return v;
             }
 
-            return new DispatchResult { Success = false, Message = "沒有符合時段/載客量的可用車輛" };
+            return null;
         }
-
         #endregion
-
+        
         #region 派工結果
         public sealed class DispatchResult
         {

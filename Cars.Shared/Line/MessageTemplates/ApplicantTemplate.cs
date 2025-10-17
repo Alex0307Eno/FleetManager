@@ -54,7 +54,7 @@ namespace Cars.Shared.Line
         // Step 2: 輸入時間
         public static string BuildDepartureTimeOptions(DateTime baseTime)
         {
-            var now = DateTime.Now.AddMinutes(5);
+            var now = DateTime.Now;
             var start = baseTime < now ? now : baseTime;
             var day = start.Date;
 
@@ -197,7 +197,7 @@ namespace Cars.Shared.Line
             layout = "vertical",
             contents = new object[] {
                 new { type = "text", text = "請輸入用車事由" },
-                new { type = "text", text = "請直接輸入文字，例如：「送文件至台北分署」" }
+                new { type = "text", text = "例如：「送文件至台北分署」" }
             }
         }
     };
@@ -231,7 +231,7 @@ namespace Cars.Shared.Line
     {
         LineFlexBuilder.Text("請輸入出發地點"),
         LineFlexBuilder.Separator(),
-        LineFlexBuilder.Text("例如：「台中市政府」、「南投林區管理處辦公室」")
+        LineFlexBuilder.Text("例如：「台中市政府」")
     };
 
             var bubble = LineFlexBuilder.Bubble(LineFlexBuilder.Box("vertical", body));
@@ -245,7 +245,7 @@ namespace Cars.Shared.Line
     {
         LineFlexBuilder.Text("請輸入前往地點"),
         LineFlexBuilder.Separator(),
-        LineFlexBuilder.Text("例如：「台北林區管理處」、「竹山工作站」")
+        LineFlexBuilder.Text("例如：「台北林區管理處」")
     };
 
             var bubble = LineFlexBuilder.Bubble(LineFlexBuilder.Box("vertical", body));

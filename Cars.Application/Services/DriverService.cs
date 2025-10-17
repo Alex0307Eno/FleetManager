@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Microsoft.EntityFrameworkCore;
+using Cars.Shared.Dtos.Drivers;
 
 namespace Cars.Application.Services
 {
@@ -8,7 +9,7 @@ namespace Cars.Application.Services
         private readonly ApplicationDbContext _db;
         public DriverService(ApplicationDbContext db) => _db = db;
 
-        public async Task<List<object>> GetAvailableDriversAsync(DateTime useStart, DateTime useEnd)
+        public async Task<List<DriverDto>> GetAvailableDriversAsync(DateTime useStart, DateTime useEnd)
         {
             var today = DateTime.Today;
             var oneHour = TimeSpan.FromHours(1);
@@ -124,7 +125,12 @@ namespace Cars.Application.Services
             Console.WriteLine($"✅ 可用駕駛：{string.Join(", ", all.Select(a => $"{a.DriverId}-{a.DriverName}"))}");
             Console.WriteLine($"=== 共 {all.Count} 位可派駕駛 ===\n");
 
-            return all.Cast<object>().ToList();
+            return all.Select(a => new DriverDto
+            {
+                DriverId = a.DriverId,
+                DriverName = a.DriverName,
+                IsAgent = a.IsAgent
+            }).ToList();
         }
     }
 }

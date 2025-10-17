@@ -26,7 +26,7 @@ namespace Cars.Shared.Dtos.Line
 
         // === 系統判斷資訊 ===
         public int? ApplyId { get; set; }                 // 派車申請單 ID
-        public string? Status { get; set; }               // 狀態（待審核、已送出等）
+        public string? Status { get; set; }               // 狀態（待審核）
         public string? DriverName { get; set; }           // 已選駕駛
         public string? VehiclePlate { get; set; }         // 已選車輛
         public CarApplications.CarApplicationDto ToCarAppDto()

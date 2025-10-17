@@ -4,7 +4,10 @@ using Cars.Data;
 using Cars.Models;
 using Hangfire;
 using Hangfire.SqlServer;
+using isRock.LineBot;
 using LineBotService.Core.Services;
+using LineBotService.Handlers;
+using LineBotService.Middleware;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineBotService
@@ -13,20 +16,18 @@ namespace LineBotService
     {
         public static void Main(string[] args)
         {
+            // 註冊 Line Bot SDK
             var builder = WebApplication.CreateBuilder(args);
+            builder.Services.AddSingleton<isRock.LineBot.Bot>(provider =>
+            {
+                var cfg = provider.GetRequiredService<IConfiguration>();
+                return new isRock.LineBot.Bot(cfg["LineBot:ChannelAccessToken"]);
+            });
 
-            // Add services to the container.
-            builder.Services.AddSingleton<RichMenuService>();
-            builder.Services.AddScoped<LineUserService>();
+            // 註冊應用程式服務
             builder.Services.AddApplication();
-
-            builder.Services.Configure<RichMenuOptions>(builder.Configuration.GetSection("RichMenus"));
-            builder.Services.AddScoped<ILinePush, LinePush>();
-            builder.Services.AddScoped<NotificationService>();
-    
-
-
-
+            // 註冊 LineBot 相關服務
+            builder.Services.AddLineBotServices(builder.Configuration);
 
             // 註冊 GoogleMapsSettings
             builder.Services.Configure<GoogleMapsSettings>(
@@ -44,7 +45,7 @@ namespace LineBotService
                 opt.JsonSerializerOptions.ReferenceHandler =
                     System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
             });
-
+            // Hangfire 設定
             builder.Services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
@@ -65,7 +66,8 @@ namespace LineBotService
                     Description = "Line Bot 與公務車派車系統整合服務"
                 });
             });
-
+            // 靜態檔案服務與目錄瀏覽
+            builder.Services.AddDirectoryBrowser();
 
             var app = builder.Build();
 
@@ -80,6 +82,8 @@ namespace LineBotService
             }
             app.UseHangfireDashboard("/hangfire");
             app.UseStaticFiles();
+            // 安全中介軟體
+            app.UseMiddleware<SecurityMiddleware>(); 
             app.UseRouting();
             app.UseAuthentication();
             app.UseAuthorization();

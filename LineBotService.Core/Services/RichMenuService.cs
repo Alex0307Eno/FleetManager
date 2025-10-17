@@ -62,6 +62,17 @@ namespace LineBotService.Core.Services
             var body = await res.Content.ReadAsStringAsync();
             return res.IsSuccessStatusCode ? $"✅ 建立成功：{body}" : $"❌ 建立失敗：{body}";
         }
+        public async Task<string> CreateRichMenuFromFileAsync(string filePath)
+        {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"找不到檔案：{filePath}");
+
+            var json = await File.ReadAllTextAsync(filePath);
+
+            // 呼叫你原本的 CreateRichMenuAsync(json)
+            return await CreateRichMenuAsync(json);
+        }
+
 
         public async Task<string> BindToUserAsync(string userId, string richMenuId)
         {

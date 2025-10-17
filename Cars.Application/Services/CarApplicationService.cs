@@ -168,19 +168,45 @@ namespace Cars.Application.Services
         // 建立申請單 (LINE)
         public async Task<(bool ok, string msg, CarApplication app)> CreateForLineAsync(CarApplicationDto dto, string lineUserId)
         {
+            // 1️ 先確認傳進來的 dto 有沒有東西
+            if (dto == null)
+                throw new Exception("dto 是 null！");
+
+            // 2️ 找 LINE 對應的使用者
             var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
             if (user == null)
-                return (false, "此 LINE 帳號未綁定使用者", null);
+                throw new Exception($"找不到 user：{lineUserId}");
 
+            // 3️ 找申請人 Applicant
             var applicant = await _db.Applicants.FirstOrDefaultAsync(a => a.UserId == user.UserId);
             if (applicant == null)
-                return (false, "找不到對應申請人", null);
-            // 準備 CarApplicationDto 給訊息模板
+                throw new Exception($"找不到 applicant，userId={user.UserId}");
+
+            
+
+            // 4️ 確認 applicant 拿到了才填入
+            dto.ApplicantId = applicant.ApplicantId;
+            dto.ApplicantName = applicant.Name;
+
+            // 5️ 建立申請與派車資料
+            var (ok, msg, app) = await CreateInternalAsync(dto, applicant);
+            if (!ok || app == null)
+                return (ok, msg, app);
+
+            dto.ApplyId = app.ApplyId;
+
+            // 6️ 建立審核卡片
             var msgJson = ManagerTemplate.BuildManagerReviewBubble(dto);
 
+            Console.WriteLine($"[DEBUG] CreateForLineAsync 成功建立申請");
+            Console.WriteLine($"[DEBUG] ApplyId = {app.ApplyId}");
+            Console.WriteLine($"[DEBUG] Applicant = {applicant.ApplicantId}:{applicant.Name}");
+            Console.WriteLine($"[DEBUG] JSON = {msgJson}");
 
-            return await CreateInternalAsync(dto, applicant);
+            return (true, msg, app);
         }
+
+
 
         #endregion
 

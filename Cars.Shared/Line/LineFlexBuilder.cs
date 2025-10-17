@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Cars.Shared.Line
 {
@@ -8,16 +9,28 @@ namespace Cars.Shared.Line
         public static object Text(string text, string weight = null, string size = null, string color = null, bool wrap = false)
         {
             var obj = new Dictionary<string, object>
-    {
-        { "type", "text" },
-        { "text", text }
-    };
-            if (!string.IsNullOrEmpty(weight)) obj["weight"] = weight;
-            if (!string.IsNullOrEmpty(size)) obj["size"] = size;
-            if (!string.IsNullOrEmpty(color)) obj["color"] = color;
-            if (wrap) obj["wrap"] = true;
+            {
+                { "type", "text" },
+                { "text", text }
+            };
+
+            // 可選屬性
+            if (!string.IsNullOrWhiteSpace(weight))
+                obj["weight"] = weight.Trim();
+
+            if (!string.IsNullOrWhiteSpace(size))
+                obj["size"] = size.Trim();
+
+            if (!string.IsNullOrWhiteSpace(color))
+                obj["color"] = color.Trim();
+
+            if (wrap)
+                obj["wrap"] = true;
+
             return obj;
         }
+
+
 
 
         public static object Button(string label, string data, string style = "primary", string color = "#22c55e")
@@ -30,11 +43,35 @@ namespace Cars.Shared.Line
                 action = new { type = "postback", label, data }
             };
 
-        public static object Separator(string margin = "md")
-            => new { type = "separator", margin };
+        public static object Separator(string margin = null)
+        {
+            var obj = new Dictionary<string, object>
+             {
+                 { "type", "separator" }
+             };
+            if (!string.IsNullOrEmpty(margin))
+                obj["margin"] = margin; // 只有需要時才加
+            return obj;
+        }
+
 
         public static object Box(string layout, IEnumerable<object> contents, string spacing = "md", string margin = null)
-            => new { type = "box", layout, spacing, margin, contents };
+        {
+            var obj = new Dictionary<string, object>
+            {
+                { "type", "box" },
+                { "layout", layout },
+                { "contents", contents.ToList() }
+            };
+            if (!string.IsNullOrEmpty(spacing))
+                obj["spacing"] = spacing; 
+            if (!string.IsNullOrEmpty(margin))
+                obj["margin"] = margin;   
+            return obj;
+        }
+        
+
+
 
         public static object Bubble(object body, object footer = null)
         {
