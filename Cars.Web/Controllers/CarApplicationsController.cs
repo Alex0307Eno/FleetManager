@@ -58,12 +58,20 @@ namespace Cars.ApiControllers
         {
             var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(uid, out var userId))
+            {
+                Console.WriteLine("⚠️ 未登入，無法建立申請。");
                 return Unauthorized("尚未登入");
+            }
+
+            Console.WriteLine($"🟢 開始建立派車申請：UserId={userId}, 申請時間={dto.UseStart:MM/dd HH:mm}-{dto.UseEnd:HH:mm}");
 
             var (ok, msg, app) = await _carApplicationService.CreateAsync(dto, userId);
             if (!ok)
+            {
+                Console.WriteLine($"❌ 建立申請失敗：{msg}");
                 return BadRequest(new { success = false, message = msg });
-            // 轉成 DTO 給 Flex 模板
+            }
+
             var notifyDto = new CarApplicationDto
             {
                 ApplyId = app.ApplyId,
@@ -78,21 +86,27 @@ namespace Cars.ApiControllers
                 ApplyReason = app.ApplyReason
             };
 
+            Console.WriteLine($"✅ 申請建立成功：ApplyId={app.ApplyId}, Applicant={notifyDto.ApplicantName}");
 
-            // 找管理員
             var adminIds = await _db.Users
                 .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
                 .Select(u => u.LineUserId)
                 .ToListAsync();
 
-            // 發通知
+            Console.WriteLine($"👀 找到 {adminIds.Count} 位管理員準備通知。");
+
             var flexJson = ManagerTemplate.BuildManagerReviewBubble(notifyDto);
+            Console.WriteLine($"🧱 Flex JSON 組成完成：{flexJson.Substring(0, Math.Min(flexJson.Length, 200))}...");
+
             foreach (var lineId in adminIds)
+            {
+                Console.WriteLine($"📤 推送通知給 {lineId}...");
                 await _notificationService.PushAsync(lineId, flexJson);
+            }
+
+            Console.WriteLine("🎉 所有通知已發送完畢。");
 
             return Ok(new { success = true, message = msg, data = ToResponseData(app) });
-
-
         }
 
 

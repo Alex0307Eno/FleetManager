@@ -9,6 +9,8 @@ namespace Cars.Shared.Dtos.Line
         public int Step { get; set; }                     // 當前步驟 (1~9)
 
         public int? ApplicantId { get; set; }            // 申請人 ID
+
+        public string? ApplicantName { get; set; }      // 申請人姓名
         // === 使用者輸入內容 ===
         public string? ReserveType { get; set; }          // 即時預約 or 預訂時間
 
@@ -32,6 +34,7 @@ namespace Cars.Shared.Dtos.Line
             return new CarApplications.CarApplicationDto
             {
                 ApplicantId = this.ApplicantId ?? 0,
+                ApplicantName = this.ApplicantName ?? "未填",
                 UseStart = this.DepartureTime ?? DateTime.Now,
                 UseEnd = this.ArrivalTime ?? (this.DepartureTime?.AddHours(1) ?? DateTime.Now.AddHours(1)),
                 ApplyReason = string.IsNullOrWhiteSpace(this.Reason) ? "未填寫" : this.Reason,
@@ -39,7 +42,7 @@ namespace Cars.Shared.Dtos.Line
                 Origin = string.IsNullOrWhiteSpace(this.Origin) ? "未填" : this.Origin,
                 Destination = string.IsNullOrWhiteSpace(this.Destination) ? "未填" : this.Destination,
                 MaterialName = this.MaterialName ?? string.Empty,
-                TripType = string.IsNullOrWhiteSpace(this.TripType) ? "oneway" : this.TripType
+                TripType = string.IsNullOrWhiteSpace(this.TripType) ? "single" : this.TripType
             };
         }
 

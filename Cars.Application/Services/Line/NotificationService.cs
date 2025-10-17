@@ -3,6 +3,7 @@ using Cars.Models;
 using LineBotService.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
 using System.Text;
@@ -84,16 +85,30 @@ public class NotificationService
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _token);
 
-        var payload = $@"{{ ""to"": ""{to}"", ""messages"": [ {flexJson} ] }}";
-        var content = new StringContent(payload, Encoding.UTF8, "application/json");
+        // 這裡把 flexJson 當成已經是完整的 message 物件
+        var payload = new
+        {
+            to,
+            messages = new[] { JsonConvert.DeserializeObject(flexJson) }
+        };
+
+        var content = new StringContent(
+            JsonConvert.SerializeObject(payload),
+            Encoding.UTF8,
+            "application/json"
+        );
+        // 送出前，保底確認 messages[0].type 存在
+        var msg = JsonConvert.DeserializeObject<JObject>(flexJson);
+        if (msg?["type"]?.ToString() != "flex")
+        {
+            Console.WriteLine("⚠️ flexJson 並非完整 flex message，缺少 type:flex 或模板輸出錯誤。");
+        }
 
         var res = await client.PostAsync("https://api.line.me/v2/bot/message/push", content);
-        if (!res.IsSuccessStatusCode)
-        {
-            var err = await res.Content.ReadAsStringAsync();
-            Console.WriteLine($"❌ LINE Push failed: {res.StatusCode} - {err}");
-        }
+        var resp = await res.Content.ReadAsStringAsync();
+        Console.WriteLine($"LINE Push → {res.StatusCode} / {resp}");
     }
+
 
 
 

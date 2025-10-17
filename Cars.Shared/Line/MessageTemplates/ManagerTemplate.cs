@@ -17,15 +17,41 @@ namespace Cars.Shared.Line
         public static string BuildManagerReviewBubble(CarApplicationDto a)
         {
             var body = new List<object>
-            {
-                LineFlexBuilder.Text("🚗 新派車申請", "bold", "#0f172a"),
-                LineFlexBuilder.Text($"申請人：{a.ApplicantName ?? "—"}", "sm", "#334155"),
-                LineFlexBuilder.Text($"時間：{a.UseStart:MM/dd HH:mm} - {a.UseEnd:HH:mm}", "sm", "#334155"),
-                LineFlexBuilder.Text($"路線：{(a.Origin ?? "公司")} → {a.Destination ?? "未填寫"}", "sm", "#475569"),
-                LineFlexBuilder.Text($"乘客：{a.PassengerCount ?? 1} 人｜行程：{(a.TripType == "round" ? "來回" : "單程")}", "sm", "#475569"),
-                LineFlexBuilder.Text($"事由：{a.ApplyReason ?? "—"}", "sm", "#64748b"),
-                LineFlexBuilder.Separator()
-            };
+{
+    LineFlexBuilder.Text(
+        text: "🚗 新派車申請",
+        size: "md",
+        color: "#0f172a",
+        weight: "bold"
+    ),
+    LineFlexBuilder.Text(
+        text: $"申請人：{a.ApplicantName ?? "—"}",
+        size: "sm",
+        color: "#334155"
+    ),
+    LineFlexBuilder.Text(
+        text: $"時間：{a.UseStart:MM/dd HH:mm} - {a.UseEnd:HH:mm}",
+        size: "sm",
+        color: "#334155"
+    ),
+    LineFlexBuilder.Text(
+        text: $"路線：{(a.Origin ?? "公司")} → {a.Destination ?? "未填寫"}",
+        size: "sm",
+        color: "#475569"
+    ),
+    LineFlexBuilder.Text(
+        text: $"乘客：{a.PassengerCount ?? 1} 人｜行程：{(a.TripType == "round" ? "來回" : "單程")}",
+        size: "sm",
+        color: "#475569"
+    ),
+    LineFlexBuilder.Text(
+        text: $"事由：{a.ApplyReason ?? "—"}",
+        size: "sm",
+        color: "#64748b"
+    ),
+    LineFlexBuilder.Separator()
+};
+
 
             var footer = new List<object>
             {

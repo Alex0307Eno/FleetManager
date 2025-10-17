@@ -7,6 +7,7 @@ using isRock.LineBot;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace LineBotService.Controllers
 {
@@ -52,6 +53,9 @@ namespace LineBotService.Controllers
         {
             try
             {
+                if (!json.TrimStart().StartsWith("["))
+                    json = "[" + json + "]"; // 加這行！！
+
                 Console.WriteLine($"[DEBUG] 推送給 {userId}");
                 Console.WriteLine($"[DEBUG] JSON: {json}");
                 _bot.PushMessageWithJSON(userId, json);
@@ -68,9 +72,12 @@ namespace LineBotService.Controllers
 
 
 
+
+
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] object raw)
         {
+
             var body = raw.ToString() ?? string.Empty;
             Console.WriteLine("Webhook Body:");
             Console.WriteLine(body);
@@ -78,6 +85,7 @@ namespace LineBotService.Controllers
             var events = Utility.Parsing(body);
             foreach (var e in events.events)
             {
+
                 var replyToken = e.replyToken;
                 var userId = e.source?.userId ?? "";
                 if (string.IsNullOrEmpty(userId)) continue;
@@ -85,6 +93,7 @@ namespace LineBotService.Controllers
                 // === 一般訊息 ===
                 if (e.type == "message")
                 {
+                    string data = "";
                     var msg = e.message.text?.Trim() ?? "";
 
                     // 🔹 Step 1：解除綁定（最優先）
@@ -348,47 +357,19 @@ namespace LineBotService.Controllers
                                 break;
                             // Step 8：單程 or 來回
                             case 8:
-                                state.TripType = msg.Contains("來回") ? "round" : "single";
+                                state.TripType = (msg?.Trim().ToLower() == "round" || msg?.Trim() == "來回") ? "round" : "single";
                                 state.Step = 9;
                                 SafeReply(replyToken, ApplicantTemplate.BuildStep8(state));
                                 break;
                             // Step 9：確認送出申請
                             case 9:
                                 if (msg.Contains("確認"))
-                                {
-
-                                    var (ok, msgText, app) = await _carApplicationService.CreateForLineAsync(state.ToCarAppDto(), userId);
-
-                                    if (!ok)
-                                    {
-                                        _bot.ReplyMessage(replyToken, $"❌ 送出失敗：{msgText}");
-                                        _conversationStore.Remove(userId);
-                                        continue;
-                                    }
-
-                                    _bot.ReplyMessage(replyToken, "✅ 已送出派車申請，等待管理員審核。");
-
-                                    // 用 BookingStateDto 自己轉好的 DTO 來建 Flex
-                                    var reviewJson = ManagerTemplate.BuildManagerReviewBubble(state.ToCarAppDto());
-
-                                    var admins = await _db.Users
-                                        .Where(u => u.Role == "Admin" && !string.IsNullOrEmpty(u.LineUserId))
-                                        .Select(u => u.LineUserId)
-                                        .ToListAsync();
-
-                                    foreach (var adminLineId in admins)
-                                        SafePush(adminLineId, reviewJson);
-
-                                    _conversationStore.Remove(userId);
-                                    continue;
-                                }
-
+                                    _bot.ReplyMessage(replyToken, "✅ 已送出派車申請，請稍候。");
                                 else
-                                {
                                     _bot.ReplyMessage(replyToken, "❌ 已取消申請。");
-                                    _conversationStore.Remove(userId);
-                                }
+                                _conversationStore.Remove(userId);
                                 break;
+
                         }
                         continue;
                     }
@@ -401,7 +382,7 @@ namespace LineBotService.Controllers
                 else if (e.type == "postback")
                 {
                     var data = e.postback.data ?? "";
-
+                    // 載客數
                     if (data.StartsWith("action=setPassengerCount"))
                     {
                         if (_conversationStore.ContainsKey(userId))
@@ -417,14 +398,14 @@ namespace LineBotService.Controllers
                         }
                         continue;
                     }
-
+                    // 單程 or 來回
                     if (data.StartsWith("action=setTripType"))
                     {
                         if (_conversationStore.ContainsKey(userId))
                         {
                             var state = _conversationStore[userId];
                             var value = data.Split("value=").LastOrDefault();
-                            state.TripType = value == "roundtrip" ? "round" : "single";
+                            state.TripType = value == "round" ? "round" : "single";
                             state.Step = 9;
                             SafeReply(replyToken, ApplicantTemplate.BuildStep8(state));
                         }
@@ -437,16 +418,26 @@ namespace LineBotService.Controllers
                         if (_conversationStore.ContainsKey(userId))
                         {
                             var state = _conversationStore[userId];
-
                             var (ok, msgText, app) = await _carApplicationService.CreateForLineAsync(state.ToCarAppDto(), userId);
-                            if (ok)
-                            {
-                                _bot.ReplyMessage(replyToken, "✅ 已送出派車申請，等待管理員審核。");
-                            }
-                            else
+
+                            if (!ok)
                             {
                                 _bot.ReplyMessage(replyToken, $"⚠️ 送出失敗：{msgText}");
+                                _conversationStore.Remove(userId);
+                                continue;
                             }
+
+                            _bot.ReplyMessage(replyToken, "✅ 已送出派車申請，等待管理員審核。");
+
+                            // 🔹 加上這段 SafePush
+                            var reviewJson = ManagerTemplate.BuildManagerReviewBubble(state.ToCarAppDto());
+                            var admins = await _db.Users
+                                .Where(u => (u.Role == "Admin" || u.Role == "Manager") && !string.IsNullOrEmpty(u.LineUserId))
+                                .Select(u => u.LineUserId)
+                                .ToListAsync();
+
+                            foreach (var adminLineId in admins)
+                                SafePush(adminLineId, reviewJson);
 
                             _conversationStore.Remove(userId);
                         }
