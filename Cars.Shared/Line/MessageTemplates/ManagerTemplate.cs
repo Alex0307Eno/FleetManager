@@ -1,13 +1,14 @@
 ﻿using Cars.Shared.Dtos.CarApplications;
+using Cars.Shared.Dtos.Drivers;
 using Cars.Shared.Dtos.Line;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Text.Json;
-using Cars.Shared.Dtos.Drivers;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using Json = System.Text.Json.JsonSerializer;
 
 
@@ -90,11 +91,13 @@ namespace Cars.Shared.Line
                 .ToList();
 
             if (!pending.Any())
-                return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                return Json.Serialize(new
                 {
                     type = "text",
                     text = "目前沒有待審核申請單"
                 });
+            }
 
             var totalPages = (int)Math.Ceiling(pending.Count / (double)pageSize);
             var items = pending.Skip((page - 1) * pageSize).Take(pageSize).ToList();
@@ -121,10 +124,8 @@ namespace Cars.Shared.Line
         }, spacing: "sm", margin: "md"));
             }
 
+            // 頁尾只有下一頁按鈕（如果還有資料）
             var footer = new List<object>();
-            if (page > 1)
-                footer.Add(LineFlexBuilder.Button("⬅️ 上一頁", $"action=reviewListPage&page={page - 1}", "secondary", "#94a3b8"));
-            footer.Add(LineFlexBuilder.Text($"第 {page}/{totalPages} 頁", size: "sm", color: "#64748b"));
             if (page < totalPages)
                 footer.Add(LineFlexBuilder.Button("下一頁 ➡️", $"action=reviewListPage&page={page + 1}", "secondary", "#94a3b8"));
 
@@ -132,7 +133,7 @@ namespace Cars.Shared.Line
             {
                 type = "bubble",
                 body = LineFlexBuilder.Box("vertical", contents, spacing: "sm"),
-                footer = LineFlexBuilder.Box("horizontal", footer, spacing: "sm")
+                footer = footer.Any() ? LineFlexBuilder.Box("horizontal", footer, spacing: "sm") : null
             };
 
             var flex = new
@@ -142,10 +143,10 @@ namespace Cars.Shared.Line
                 contents = bubble
             };
 
-            return System.Text.Json.JsonSerializer.Serialize(flex, new System.Text.Json.JsonSerializerOptions
+            return Json.Serialize(flex, new JsonSerializerOptions
             {
                 WriteIndented = false,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
         }
 
