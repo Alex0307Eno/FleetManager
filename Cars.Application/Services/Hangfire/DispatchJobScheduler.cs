@@ -7,6 +7,7 @@ namespace Cars.Services.Hangfire
     {
         public static void ScheduleRideReminders(Models.Dispatch dispatch)
         {
+
             // 前一天提醒
             BackgroundJob.Schedule<LineBotNotificationService>(
                 s => s.SendRideReminderAsync(dispatch.DispatchId, "D1"),
@@ -16,6 +17,8 @@ namespace Cars.Services.Hangfire
             BackgroundJob.Schedule<LineBotNotificationService>(
                 s => s.SendRideReminderAsync(dispatch.DispatchId, "M15"),
                 dispatch.CarApplication.UseStart.AddMinutes(-15));
+
+
         }
         public static void RegisterJobs()
         {
