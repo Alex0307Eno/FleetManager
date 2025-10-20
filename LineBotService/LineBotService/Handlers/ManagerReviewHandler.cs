@@ -1,10 +1,13 @@
 ﻿using Cars.Application.Services;
 using Cars.Data;
+using Cars.Models;
 using Cars.Shared.Line;
+using isRock.LIFF;
 using isRock.LineBot;
 using LineBotService.Core.Services;
 using LineBotService.Helpers;
 using Microsoft.EntityFrameworkCore;
+using static System.Net.WebRequestMethods;
 
 namespace LineBotService.Handlers
 {
@@ -13,16 +16,25 @@ namespace LineBotService.Handlers
         private readonly Bot _bot;
         private readonly ApplicationDbContext _db;
         private readonly AutoDispatcher _autoDispatcher;
+        private readonly CarApplicationService _carApplicationService;
+        private readonly DispatchService _dispatchService;
+        private readonly IHttpContextAccessor _http;
 
-        public ManagerReviewHandler(Bot bot, ApplicationDbContext db, AutoDispatcher autoDispatcher)
+        public ManagerReviewHandler(Bot bot, ApplicationDbContext db, AutoDispatcher autoDispatcher, CarApplicationService carApplicationService, DispatchService dispatchService, IHttpContextAccessor http)
         {
             _bot = bot;
             _db = db;
             _autoDispatcher = autoDispatcher;
+            _carApplicationService = carApplicationService;
+            _dispatchService = dispatchService;
+            _http = http;
         }
 
         public async Task HandleAsync(dynamic e, string replyToken, string userId, string data)
         {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.LineUserId == userId);
+            var byUser = user?.DisplayName ?? "系統";
+
             // === 審核通過 ===
             if (data.StartsWith("action=reviewApprove"))
             {
@@ -40,8 +52,8 @@ namespace LineBotService.Handlers
                     return;
                 }
 
-                app.Status = "完成審核";
-                await _db.SaveChangesAsync();
+                var status = await _carApplicationService.UpdateStatusAsync(app.ApplyId, "完成審核", byUser);
+
 
                 var dispatch = await _db.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == app.ApplyId);
                 if (dispatch == null)
@@ -84,8 +96,11 @@ namespace LineBotService.Handlers
                     return;
                 }
 
-                app.Status = "已駁回";
+                var oldStatus = app.Status;
+                app.Status = "駁回";
                 await _db.SaveChangesAsync();
+
+               
                 _bot.ReplyMessage(replyToken, $"❌ 已駁回該派車申請（申請編號 {applyId}）。");
                 return;
             }
@@ -116,70 +131,32 @@ namespace LineBotService.Handlers
                 }
 
                 // 呼叫 DriverAssignService
-                var assignService = new DriverAssignService(_db, _bot);
+                var assignService = new DriverAssignService(_db, _bot, _http);
                 var (ok, msg) = await assignService.AssignDriverAsync(applyId, driverId);
+
+                // 查出駕駛名稱
+                var driver = await _db.Drivers
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.DriverId == driverId);
+
+                var driverName = driver?.DriverName ?? "(未知駕駛)";
+
+                //寫入指派紀錄
+                var app = await _db.CarApplications.FirstOrDefaultAsync(a => a.ApplyId == applyId);
+                if (app == null)
+                {
+                    _bot.ReplyMessage(replyToken, "⚠️ 找不到該派車申請。");
+                    return;
+                }
+                var status = await _carApplicationService.UpdateStatusAsync(app.ApplyId, "完成審核", byUser);
+
+
 
                 _bot.ReplyMessage(replyToken, ok
                     ? $"✅ {msg}"
                     : $"⚠️ 指派失敗：{msg}");
             }
-            // === 審核清單翻頁 ===
-            //if (data.StartsWith("action=reviewListPage"))
-            //{
-            //    var pageStr = data.Split("page=").LastOrDefault();
-            //    int.TryParse(pageStr, out var page);
-            //    if (page <= 0) page = 1;
-
-            //    const int pageSize = 5;
-            //    var today = DateTime.Today;
-            //    var tomorrow = today.AddDays(1);
-
-            //    var apps = await _db.CarApplications
-            //        .Include(a => a.Applicant)
-            //        .Where(a => a.Status == "待審核" && a.UseStart >= today && a.UseEnd < tomorrow)
-            //        .OrderBy(a => a.UseStart)
-            //        .Skip((page - 1) * pageSize)
-            //        .Take(pageSize)
-            //        .Select(a => new Cars.Shared.Dtos.CarApplications.CarApplicationDto
-            //        {
-            //            ApplyId = a.ApplyId,
-            //            ApplicantName = a.Applicant != null ? a.Applicant.Name : null,
-            //            UseStart = a.UseStart,
-            //            UseEnd = a.UseEnd,
-            //            Origin = a.Origin,
-            //            Destination = a.Destination,
-            //            ApplyReason = a.ApplyReason,
-            //            Status = a.Status
-            //        })
-            //        .ToListAsync();
-
-
-            //    if (apps == null || !apps.Any())
-            //    {
-            //        var textJson = System.Text.Json.JsonSerializer.Serialize(new
-            //        {
-            //            type = "text",
-            //            text = "目前沒有待審核申請單"
-            //        });
-            //        LineBotUtils.SafeReply(_bot, replyToken, textJson);
-            //        return;
-            //    }
-
-            //    var bubbleJson = ManagerTemplate.BuildPendingListBubble(apps);
-            //    var bubbleObj = System.Text.Json.JsonSerializer.Deserialize<object>(bubbleJson);
-
-            //    var flexWrapper = new
-            //    {
-            //        type = "flex",
-            //        altText = "待審核派車清單",
-            //        contents = bubbleObj
-            //    };
-            //    var flexJson = System.Text.Json.JsonSerializer.Serialize(flexWrapper);
-
-            //    LineBotUtils.SafeReply(_bot, replyToken, flexJson);
-            //    return;
-            //}
-
+           
 
         }
     }

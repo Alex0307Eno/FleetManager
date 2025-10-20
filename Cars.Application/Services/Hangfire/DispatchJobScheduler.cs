@@ -17,5 +17,15 @@ namespace Cars.Services.Hangfire
                 s => s.SendRideReminderAsync(dispatch.DispatchId, "M15"),
                 dispatch.CarApplication.UseStart.AddMinutes(-15));
         }
+        public static void RegisterJobs()
+        {
+            
+            // 新增未完成派車提醒（每天 17:30）
+            RecurringJob.AddOrUpdate<LineBotNotificationService>(
+                "pending-dispatch-reminder",
+                s => s.SendPendingDispatchReminderAsync(),
+                "30 17 * * *" // 每天下午5:30
+            );
+        }
     }
 }

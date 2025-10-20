@@ -31,6 +31,9 @@ namespace Cars.Models
         // 安全相關欄位
         public DateTime? LockoutEnd { get; set; }   // 鎖定到期時間
         public int? FailedLoginCount { get; set; } = 0;  // 失敗次數
+
+        public Applicant? Applicant { get; set; }  // 一對一導覽屬性
+
     }
 
     public class LoginDto

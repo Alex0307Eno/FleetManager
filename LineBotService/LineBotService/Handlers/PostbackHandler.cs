@@ -1,4 +1,5 @@
-﻿using isRock.LineBot;
+﻿using Cars.Application.Services;
+using isRock.LineBot;
 
 namespace LineBotService.Handlers
 {
@@ -6,11 +7,15 @@ namespace LineBotService.Handlers
     {
         private readonly ApplicantPostbackHandler _applicantHandler;
         private readonly ManagerReviewHandler _managerHandler;
+        private readonly DispatchService _dispatchService;
 
-        public PostbackHandler(ApplicantPostbackHandler applicantHandler, ManagerReviewHandler managerHandler)
+
+        public PostbackHandler(ApplicantPostbackHandler applicantHandler, ManagerReviewHandler managerHandler, DispatchService dispatchService)
         {
             _applicantHandler = applicantHandler;
             _managerHandler = managerHandler;
+            _dispatchService = dispatchService;
+
         }
 
         public async Task HandlePostbackAsync(dynamic e, string replyToken, string userId)

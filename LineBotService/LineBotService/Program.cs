@@ -53,7 +53,7 @@ namespace LineBotService
             .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"),
             new SqlServerStorageOptions { PrepareSchemaIfNecessary = true }));
 
-            builder.Services.AddHangfireServer();   // 啟動背景工作者
+            builder.Services.AddHangfireServer();   // 啟動背景工作
 
             // Swagger
             builder.Services.AddEndpointsApiExplorer();

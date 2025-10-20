@@ -1,5 +1,6 @@
 ﻿
 using Cars.Data;
+using Cars.Models;
 using Cars.Shared.Line;
 using isRock.LineBot;
 using LineBotService.Helpers;
@@ -11,11 +12,14 @@ namespace LineBotService.Core.Services
     {
         private readonly ApplicationDbContext _db;
         private readonly Bot _bot;
+        private readonly IHttpContextAccessor _http;
 
-        public DriverAssignService(ApplicationDbContext db, Bot bot)
+
+        public DriverAssignService(ApplicationDbContext db, Bot bot, IHttpContextAccessor http)
         {
             _db = db;
             _bot = bot;
+            _http = http;
         }
 
         public async Task<(bool Success, string Message)> AssignDriverAsync(int applyId, int driverId)
@@ -39,7 +43,7 @@ namespace LineBotService.Core.Services
 
             // === 3️ 更新狀態 ===
             dispatch.DriverId = driver.DriverId;
-            dispatch.DispatchStatus = "已派駕駛";
+            dispatch.DispatchStatus = "已派車";
             app.DriverId = driver.DriverId;
             await _db.SaveChangesAsync();
 
@@ -77,10 +81,21 @@ namespace LineBotService.Core.Services
                 .Where(u => (u.Role == "Admin" || u.Role == "Manager") && u.LineUserId != null)
                 .Select(u => u.LineUserId)
                 .ToListAsync();
+            // 寫入紀錄
+            var userName = _http.HttpContext?.User?.Identity?.Name ?? "系統";
+
+            _db.DispatchAudits.Add(new Cars.Models.DispatchAudit
+            {
+                DispatchId = dispatch.DispatchId,
+                Action = "指派駕駛",
+                OldValue = null,
+                NewValue = $"駕駛姓名: {driver.DriverName}",
+                ByUserName = userName
+            });
 
             foreach (var adminId in adminIds)
 
-                LineBotUtils.SafePush(_bot, adminId, adminBubble);
+            LineBotUtils.SafePush(_bot, adminId, adminBubble);
             Console.WriteLine($"📣 已通知 {adminIds.Count} 位管理員。");
 
             return (true, $"駕駛「{driver.DriverName}」已成功指派並通知相關人員。");

@@ -79,7 +79,7 @@ namespace Cars.Application.Services
                 SingleDuration = singleDur,
                 RoundTripDistance = roundKm,
                 RoundTripDuration = roundDur,
-                IsLongTrip = isLong   // ← 用已展開的 bool
+                IsLongTrip = isLong  
             };
 
             _db.CarApplications.Add(app);

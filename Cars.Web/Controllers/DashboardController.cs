@@ -338,14 +338,30 @@ namespace Cars.ApiControllers
                 }
                 else if (lastEndByDriver.TryGetValue(driverId, out var lastEnd) && lastEnd > DateTime.MinValue)
                 {
-                    // 沒有正在執勤，但今天有完成過任務
+                    // 判斷是否已有未來任務（不影響顯示，但避免重疊）
+                    var hasFutureTask = _db.Dispatches
+                        .Join(_db.CarApplications,
+                            dis => dis.ApplyId,
+                            app => app.ApplyId,
+                            (dis, app) => new { dis.DriverId, app.UseStart })
+                        .Any(x => x.DriverId == driverId && x.UseStart > now);
+
                     restUntil = lastEnd.AddHours(1);
-                    if (now < restUntil)
+
+                    if (now < restUntil && !hasFutureTask)
                     {
+                        // 結束後 1 小時內、且沒有新任務
                         restRemainMinutes = (int)Math.Ceiling((restUntil.Value - now).TotalMinutes);
                         stateText = "休息中";
                     }
+                    else
+                    {
+                        // 超過休息期或已有任務，就進入待命
+                        restRemainMinutes = null;
+                        stateText = "待命中";
+                    }
                 }
+
 
                 string plateNo = dispatch?.PlateNo;
                 if (string.IsNullOrEmpty(plateNo) && recentMap.ContainsKey(driverId))

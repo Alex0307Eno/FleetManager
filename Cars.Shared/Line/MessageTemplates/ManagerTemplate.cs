@@ -65,8 +65,8 @@ namespace Cars.Shared.Line
 
             var footer = new List<object>
             {
-                LineFlexBuilder.Button("❌ 駁回", $"action=reviewReject&applyId={a.ApplyId}", "secondary", "#ef4444"),
-                LineFlexBuilder.Button("✅ 同意", $"action=reviewApprove&applyId={a.ApplyId}", "primary", "#22c55e")
+               LineFlexBuilder.Button("❌ 駁回", $"action=reviewReject&applyId={a.ApplyId}", "secondary", "#b91c1c"),
+               LineFlexBuilder.Button("✅ 同意", $"action=reviewApprove&applyId={a.ApplyId}", "primary", "#22c55e")
             };
 
             var bubble = LineFlexBuilder.Bubble(
@@ -80,11 +80,8 @@ namespace Cars.Shared.Line
         /// <summary>
         /// 多筆待審清單（含分頁按鈕）
         /// </summary>
-        public static string BuildPendingListBubble(List<CarApplicationDto> apps, int page = 1, int pageSize = 5)
+        public static string BuildPendingListBubble(List<CarApplicationDto> apps)
         {
-            if (page <= 0) page = 1;
-            if (pageSize <= 0) pageSize = 5;
-
             var pending = apps
                 .Where(a => string.Equals(a.Status, "待審核", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(a => a.UseStart)
@@ -99,16 +96,13 @@ namespace Cars.Shared.Line
                 });
             }
 
-            var totalPages = (int)Math.Ceiling(pending.Count / (double)pageSize);
-            var items = pending.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
             var contents = new List<object>
     {
-        LineFlexBuilder.Text($"🚗 待審核清單（第 {page}/{totalPages} 頁）", weight: "bold", size: "lg", color: "#1e293b"),
+        LineFlexBuilder.Text("🚗 待審核清單", weight: "bold", size: "lg", color: "#1e293b"),
         new { type = "separator", margin = "md" }
     };
 
-            foreach (var a in items)
+            foreach (var a in pending)
             {
                 contents.Add(LineFlexBuilder.Box("vertical", new List<object>
         {
@@ -118,22 +112,17 @@ namespace Cars.Shared.Line
             LineFlexBuilder.Text($"事由：{a.ApplyReason ?? "—"}", size: "sm", color: "#64748b", wrap: true),
             LineFlexBuilder.Box("horizontal", new List<object>
             {
-                LineFlexBuilder.Button("❌ 駁回", $"action=reviewReject&applyId={a.ApplyId}", "secondary", "#ef4444"),
-                LineFlexBuilder.Button("✅ 同意", $"action=reviewApprove&applyId={a.ApplyId}", "primary", "#22c55e")
+               LineFlexBuilder.Button("❌ 駁回", $"action=reviewReject&applyId={a.ApplyId}", "secondary", "#b91c1c"),
+               LineFlexBuilder.Button("✅ 同意", $"action=reviewApprove&applyId={a.ApplyId}", "primary", "#22c55e")
+
             })
         }, spacing: "sm", margin: "md"));
             }
 
-            // 頁尾只有下一頁按鈕（如果還有資料）
-            var footer = new List<object>();
-            if (page < totalPages)
-                footer.Add(LineFlexBuilder.Button("下一頁 ➡️", $"action=reviewListPage&page={page + 1}", "secondary", "#94a3b8"));
-
             var bubble = new
             {
                 type = "bubble",
-                body = LineFlexBuilder.Box("vertical", contents, spacing: "sm"),
-                footer = footer.Any() ? LineFlexBuilder.Box("horizontal", footer, spacing: "sm") : null
+                body = LineFlexBuilder.Box("vertical", contents, spacing: "sm")
             };
 
             var flex = new

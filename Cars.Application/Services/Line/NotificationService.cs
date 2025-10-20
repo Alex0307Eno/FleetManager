@@ -108,7 +108,35 @@ public class NotificationService
         var resp = await res.Content.ReadAsStringAsync();
         Console.WriteLine($"LINE Push → {res.StatusCode} / {resp}");
     }
+    // 派車資訊更新通知
+    public async Task SendDispatchUpdateAsync(int dispatchId)
+    {
+        var d = await _db.Dispatches
+            .Include(x => x.CarApplication).ThenInclude(a => a.Applicant)
+            .Include(x => x.Driver)
+            .Include(x => x.Vehicle)
+            .FirstOrDefaultAsync(x => x.DispatchId == dispatchId);
 
+        if (d == null) return;
+
+        var app = d.CarApplication;
+        var plate = d.Vehicle?.PlateNo ?? "未指派";
+        var driverName = d.Driver?.DriverName ?? "未指派";
+        var applicantName = app?.Applicant?.Name ?? "—";
+
+        var text =
+        $@"📢 派車資訊更新通知
+       🧾 申請人：{applicantName}
+       📅 時間：{app?.UseStart:yyyy/MM/dd HH:mm} → {app?.UseEnd:HH:mm}
+       🚗 車號：{plate}
+       👨‍✈️ 駕駛：{driverName}
+       📍 {app?.Origin} → {app?.Destination}
+       🔄 請留意異動後的行程安排。";
+
+        await PushToApplicantAndDriverAsync(d, text);
+    }
+
+   
 
 
 

@@ -1,9 +1,10 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Application.Services.Line;
+using Cars.Data;
 using Cars.Models;
-using Cars.Web.Services;
-using Cars.Application.Services;
-using Cars.Shared.Dtos.CarApplications;
 using Cars.Services.Hangfire;
+using Cars.Shared.Dtos.CarApplications;
+using Cars.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,13 +20,17 @@ namespace Cars.ApiControllers
     {
         private readonly ApplicationDbContext _db;
         private readonly ILogger<RecordsController> _logger;
+        private readonly Odometer _odometerService;
+        private readonly NotificationService _notificationService;
         private readonly DispatchService _dispatchService;
 
 
-        public RecordsController(ApplicationDbContext db, ILogger<RecordsController> logger, DispatchService dispatchService)
+        public RecordsController(ApplicationDbContext db, ILogger<RecordsController> logger, Odometer odometerService, NotificationService notificationService, DispatchService dispatchService)
         {
             _db = db;
             _logger = logger;
+            _odometerService = odometerService;
+            _notificationService = notificationService;
             _dispatchService = dispatchService;
         }
 
@@ -308,66 +313,10 @@ namespace Cars.ApiControllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDispatch(int id, [FromBody] AssignDto dto)
         {
-            Console.WriteLine($"[Console] UpdateDispatch id={id}, body={JsonSerializer.Serialize(dto)}");
-            _logger.LogInformation("UpdateDispatch id={Id}, body={@Dto}", id, dto);
-
-            var dispatch = await _db.Dispatches.FindAsync(id);
-            if (dispatch == null)
-            {
-                Console.WriteLine($"[Console] UpdateDispatch not found: {id}");
-                _logger.LogWarning("UpdateDispatch: dispatch {Id} not found", id);
-                return NotFound();
-            }
-
-            // 1. 更新 Dispatch
-            dispatch.DriverId = dto.DriverId;
-            dispatch.VehicleId = dto.VehicleId;
-            dispatch.DispatchStatus = "已派車";
-
-            // 2. 更新 CarApplication 對應的 DriverId/VehicleId
-            var app = await _db.CarApplications.FindAsync(dispatch.ApplyId);
-            if (app != null)
-            {
-                app.DriverId = dto.DriverId;
-                app.VehicleId = dto.VehicleId;
-                app.Status = "完成審核"; // 這邊可以依照你的流程改，若只要改派車狀態可省略
-            }
-
-            var (ok1,err1) = await _db.TrySaveChangesAsync(this);
-            if (!ok1) return err1!;
-            // 重新排程提醒
-            DispatchJobScheduler.ScheduleRideReminders(dispatch);
-            // 3. 紀錄異動
-            _db.DispatchAudits.Add(new Cars.Models.DispatchAudit
-            {
-                DispatchId = dispatch.DispatchId,
-                Action = "Assign",
-                OldValue = JsonSerializer.Serialize(new
-                {
-                    OldDriverId = app?.DriverId,
-                    OldVehicleId = app?.VehicleId
-                }),
-                NewValue = JsonSerializer.Serialize(new
-                {
-                    dispatch.DriverId,
-                    dispatch.VehicleId
-                }),
-                ByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
-                ByUserName = User.Identity?.Name
-            });
-            var (ok2, err2) = await _db.TrySaveChangesAsync(this);
-            if (!ok2) return err2!;
-            Console.WriteLine($"[Console] UpdateDispatch OK: {dispatch.DispatchId}");
-            _logger.LogInformation("UpdateDispatch OK: {@Dispatch}", dispatch);
-
-            return Ok(new
-            {
-                message = "更新成功",
-                dispatch.DispatchId,
-                dispatch.DriverId,
-                dispatch.VehicleId,
-                appId = dispatch.ApplyId
-            });
+            var userName = User.Identity?.Name ?? "系統";
+            var (ok, msg) = await _dispatchService.UpdateDispatchAsync(id, dto.DriverId, dto.VehicleId, userName);
+            if (!ok) return BadRequest(new { message = msg });
+            return Ok(new { message = msg });
         }
         #endregion
 
@@ -747,7 +696,7 @@ namespace Cars.ApiControllers
                                             .FirstOrDefaultAsync();
             if (driverId == 0) return Forbid();
 
-            var msg = await _dispatchService.SaveStartOdometerAsync(id, driverId, dto.OdometerStart.Value);
+            var msg = await _odometerService.SaveStartOdometerAsync(id, driverId, dto.OdometerStart.Value);
             return msg.StartsWith("⚠️") ? BadRequest(new { message = msg }) : Ok(new { message = msg });
         }
 
@@ -766,7 +715,7 @@ namespace Cars.ApiControllers
                                             .FirstOrDefaultAsync();
             if (driverId == 0) return Forbid();
 
-            var msg = await _dispatchService.SaveEndOdometerAsync(id, driverId, dto.OdometerEnd.Value);
+            var msg = await _odometerService.SaveEndOdometerAsync(id, driverId, dto.OdometerEnd.Value);
             return msg.StartsWith("⚠️") ? BadRequest(new { message = msg }) : Ok(new { message = msg });
         }
 

@@ -1,5 +1,6 @@
 ﻿using Cars.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace Cars.Services.Hangfire
 {
@@ -35,6 +36,34 @@ namespace Cars.Services.Hangfire
 
             
             Console.WriteLine(text);
+        }
+
+        public async Task SendPendingDispatchReminderAsync()
+        {
+            var tomorrow = DateTime.Today.AddDays(1);
+            var pending = await _db.Dispatches
+                .Include(d => d.CarApplication)
+                .Where(d =>
+                    d.CarApplication.Status == "完成審核" &&
+                    d.VehicleId == null &&
+                    d.CarApplication.UseStart.Date == tomorrow)
+                .ToListAsync();
+
+            if (!pending.Any()) return;
+
+            var sb = new StringBuilder("🚗【派車提醒】\n以下派車單尚未指派車輛：\n");
+
+            foreach (var d in pending)
+            {
+                sb.AppendLine($"・申請單 {d.CarApplication.ApplyId}：{d.CarApplication.Origin} → {d.CarApplication.Destination}");
+            }
+
+            var admins = await _db.Users
+                .Where(u => (u.Role == "Admin" || u.Role == "Manager") && u.LineUserId != null)
+                .Select(u => u.LineUserId)
+                .ToListAsync();
+
+            
         }
     }
 }

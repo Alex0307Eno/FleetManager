@@ -32,6 +32,16 @@ namespace LineBotService
             services.AddScoped<ManagerReviewHandler>();
             services.AddScoped<PostbackHandler>();
             services.AddHttpClient<IDistanceService, GoogleDistanceService>();
+            services.AddScoped<BindFlowHandler>();
+            services.AddScoped<BookingHandler>();
+            services.AddScoped<PendingListHandler>();
+            services.AddScoped<DriverTripHandler>();
+            services.AddScoped<MessageHandler>();
+            services.AddScoped<TripQueryHandler>();
+            services.AddScoped<DispatchService>();
+
+
+
 
 
 

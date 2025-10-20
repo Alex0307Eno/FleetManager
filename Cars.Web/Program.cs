@@ -1,12 +1,13 @@
-﻿using Cars.Data;
+﻿using Cars.Application.Services;
+using Cars.Data;
 using Cars.Models;
-using Cars.Application.Services;
 using Cars.Services.GPS;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace Cars
 {
@@ -116,8 +117,9 @@ namespace Cars
                 .AddJsonOptions(o =>
                 {
                     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-                    
-                    
+                    o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+
+
                 });
 
             builder.Services.AddAuthorization();

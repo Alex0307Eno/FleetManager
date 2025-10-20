@@ -5,6 +5,8 @@ using Cars.Shared.Line;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 
 
 namespace Cars.Application.Services
@@ -209,6 +211,56 @@ namespace Cars.Application.Services
 
 
         #endregion
+        //更新狀態
+        public async Task<(bool Success, string Message, CarApplication? App)> UpdateStatusAsync(int applyId, string newStatus, string userName)
+        {
+            if (string.IsNullOrWhiteSpace(newStatus))
+                return (false, "Status 不可為空", null);
+
+            var app = await _db.CarApplications
+                .Include(a => a.Applicant)
+                .FirstOrDefaultAsync(x => x.ApplyId == applyId);
+
+            if (app == null)
+                return (false, "找不到申請單", null);
+
+            var oldStatus = app.Status;
+            var trimmedStatus = newStatus.Trim();
+
+            // 若變更為「完成審核」，嘗試自動帶入派工資料
+            if (trimmedStatus == "完成審核")
+            {
+                var dispatch = await _db.Dispatches
+                    .Where(d => d.ApplyId == app.ApplyId)
+                    .OrderByDescending(d => d.DispatchId)
+                    .FirstOrDefaultAsync();
+
+                if (dispatch != null)
+                {
+                    if (dispatch.DriverId.HasValue) app.DriverId = dispatch.DriverId;
+                    if (dispatch.VehicleId.HasValue) app.VehicleId = dispatch.VehicleId;
+                }
+            }
+
+            app.Status = trimmedStatus;
+            await _db.SaveChangesAsync();
+
+            // 寫入異動紀錄
+            _db.CarApplicationAudits.Add(new CarApplicationAudit
+            {
+                ApplyId = app.ApplyId,
+                Action = "狀態更新",
+                OldValue = oldStatus,
+                NewValue = trimmedStatus,
+                ByUserName = userName,
+                At = DateTime.Now
+            });
+            await _db.SaveChangesAsync();
+
+            return (true, "狀態已更新", app);
+        }
+
+
 
         #region 共用方法
         // ===== 轉換區 =====
@@ -287,6 +339,7 @@ namespace Cars.Application.Services
         }
 
     }
+
 
 
 }

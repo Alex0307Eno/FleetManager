@@ -26,6 +26,7 @@ namespace Cars.ApiControllers
         private readonly AutoDispatcher _dispatcher;
         private readonly CarApplicationUseCase _usecase;
         private readonly NotificationService _notificationService;
+        
 
 
 
@@ -110,11 +111,6 @@ namespace Cars.ApiControllers
         }
 
 
-
-
-
-
-
         #endregion
 
         #region dispatches頁面功能
@@ -177,13 +173,15 @@ namespace Cars.ApiControllers
             var oldJson = JsonSerializer.Serialize(oldData);
 
             // 紀錄異動
-            await LogAppAuditAsync(
-                app.ApplyId,
-                "刪除",
-                User.Identity?.Name ?? "系統",
-                oldJson,
-                null
-            );
+            _db.CarApplicationAudits.Add(new CarApplicationAudit
+            {
+                ApplyId = app.ApplyId,
+                Action = "Delete",
+                OldValue = oldJson,
+                NewValue = null,
+                ByUserName = User.Identity?.Name ?? "系統",
+                At = DateTime.Now
+            });
 
             // 先刪子表（派工單）
             var dispatches = _db.Dispatches.Where(d => d.ApplyId == id);
@@ -242,51 +240,9 @@ namespace Cars.ApiControllers
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusDto dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Status))
-                return BadRequest(ApiResponse.Fail<object>("Status 不可為空"));
-
-            var app = await _db.CarApplications
-                .Include(a => a.Applicant)
-                .FirstOrDefaultAsync(x => x.ApplyId == id);
-            if (app == null)
-                return NotFound(ApiResponse.Fail<object>("找不到申請單"));
-
-            var oldStatus = app.Status;
-            var newStatus = dto.Status.Trim();   // ★ 在這裡宣告 newStatus
-
-            // 若變更為「完成審核」，嘗試帶入派工人車
-            if (newStatus == "完成審核")
-            {
-                var dispatch = await _db.Dispatches
-                    .Where(d => d.ApplyId == app.ApplyId)
-                    .OrderByDescending(d => d.DispatchId)
-                    .FirstOrDefaultAsync();
-
-                if (dispatch != null && dispatch.DriverId.HasValue)
-                {
-                    app.DriverId = dispatch.DriverId;
-                    app.VehicleId = dispatch.VehicleId;
-                }
-            }
-
-            app.Status = newStatus;
-
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-
-            // 異動紀錄
-            await LogAppAuditAsync(
-                app.ApplyId, "狀態更新", User.Identity?.Name ?? "系統",
-                new { 舊狀態 = oldStatus },
-                new { 新狀態 = newStatus }
-            );
-
-            return Ok(ApiResponse.Ok(new
-            {
-                status = app.Status,
-                driverId = app.DriverId,
-                vehicleId = app.VehicleId
-            }, "狀態已更新"));
+            var (ok, msg, result) = await _carApplicationService.UpdateStatusAsync(id, dto.Status, User.Identity?.Name ?? "系統");
+            if (!ok) return BadRequest(ApiResponse.Fail<object>(msg));
+            return Ok(ApiResponse.Ok(result, msg));
         }
 
         #endregion
@@ -409,49 +365,9 @@ namespace Cars.ApiControllers
 
         #endregion
 
-        #region 異動紀錄
        
 
-        private async Task LogAppAuditAsync(
-    int applyId, string action, string byUser, object oldValue, object newValue)
-        {
-            string ToReadable(object o)
-            {
-                if (o == null) return "";
-                try
-                {
-                    var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(o)
-                    );
-
-                    // 轉成多行字串
-                    var sb = new StringBuilder();
-                    foreach (var kv in dict)
-                    {
-                        var val = string.IsNullOrEmpty(kv.Value?.ToString()) ? "(空白)" : kv.Value;
-                        sb.AppendLine($"{kv.Key}：{val}");
-                    }
-                    return sb.ToString().Trim();
-                }
-                catch
-                {
-                    return o.ToString();
-                }
-            }
-
-            var audit = new CarApplicationAudit
-            {
-                ApplyId = applyId,
-                Action = action,
-                ByUserName = byUser,
-                OldValue = oldValue != null ? ToReadable(oldValue) : null,
-                NewValue = newValue != null ? ToReadable(newValue) : null,
-                At = DateTime.Now
-            };
-
-            _db.CarApplicationAudits.Add(audit);
-            await _db.SaveChangesAsync();
-        }
+        
 
 
 
@@ -542,7 +458,6 @@ namespace Cars.ApiControllers
                 }
             }
         }
-        #endregion
 
 
         #region LINE專用申請單(測試用)

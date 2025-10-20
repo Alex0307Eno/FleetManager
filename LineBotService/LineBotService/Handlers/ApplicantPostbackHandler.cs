@@ -76,71 +76,33 @@ namespace LineBotService.Handlers
 
                 var reviewJson = ManagerTemplate.BuildManagerReviewBubble(dto);
 
+                // 先取出申請人的部門
+                var applicantDept = await _db.Applicants
+                    .Where(a => a.ApplicantId == app.ApplicantId)
+                    .Select(a => a.Dept)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrEmpty(applicantDept))
+                    return; // 沒有部門就不發通知
+
+                // 找出同部門的 Admin / Manager
                 var admins = await _db.Users
-                    .Where(u => (u.Role == "Admin" || u.Role == "Manager") && u.LineUserId != null)
+                    .Include(u => u.Applicant)
+                    .Where(u =>
+                        (u.Role == "Admin" || u.Role == "Manager") &&
+                        u.LineUserId != null &&
+                        u.Applicant != null &&
+                        u.Applicant.Dept == applicantDept)
                     .Select(u => u.LineUserId)
                     .ToListAsync();
+
 
                 foreach (var adminId in admins)
                     LineBotUtils.SafePush(_bot, adminId, reviewJson);
 
                 LineBotUtils.Conversations.Remove(userId);
             }
-            // === 管理員審核清單分頁 ===
-            //if (data.StartsWith("action=reviewListPage"))
-            //{
-            //    var pageStr = data.Split("page=").LastOrDefault();
-            //    int.TryParse(pageStr, out var page);
-            //    if (page <= 0) page = 1;
-
-            //    const int pageSize = 5;
-            //    var today = DateTime.Today;
-            //    var tomorrow = today.AddDays(1);
-
-            //    var apps = await _db.CarApplications
-            //        .Include(a => a.Applicant)
-            //        .Where(a => a.Status == "待審核" && a.UseStart >= today && a.UseEnd < tomorrow)
-            //        .OrderBy(a => a.UseStart)
-            //        .Select(a => new Cars.Shared.Dtos.CarApplications.CarApplicationDto
-            //        {
-            //            ApplyId = a.ApplyId,
-            //            ApplicantName = a.Applicant != null ? a.Applicant.Name : null,
-            //            UseStart = a.UseStart,
-            //            UseEnd = a.UseEnd,
-            //            Origin = a.Origin,
-            //            Destination = a.Destination,
-            //            ApplyReason = a.ApplyReason,
-            //            Status = a.Status
-            //        })
-            //        .ToListAsync();
-
-            //    // 沒資料 → 回「文字訊息」的 JSON 字串
-            //    if (apps == null || !apps.Any())
-            //    {
-            //        var textJson = System.Text.Json.JsonSerializer.Serialize(new
-            //        {
-            //            type = "text",
-            //            text = "目前沒有待審核申請單"
-            //        });
-            //        LineBotUtils.SafeReply(_bot, replyToken, textJson);
-            //        return;
-            //    }
-
-            //    var bubbleJson = ManagerTemplate.BuildPendingListBubble(apps);
-
-            //    // 包 flex 外層，然後整包序列化成字串再丟進 SafeReply
-            //    var bubbleObj = System.Text.Json.JsonSerializer.Deserialize<object>(bubbleJson);
-            //    var flexWrapper = new
-            //    {
-            //        type = "flex",
-            //        altText = "待審核派車清單",
-            //        contents = bubbleObj
-            //    };
-            //    var flexJson = System.Text.Json.JsonSerializer.Serialize(flexWrapper);
-
-            //    LineBotUtils.SafeReply(_bot, replyToken, flexJson);
-            //    return;
-            //}
+            
 
 
 
