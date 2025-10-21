@@ -22,6 +22,41 @@ namespace Cars.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Cars.Models.AffectedDispatch", b =>
+                {
+                    b.Property<int>("AffectedId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AffectedId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DispatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsResolved")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LeaveId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("AffectedId");
+
+                    b.HasIndex("DispatchId");
+
+                    b.HasIndex("LeaveId");
+
+                    b.ToTable("AffectedDispatches");
+                });
+
             modelBuilder.Entity("Cars.Models.Applicant", b =>
                 {
                     b.Property<int>("ApplicantId")
@@ -58,7 +93,9 @@ namespace Cars.Migrations
 
                     b.HasKey("ApplicantId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
 
                     b.ToTable("Applicants");
                 });
@@ -324,6 +361,9 @@ namespace Cars.Migrations
 
                     b.Property<int?>("ApplyId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("DispatchId")
                         .HasColumnType("int");
@@ -1125,11 +1165,30 @@ namespace Cars.Migrations
                     b.ToTable("VehicleViolations");
                 });
 
+            modelBuilder.Entity("Cars.Models.AffectedDispatch", b =>
+                {
+                    b.HasOne("Cars.Models.Dispatch", "Dispatch")
+                        .WithMany()
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cars.Models.Leave", "Leave")
+                        .WithMany()
+                        .HasForeignKey("LeaveId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Dispatch");
+
+                    b.Navigation("Leave");
+                });
+
             modelBuilder.Entity("Cars.Models.Applicant", b =>
                 {
                     b.HasOne("Cars.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId");
+                        .WithOne("Applicant")
+                        .HasForeignKey("Cars.Models.Applicant", "UserId");
 
                     b.Navigation("User");
                 });
@@ -1319,6 +1378,11 @@ namespace Cars.Migrations
             modelBuilder.Entity("Cars.Models.Driver", b =>
                 {
                     b.Navigation("Dispatches");
+                });
+
+            modelBuilder.Entity("Cars.Models.User", b =>
+                {
+                    b.Navigation("Applicant");
                 });
 
             modelBuilder.Entity("Cars.Models.Vehicle", b =>

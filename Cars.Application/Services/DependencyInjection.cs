@@ -19,6 +19,7 @@ namespace Cars.Application.Services
             services.AddScoped<ILinePush, LinePush>();
             services.AddScoped<NotificationService>();
             services.AddScoped<DispatchService>();
+            services.AddScoped<LeaveService>();
 
 
 

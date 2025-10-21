@@ -85,11 +85,22 @@ public class NotificationService
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _token);
 
-        // 這裡把 flexJson 當成已經是完整的 message 物件
+        object message;
+        try
+        {
+            // 嘗試解析為 JSON
+            message = JsonConvert.DeserializeObject(flexJson);
+        }
+        catch
+        {
+            // 如果不是 JSON，改包成純文字訊息
+            message = new { type = "text", text = flexJson };
+        }
+
         var payload = new
         {
             to,
-            messages = new[] { JsonConvert.DeserializeObject(flexJson) }
+            messages = new[] { message }
         };
 
         var content = new StringContent(
@@ -97,16 +108,33 @@ public class NotificationService
             Encoding.UTF8,
             "application/json"
         );
-        // 送出前，保底確認 messages[0].type 存在
-        var msg = JsonConvert.DeserializeObject<JObject>(flexJson);
-        if (msg?["type"]?.ToString() != "flex")
-        {
-            Console.WriteLine("⚠️ flexJson 並非完整 flex message，缺少 type:flex 或模板輸出錯誤。");
-        }
 
-        var res = await client.PostAsync("https://api.line.me/v2/bot/message/push", content);
-        var resp = await res.Content.ReadAsStringAsync();
-        Console.WriteLine($"LINE Push → {res.StatusCode} / {resp}");
+        try
+        {
+            var res = await client.PostAsync("https://api.line.me/v2/bot/message/push", content);
+            var resp = await res.Content.ReadAsStringAsync();
+
+            if (!res.IsSuccessStatusCode)
+            {
+                if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                    resp.Contains("monthly limit"))
+                {
+                    // 達到 LINE 限額
+                    Console.WriteLine("⚠️ LINE 推播已達月上限，訊息未發送。");
+                    return;
+                }
+
+                Console.WriteLine($"⚠️ LINE 推播失敗：{res.StatusCode} / {resp}");
+            }
+            else
+            {
+                Console.WriteLine($"✅ LINE Push 成功 → {res.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ LINE 推播例外：{ex.Message}");
+        }
     }
     // 派車資訊更新通知
     public async Task SendDispatchUpdateAsync(int dispatchId)

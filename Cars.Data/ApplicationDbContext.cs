@@ -45,6 +45,9 @@ namespace Cars.Data
 
         public DbSet<VehicleLocationLog> VehicleLocationLogs { get; set; }
 
+        public DbSet<AffectedDispatch> AffectedDispatches { get; set; }
+
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

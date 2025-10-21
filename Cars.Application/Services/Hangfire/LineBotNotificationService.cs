@@ -73,5 +73,7 @@ namespace Cars.Services.Hangfire
             foreach (var adminId in admins)
                 await _linePush.PushAsync(adminId, sb.ToString());
         }
+
+
     }
 }

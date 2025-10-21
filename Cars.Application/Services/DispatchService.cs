@@ -70,7 +70,19 @@ namespace Cars.Application.Services
 
             await _db.SaveChangesAsync();
 
-            //  改在資料存好之後再排程與通知
+            // ===  新增這段：若該派工原本有受影響紀錄，改為已解決 ===
+            var affected = await _db.AffectedDispatches
+                .FirstOrDefaultAsync(x => x.DispatchId == dispatchId && !x.IsResolved);
+
+            if (affected != null)
+            {
+                affected.IsResolved = true;
+                affected.ResolvedAt = DateTime.Now;
+                await _db.SaveChangesAsync();
+                Console.WriteLine($"[INFO] 已標記受影響派工 #{dispatchId} 為已解決。");
+            }
+
+            //排程提醒
             DispatchJobScheduler.ScheduleRideReminders(dispatch);
 
             try

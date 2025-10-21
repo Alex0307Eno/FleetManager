@@ -5,6 +5,7 @@ using Cars.Shared.Dtos.Leaves;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Cars.Application.Services;        
 
 namespace Cars.ApiControllers
 {
@@ -14,7 +15,13 @@ namespace Cars.ApiControllers
     public class LeavesController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
-        public LeavesController(ApplicationDbContext db) { _db = db; }
+        private readonly LeaveService _leaveService;
+        public LeavesController(ApplicationDbContext db, LeaveService leaveService) 
+        { 
+            _db = db; 
+            _leaveService = leaveService;
+
+        }
 
         
 
@@ -125,7 +132,6 @@ namespace Cars.ApiControllers
         [HttpPost("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
         {
-            using var tx = await _db.Database.BeginTransactionAsync(); //  開始交易
 
             try
             {
@@ -192,21 +198,75 @@ namespace Cars.ApiControllers
                     _db.DriverDelegations.Add(deleg);
                 }
 
+
                 var (ok, err) = await _db.TrySaveChangesAsync(this);
-                if (!ok) return err!; 
-                await tx.CommitAsync(); //  全部成功才提交
+                if (!ok) return err!;
+                //查詢受影響行程
+                var affected = await _leaveService.GetAffectedDispatchesAsync(
+                                leave.DriverId,
+                                leave.Start,
+                                leave.End
+                                );
 
+                // 然後照舊做投影
+                var affectedList = affected.Select(x => new
+                {
+                    x.DispatchId,
+                    Start = x.CarApplication.UseStart,
+                    End = x.CarApplication.UseEnd,
+                    x.CarApplication.Origin,
+                    x.CarApplication.Destination,
+                    x.DispatchStatus
+                }).ToList();
+
+
+                if (status == "核准")
+                {
+                    // 呼叫通知服務
+                    var leaveService = HttpContext.RequestServices.GetRequiredService<LeaveService>();
+                    await leaveService.HandleDriverLeaveAsync(leave.LeaveId);
+                }
                 var msg = status == "核准"
-                    ? $"請假紀錄 {id} 已更新為 {status}，並指派代理人 {agentName}"
-                    : $"請假紀錄 {id} 已駁回";
+                         ? $"指派代理人 {agentName}。駕駛 {leave.Driver.DriverName} 請假期間有 {affectedList.Count} 筆行程受影響。"
+                         : $"請假紀錄 {id} 已駁回";
 
-                return Ok(new { message = msg });
+                return Ok(new { message = msg, affected = affectedList });
             }
             catch (Exception ex)
             {
-                await tx.RollbackAsync(); // 有錯誤就回滾
                 return StatusCode(500, new { message = "伺服器內部錯誤", error = ex.Message });
             }
+        }
+        // 檢查請假期間受影響的派車行程
+        [HttpGet("check-affected")]
+        public async Task<IActionResult> CheckAffected(int driverId, DateTime start, DateTime end)
+        {
+            if (driverId <= 0 || start == default || end == default)
+                return BadRequest("參數錯誤");
+
+            // 撈出請假期間的派車
+            var affected = await _db.Dispatches
+                .Include(x => x.CarApplication)
+                .Where(x =>
+                    x.DriverId == driverId &&
+                    x.CarApplication.UseStart <= end &&
+                    x.CarApplication.UseEnd >= start &&
+                    (x.DispatchStatus == "已派車"
+                     || x.DispatchStatus == "進行中"
+                     || x.DispatchStatus == "待出勤"))
+                .Select(x => new
+                {
+                    x.DispatchId,
+                    Start = x.CarApplication.UseStart,
+                    End = x.CarApplication.UseEnd,
+                    x.CarApplication.Origin,
+                    x.CarApplication.Destination,
+                    x.DispatchStatus
+                })
+                .OrderBy(x => x.Start)
+                .ToListAsync();
+
+            return Ok(affected);
         }
 
 

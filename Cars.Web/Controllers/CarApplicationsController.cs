@@ -247,74 +247,35 @@ namespace Cars.ApiControllers
 
         #endregion
 
-
-
-
-        [Obsolete]
-        #region 過濾可用車輛與司機 (可能用不到)
-
-
-        //找出可用司機和車輛
-        [HttpPatch("{id}/assignment")]
-        public async Task<IActionResult> UpdateAssignment(int id, [FromBody] AssignDto dto)
+        // 取得受影響的派工清單
+        [HttpGet("Affected")]
+        public async Task<IActionResult> GetAffectedList()
         {
-            var app = await _db.CarApplications.FindAsync(id);
-            if (app == null) return NotFound(ApiResponse<string>.Fail("找不到申請單"));
-
-            var from = app.UseStart;
-            var to = app.UseEnd;
-
-            // 驗證車在區間內可用
-            if (dto.VehicleId.HasValue)
-            {
-                var vUsed = await _db.Dispatches.AnyAsync(d =>
-                    d.VehicleId == dto.VehicleId &&
-                    d.ApplyId != id &&
-                    from < d.EndTime && d.StartTime < to);
-                if (vUsed) return BadRequest(ApiResponse<string>.Fail("該車於此時段已被派用"));
-            }
-
-            // 驗證駕駛在區間內可用
-            if (dto.DriverId.HasValue)
-            {
-                var dUsed = await _db.Dispatches.AnyAsync(d =>
-                    d.DriverId == dto.DriverId &&
-                    d.ApplyId != id &&
-                    from < d.EndTime && d.StartTime < to);
-                if (dUsed) return BadRequest(ApiResponse<string>.Fail("該駕駛於此時段已有派工"));
-            }
-
-            // 更新 Application
-            app.DriverId = dto.DriverId;
-            app.VehicleId = dto.VehicleId;
-
-            // 同步 Dispatch
-            var disp = await _db.Dispatches.FirstOrDefaultAsync(d => d.ApplyId == id);
-            if (disp == null && (dto.DriverId.HasValue || dto.VehicleId.HasValue))
-            {
-                _db.Dispatches.Add(new Cars.Models.Dispatch
+            var list = await _db.AffectedDispatches
+                .Include(x => x.Dispatch).ThenInclude(d => d.CarApplication)
+                .Include(x => x.Dispatch).ThenInclude(d => d.Driver)
+                .Where(x => !x.IsResolved)
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new
                 {
-                    ApplyId = id,
-                    DriverId = dto.DriverId,
-                    VehicleId = dto.VehicleId,
-                    DispatchStatus = "待指派", 
-                    StartTime = from,
-                    EndTime = to,
-                    CreatedAt = DateTime.Now
-                });
-            }
-            else if (disp != null && (dto.DriverId.HasValue || dto.VehicleId.HasValue))
-            {
-                disp.DispatchStatus = "已派車";
-            }
+                    x.AffectedId,
+                    x.DispatchId,
+                    DriverName = x.Dispatch.Driver.DriverName,
+                    Origin = x.Dispatch.CarApplication.Origin,
+                    Destination = x.Dispatch.CarApplication.Destination,
+                    Start = x.Dispatch.CarApplication.UseStart,
+                    End = x.Dispatch.CarApplication.UseEnd,
+                    x.Dispatch.DispatchStatus
+                })
+                .ToListAsync();
 
-
-            var (ok, err) = await _db.TrySaveChangesAsync(this);
-            if (!ok) return err!;
-
-            return Ok(ApiResponse<string>.Ok("指派已更新"));
+            return Ok(list);
         }
-        #endregion
+
+        
+
+
+
 
         #region 審核後自動派車 
         //完成審核自動派車
@@ -387,7 +348,7 @@ namespace Cars.ApiControllers
                 .ToListAsync();
 
             var result = rows.Select(r => new {
-                at = r.At,                                      // 前端用 toLocaleString 顯示
+                at = r.At,                                      
                 action = r.Action switch
                 {
                     "Create" => "建立申請",

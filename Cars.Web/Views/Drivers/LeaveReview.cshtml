@@ -74,6 +74,37 @@
                     </tr>
                 </tbody>
             </table>
+            <div v-if="showAffected" class="alert alert-warning mt-3 p-3 rounded">
+                <h5>⚠ 有受影響的行程需重新指派：</h5>
+                <table class="table table-sm table-bordered mt-2">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>駕駛</th>
+                            <th>起訖時間</th>
+                            <th>出發地</th>
+                            <th>目的地</th>
+                            <th>狀態</th>
+                           
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="a in affectedList" :key="a.dispatchId">
+                            <td>{{ a.dispatchId }}</td>
+                            <td>{{ a.driverName }}</td>
+                            <td>{{ fmt(a.start) }} → {{ fmt(a.end) }}</td>
+                            <td>{{ a.origin }}</td>
+                            <td>{{ a.destination }}</td>
+                            <td>{{ a.dispatchStatus }}</td>
+                            
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+
+
+
         </div>
     </div>
 
@@ -81,44 +112,44 @@
         const { createApp, ref, onMounted } = Vue;
 
         createApp({
-          setup(){
+          setup() {
             const leaves = ref([]);
             const loading = ref(false);
+            const affectedList = ref([]);
+            const showAffected = ref(false);
 
-            const pad = n => String(n).padStart(2,"0");
+            const pad = n => String(n).padStart(2, "0");
             const formatRoc = d => {
-              const roc = d.getFullYear()-1911;
-              return `${roc}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              const roc = d.getFullYear() - 1911;
+              return `${roc}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
             };
             const fmt = dtStr => {
               const d = new Date(dtStr);
               return isNaN(d) ? "" : formatRoc(d);
             };
-
             const statusClass = s =>
-              s==="核准" ? "s-approved" :
-              s==="駁回" ? "s-reject" : "s-wait";
-
-            // 載入請假紀錄
-            async function loadLeaves(){
+              s === "核准" ? "s-approved" :
+              s === "駁回" ? "s-reject" : "s-wait";
+     
+            async function loadLeaves() {
               loading.value = true;
-              try{
+              try {
                 const res = await axios.get("/api/Leaves");
-                // 每筆請假多一個 availableAgents 陣列
                 leaves.value = (res.data || []).map(l => ({ ...l, availableAgents: [] }));
-              }catch(err){
+              } catch (err) {
                 console.error("讀取請假紀錄失敗", err);
                 leaves.value = [];
-              }finally{
+              } finally {
                 loading.value = false;
               }
             }
 
-            // 更新狀態 (核准/駁回)
-            async function updateStatus(id, status, agentDriverId=null){
+            async function updateStatus(id, status, agentDriverId = null) {
               try {
                 const res = await axios.post(`/api/Leaves/${id}/status`, { status, agentDriverId });
                 alert(res.data?.message || `✅ 已更新為 ${status}`);
+                affectedList.value = res.data?.affected || [];
+                showAffected.value = affectedList.value.length > 0;
                 await loadLeaves();
               } catch (err) {
                 console.error("更新狀態失敗", err);
@@ -126,20 +157,36 @@
               }
             }
 
-            // 動態載入代理人
-            async function loadDrivers(leave){
-              try{
+            async function loadDrivers(leave) {
+              try {
                 const res = await axios.get(`/api/Drivers/Agents?leaveId=${leave.leaveId}`);
                 leave.availableAgents = res.data || [];
-              }catch(err){
+              } catch (err) {
                 console.error("讀取代理人名單失敗", err);
                 leave.availableAgents = [];
               }
             }
 
-            onMounted(() => loadLeaves());
+         
 
-            return { leaves, loading, fmt, statusClass, updateStatus, loadDrivers };
+        async function loadAffectedList() {
+          try {
+            const res = await axios.get("/api/CarApplications/Affected");
+            affectedList.value = res.data || [];
+            showAffected.value = affectedList.value.length > 0;
+          } catch (err) {
+            console.error("讀取受影響行程失敗", err);
+          }
+        }
+
+        onMounted(() => {
+          loadLeaves();
+          loadAffectedList(); 
+        });
+
+
+
+            return { leaves, loading, fmt, statusClass, updateStatus, loadDrivers, affectedList, showAffected, loadAffectedList };
           }
         }).mount("#review-app");
     </script>
