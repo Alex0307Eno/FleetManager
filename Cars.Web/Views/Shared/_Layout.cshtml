@@ -18,7 +18,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title >@ViewData["Title"] - 公務車派車系統</title>
+    <title >@ViewData["Title"] - AI派車與排班系統</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/reset.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -31,12 +31,12 @@
             @if (User.IsInRole("Admin") )
             {
                 <a class="navbar-brand fw-bold text-white" asp-controller="Home" asp-action="Index">
-                    公務車派車系統
+                    AI派車與排班系統
                 </a>
             }
             else
             {
-                <span class="navbar-brand fw-bold text-white opacity-75">公務車派車系統</span>
+                <span class="navbar-brand fw-bold text-white opacity-75">AI派車與排班系統</span>
             }
 
 

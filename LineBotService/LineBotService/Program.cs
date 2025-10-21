@@ -63,7 +63,7 @@ namespace LineBotService
                 {
                     Title = "LineBotService API",
                     Version = "v1",
-                    Description = "Line Bot 與公務車派車系統整合服務"
+                    Description = "Line Bot 與AI派車與排班系統整合服務"
                 });
             });
             // 靜態檔案服務與目錄瀏覽
