@@ -163,6 +163,7 @@
               const x=new Date(d); if(isNaN(x)) return '';
               return `${x.getFullYear()-1911}/${pad(x.getMonth()+1)}/${pad(x.getDate())}`;
             };
+            // 簡短顯示申請單位
             function shortDept(dept){
               if(!dept) return '';
               const parts=dept.split('/').map(x=>x.trim()).filter(Boolean);
@@ -172,7 +173,7 @@
 
             const sumKm = computed(()=> rows.value.reduce((a,b)=>a+(Number(b.km)||0),0));
             const sumTrips = computed(()=> rows.value.reduce((a,b)=>a+(Number(b.trips)||0),0));
-
+            // 載入行車歷程資料
             async function reload(){
               const res = await axios.get('/Vehicles/TripStats',{ params:q.value });
               rows.value = Array.isArray(res.data) ? res.data : [];
@@ -181,18 +182,18 @@
               applicants.value = [...new Set(rows.value.map(r=>r.applicantName).filter(Boolean))];
               depts.value = [...new Set(rows.value.map(r=>r.applicantDept).filter(Boolean))];
             }
-
+            // 載入統計圖資料
             async function reloadChart(){
               const res = await axios.get('/Vehicles/TripStats',{ params:chartQ.value });
               rows.value = Array.isArray(res.data) ? res.data : [];
               drawCharts();
             }
-
+            // 載入駕駛員清單
             async function loadDrivers(){
               const res = await axios.get('/api/Drivers/Records');
               drivers.value = (res.data||[]).map(x=>({ id:x.driverId||x.id, name:x.driverName||x.name }));
             }
-
+            // 繪製統計圖
             let driverChart, vehicleChart;
             function drawCharts(){
               if(!rows.value.length) return;

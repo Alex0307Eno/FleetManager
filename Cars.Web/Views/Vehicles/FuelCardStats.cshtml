@@ -126,7 +126,7 @@
           // 以總金額由高到低
           return [...cards.value].sort((a,b)=>(b.totalAmount??0)-(a.totalAmount??0));
         });
-
+        // 載入加油卡資料
         async function loadCards(){
           error.value = '';
           cards.value = [];
@@ -145,7 +145,7 @@
             loading.value = false;
           }
         }
-
+        // 設定為本月
         function setThisMonth(){
           const now = new Date();
           year.value = now.getFullYear();
@@ -155,7 +155,19 @@
 
         onMounted(loadCards);
 
-        return { year, month, cards, loading, error, loadCards, setThisMonth, fmt, formatTime, sortedCards };
-      }
-    }).mount('#app');
+      return {
+        // 基本資料
+        year, month,
+
+        // 卡片資料
+        cards, sortedCards,
+
+        // 載入狀態
+        loading, error,
+
+        // 功能方法
+        loadCards, setThisMonth, fmt, formatTime
+      };
+   }
+).mount('#app');
 </script>

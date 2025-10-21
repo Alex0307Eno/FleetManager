@@ -97,14 +97,14 @@
             const formatRoc=(date)=>`${date.getFullYear()-1911}/${pad(date.getMonth()+1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
             const toLocalISOString=(date)=> new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,-1);
             const fmt=(dtStr)=>{const d=new Date(dtStr);return isNaN(d)? "" : formatRoc(d);};
-
+            // 載入請假紀錄
             async function loadLeaves(){
               loading.value=true;
               try{ const res=await axios.get("/api/Leaves/my"); leaves.value=res.data||[]; }
               catch(err){ console.error("讀取請假紀錄失敗",err); leaves.value=[]; }
               finally{ loading.value=false; }
             }
-
+            // 初始化日期時間選擇器
             function initPickers(){
               nextTick(()=>{
                 const today = new Date();
@@ -117,7 +117,7 @@
                 fpEnd=flatpickr("#lvEnd",{enableTime:true,dateFormat:"Y-m-d H:i",altInput:true,altFormat:"Y-m-d H:i",defaultDate:end,onChange:ds=>{if(ds.length)endIso.value=toLocalISOString(ds[0]);}});
               });
             }
-
+            // 提交請假申請
             async function submitLeave(){
               if(!startIso.value||!endIso.value||!reason.value.trim()){ alert("⚠ 請完整填寫表單"); return; }
               if(new Date(endIso.value)<=new Date(startIso.value)){ alert("⚠ 結束時間必須晚於開始時間"); return; }
@@ -128,13 +128,35 @@
                 tab.value="records"; loadLeaves();
               }catch(err){ alert("❌ 申請失敗"); }
             }
-
+            // 切換分頁
             function switchTab(t){ tab.value=t; if(t==="apply") initPickers(); else if(t==="records") loadLeaves(); }
+            // 返回班表
             function goSchedule(){ window.location.href="/api/Drivers/MySchedule"; }
             const statusClass=(s)=> s==="核准"?"s-approved": s==="駁回"?"s-reject":"s-wait";
 
             onMounted(()=>{ initPickers(); });
-            return { tab, leaveType, reason, leaves, loading, fmt, submitLeave, statusClass, switchTab, goSchedule };
+                    return {
+            // 畫面控制相關
+            tab,            
+            switchTab,      
+
+            // 請假表單資料 
+            leaveType,      
+            reason,         
+            submitLeave,    
+
+            // 請假紀錄管理
+            leaves,         
+            loading,        
+
+            //  顯示輔助函式 
+            fmt,            
+            statusClass,    
+
+            // 導頁與操作
+            goSchedule      
+        };
+
           }
         }).mount("#leave-app");
     </script>

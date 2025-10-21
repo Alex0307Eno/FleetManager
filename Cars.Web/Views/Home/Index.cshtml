@@ -363,18 +363,16 @@
                      });
                  });
 
-              const vehicleMeta = ref(new Map());
               const plateByVehicleId = ref(new Map());   
               const statusByVehicleId = ref(new Map());
               const driverNameByVehicleId = ref(new Map()); 
-              const driverNameByDriverId  = ref(new Map()); 
 
 
               // ===== 我的定位（五張地圖） =====
               const myLoc     = ref({ lat:null, lng:null, ts:null });
               const locating  = ref(false);
               const locError  = ref("");
-
+              
               function getMyLocation(){
                 locating.value = true;
                 locError.value = "";
@@ -403,518 +401,511 @@
                 });
               }
 
-          // 小汽車圖（橘：執勤中）
-          function carSVG(color){
-            return `
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="28" height="28">
-                <rect x="96" y="200" width="320" height="90" rx="22" ry="22" fill="${color}" />
-                <rect x="136" y="160" width="240" height="50" rx="10" ry="10" fill="${color}" />
-                <circle cx="186" cy="310" r="22" fill="#1f2937"/>
-                <circle cx="326" cy="310" r="22" fill="#1f2937"/>
-              </svg>`;
-          }
-
-                  // ===== 取得目前地圖中心（我的定位或台北101） =====
-         const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
-        function currentCenter() {
-          const lat = toNumOrNull(myLoc.value?.lat);
-          const lng = toNumOrNull(myLoc.value?.lng);
-          return (validLatLng(lat, lng))
-            ? { lat, lng }
-            : FALLBACK_CENTER; // 台北101
-        }
-
-        // ===== 先抓所有車輛目前位置（初始化 + 之後輪詢沿用） =====
-        async function loadVehicleLocations() {
-          try {
-            const res = await axios.get("/api/dashboard/vehicle-locations");
-            const list = res.data; // 預期: [{ vehicleId, latitude, longitude, status }, ...]
-
-            list.forEach(loc => {
-              const id = Number(loc.vehicleId);
-              if (!Number.isFinite(id)) return;
-
-              const lat = Number(loc.latitude);
-              const lng = Number(loc.longitude);
-              if (!validLatLng(lat, lng)) return;
-
-              if (loc.plateNo) plateByVehicleId.value.set(id, loc.plateNo);
-              if (loc.driverName) driverNameByVehicleId.value.set(id, loc.driverName);
-              statusByVehicleId.value.set(id, loc.isOnDuty ? 'on' : 'idle');
-
-              const mapObj = miniMapCache.get(id);
-              if (mapObj && mapObj.marker) {
-                mapObj.marker.position = { lat, lng };
-                mapObj.lastPos = { lat, lng };
-              } else {
-                // 不建地圖，首次 renderMyMaps() 會建；這裡只先記錄
-                miniMapCache.set(id, { map: null, marker: null, lastPos: { lat, lng }, animating: false });
+              // 小汽車圖（橘：執勤中）
+              function carSVG(color){
+                return `
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="28" height="28">
+                    <rect x="96" y="200" width="320" height="90" rx="22" ry="22" fill="${color}" />
+                    <rect x="136" y="160" width="240" height="50" rx="10" ry="10" fill="${color}" />
+                    <circle cx="186" cy="310" r="22" fill="#1f2937"/>
+                    <circle cx="326" cy="310" r="22" fill="#1f2937"/>
+                  </svg>`;
               }
-            });
-          } catch (e) {
-            console.warn("載入車輛位置失敗，先用中心點顯示：", e);
-          }
-        }
-        // 全域快取
 
-        const miniMapCache = new Map(); // key = vehicleId
-        let _carUpdater = null;
-
-        function renderMyMaps() {
-          const center = currentCenter(); // 用這個取代 myPos
-
-          driverCards.value.slice(0, 5).forEach((card, i) => {
-            const el = document.getElementById('gmap_' + i);
-            if (!el) return;
-
-            const id = Number(card.vehicleId ?? (i + 1));
-            let mapObj = miniMapCache.get(id);
-
-            // 取得此車初次位置
-            const initialPos = (mapObj && mapObj.lastPos && validLatLng(mapObj.lastPos.lat, mapObj.lastPos.lng))
-              ? mapObj.lastPos
-              : center;
-
-            if (!mapObj || !mapObj.map) {
-              const map = new google.maps.Map(el, {
-                   center: currentCenter(),
-                zoom: 16,
-                disableDefaultUI: true,
-                mapId: "add29920b46056c38796ff49"
-              });
-
-              const markerEl = document.createElement('div');
-              const color =
-                card.statusType === 'on'   ? '#f97316' :
-                card.statusType === 'idle' ? '#22c55e' :
-                '#94a3b8';
-              markerEl.innerHTML = carSVG(color);
-
-              const marker = new google.maps.marker.AdvancedMarkerElement({
-                map,
-                position: currentCenter(),  
-                content: markerEl
-              });
-
-              mapObj = { map, marker, lastPos: initialPos, animating: false };
-              miniMapCache.set(id, mapObj);
+                      // ===== 取得目前地圖中心（我的定位或台北101） =====
+             const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
+            function currentCenter() {
+              const lat = toNumOrNull(myLoc.value?.lat);
+              const lng = toNumOrNull(myLoc.value?.lng);
+              return (validLatLng(lat, lng))
+                ? { lat, lng }
+                : FALLBACK_CENTER; // 台北101
             }
-          });
 
-          // 啟動輪詢
-                          if (!_carUpdater) {
-          _carUpdater = setInterval(async () => {
-            try {
-              const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
-
-              list.forEach(loc => {
-                const id = Number(loc.vehicleId);
-                const mapObj = miniMapCache.get(id);
-                if (!mapObj || !mapObj.marker) return;
-
-                const isOnDuty = loc.isOnDuty === true;
-                const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
-                if (!validLatLng(newPos.lat, newPos.lng)) return;
-
-                // === 更新 marker 顏色 ===
-                const color = isOnDuty ? "#f97316" : "#94a3b8";
-                if (mapObj.marker?.content) {
-                  mapObj.marker.content.innerHTML = carSVG(color);
-                }
-
-                // === 平滑移動 ===
-                if (isOnDuty) {
-                  animateMarkerTo(mapObj, newPos);
-                }
-
-                // === 🔥 同步更新小卡狀態 ===
-                const card = driverCards.value.find(c => Number(c.vehicleId) === id);
-                if (card) {
-                  card.statusText = isOnDuty ? "執勤中" : "待命中";
-                  card.statusType = isOnDuty ? "on" : "idle";
-                }
-              });
-            } catch (err) {
-              console.warn("🚘 更新全部車輛位置失敗", err);
-            }
-          }, 3000);
-        }
-        }
-
-
-        
-
-        //平滑移動
-        function animateMarkerTo(mapObj, newPos) {
-          if (!mapObj.lastPos) {
-            mapObj.marker.position = newPos;
-            mapObj.lastPos = newPos;
-            if (mapObj.map) mapObj.map.panTo(newPos);
-            return;
-          }
-             // 動畫中就先記住下一個目標，結束後立刻接上
-             if (mapObj.animating) { mapObj.queuedPos = newPos; return; }
-
-          const steps = 40;   // 60 小步
-          const delay = 40;   // 每步 50ms = 約 3 秒完成
-          const old = mapObj.lastPos;
-          const dLat = (newPos.lat - old.lat) / steps;
-          const dLng = (newPos.lng - old.lng) / steps;
-          let i = 0;
-          mapObj.animating = true;
-
-          function tick() {
-            i++;
-            const lat = old.lat + dLat * i;
-            const lng = old.lng + dLng * i;
-            const pos = { lat, lng };
-            mapObj.marker.position = { lat, lng };
-            mapObj.marker.position = pos;
-            if (mapObj.map) mapObj.map.panTo(pos);
-            if (i < steps) {
-              setTimeout(tick, delay);
-            } else {
-              mapObj.lastPos = newPos;
-              mapObj.animating = false;
-           // 如果期間有新座標排隊，馬上接續下一段
-            if (mapObj.queuedPos) {
-              const q = mapObj.queuedPos;
-              mapObj.queuedPos = null;
-              animateMarkerTo(mapObj, q);
-             }
-            }
-          }
-          tick();
-        }
-
-            async function enterMyLocationView(){
-              viewMode.value = 'mypos';
-                // ⚠️ 清除舊地圖快取
-                miniMapCache.clear();
+            // ===== 先抓所有車輛目前位置（初始化 + 之後輪詢沿用） =====
+            async function loadVehicleLocations() {
               try {
-                await getMyLocation().catch(()=>{});
-              } catch(e) {
-                console.warn("定位失敗，改用台北101");
+                const res = await axios.get("/api/dashboard/vehicle-locations");
+                const list = res.data; // 預期: [{ vehicleId, latitude, longitude, status }, ...]
+
+                list.forEach(loc => {
+                  const id = Number(loc.vehicleId);
+                  if (!Number.isFinite(id)) return;
+
+                  const lat = Number(loc.latitude);
+                  const lng = Number(loc.longitude);
+                  if (!validLatLng(lat, lng)) return;
+
+                  if (loc.plateNo) plateByVehicleId.value.set(id, loc.plateNo);
+                  if (loc.driverName) driverNameByVehicleId.value.set(id, loc.driverName);
+                  statusByVehicleId.value.set(id, loc.isOnDuty ? 'on' : 'idle');
+
+                  const mapObj = miniMapCache.get(id);
+                  if (mapObj && mapObj.marker) {
+                    mapObj.marker.position = { lat, lng };
+                    mapObj.lastPos = { lat, lng };
+                  } else {
+                    // 不建地圖，首次 renderMyMaps() 會建；這裡只先記錄
+                    miniMapCache.set(id, { map: null, marker: null, lastPos: { lat, lng }, animating: false });
+                  }
+                });
+              } catch (e) {
+                console.warn("載入車輛位置失敗，先用中心點顯示：", e);
               }
-
-              await loadVehicleLocations(); //  抓車輛位置
-              await nextTick();
-              renderMyMaps(); //  中心點是自己位置
-              console.log("目前中心：", myLoc.value);
             }
-        
+            // 全域快取
 
-        function exitMyLocationView(){ viewMode.value = 'schedule'; }
+            const miniMapCache = new Map(); // key = vehicleId
+            let _carUpdater = null;
 
-             watch(() => myLoc.value, (val) => {
-               if (viewMode.value === 'mypos' && val && val.lat && val.lng) {
-                 console.log("🧭 定位更新，重新置中：", val);
-                 nextTick(() => {
-                   driverCards.value.forEach((_, i) => {
-                     const el = document.getElementById('gmap_' + i);
-                     if (!el) return;
-                     const mapObj = [...miniMapCache.values()][i];
-                     if (mapObj?.map) mapObj.map.setCenter({ lat: val.lat, lng: val.lng });
-                   });
-                 });
-               }
-             });             
-             watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
+            function renderMyMaps() {
+              const center = currentCenter(); // 用這個取代 myPos
 
-              // ===== 生成地圖卡片資料（五張） =====
-                   const driverCards = computed(() => {
-          const allIds = Array.from(new Set([
-            ...statusByVehicleId.value.keys(),
-            ...plateByVehicleId.value.keys(),
-            ...Array.from(miniMapCache.keys())
-          ])).sort((a, b) => a - b);
+              driverCards.value.slice(0, 5).forEach((card, i) => {
+                const el = document.getElementById('gmap_' + i);
+                if (!el) return;
 
-          return allIds.slice(0, 5).map(vid => {
-            const plate = plateByVehicleId.value.get(vid) ?? '—';
-            const statusType = statusByVehicleId.value.get(vid) ?? 'idle';
-            const driver = driverNameByVehicleId.value.get(vid) ?? ''; // ← 關鍵
+                const id = Number(card.vehicleId ?? (i + 1));
+                let mapObj = miniMapCache.get(id);
 
-            return {
-              key: `veh_${vid}`,
-              vehicleId: vid,
-              plate,
-              driver,
-              // UI 顯示文字直接合併車牌與司機名
-              plateWithDriver: `${plate}${driver ? ' ' + driver : ''}`,
-              statusText:
-                statusType === 'on' ? '執勤中' :
-                statusType === 'break' ? '休息中' : '待命中',
-              statusType
-            };
-          });
-        });
+                // 取得此車初次位置
+                const initialPos = (mapObj && mapObj.lastPos && validLatLng(mapObj.lastPos.lat, mapObj.lastPos.lng))
+                  ? mapObj.lastPos
+                  : center;
 
+                if (!mapObj || !mapObj.map) {
+                  const map = new google.maps.Map(el, {
+                       center: currentCenter(),
+                    zoom: 16,
+                    disableDefaultUI: true,
+                    mapId: "add29920b46056c38796ff49"
+                  });
 
+                  const markerEl = document.createElement('div');
+                  const color =
+                    card.statusType === 'on'   ? '#f97316' :
+                    card.statusType === 'idle' ? '#22c55e' :
+                    '#94a3b8';
+                  markerEl.innerHTML = carSVG(color);
 
-        
+                  const marker = new google.maps.marker.AdvancedMarkerElement({
+                    map,
+                    position: currentCenter(),  
+                    content: markerEl
+                  });
 
+                  mapObj = { map, marker, lastPos: initialPos, animating: false };
+                  miniMapCache.set(id, mapObj);
+                }
+              });
 
-                      
-         
+              // 啟動輪詢
+             if (!_carUpdater) {
+              _carUpdater = setInterval(async () => {
+                try {
+                  const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
 
-        // --- 審核操作（✅/✕） ---
-        const approve = async (p) => {
-          if (!confirm(`確定要將申請單 #${p.applyId} 審核通過並派車嗎？`)) return;
+                  list.forEach(loc => {
+                    const id = Number(loc.vehicleId);
+                    const mapObj = miniMapCache.get(id);
+                    if (!mapObj || !mapObj.marker) return;
 
-          try {
-            console.log(" approve", p);
+                    const isOnDuty = loc.isOnDuty === true;
+                    const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+                    if (!validLatLng(newPos.lat, newPos.lng)) return;
 
-          
-            const { data } = await axios.post(
-              `/api/carapplications/${p.applyId}/approve-assign`,
-              null,
-              { params: { passengerCount: p.passengerCount ?? 0 } }
-            );
-          
-
-            
-           location.reload();
-            alert(`已成功審核並派車`);
-
-            
-            p.status = "完成審核";
-            p.vehicleId = data.vehicleId ?? null;
-            p.plateNo = data.plateNo ?? null;
-
-           
-            pending.value = pending.value.filter(r => r.applyId !== p.applyId);
-
-
-          } catch (err) {
-            console.error(" approve error:", err);
-           
-            const msg = err?.response?.data?.message || err?.message || '審核派車失敗';
-            alert(msg);
-          }
-        };
-
-
-        const reject = async (p) => {
-          if (!confirm(`確定要將申請單 #${p.applyId} 駁回嗎？`)) return;
-
-          try {
-            console.log(" reject", p);
-            await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
-              status: "駁回"
-            });
-            alert(" 已成功駁回");
-            p.status = "駁回";
-            pending.value = pending.value.filter(r => r.applyId !== p.applyId);
-          } catch (err) {
-            console.error(" reject error:", err);
-            alert("駁回失敗");
-          }
-        };
-
-              // ===== 資料載入 =====
-              async function get(url){ const res = await axios.get(url); return res.data.data; }
-              async function loadAll(){
-                try{
-                  const [s,u,p,ds] = await Promise.all([
-                    get('/api/dashboard/schedule/today'),
-                    get('/api/dashboard/dispatch/uncomplete'),
-                    get('/api/dashboard/applications/pending'),
-                    get('/api/dashboard/drivers/today-status'),
-                  ]);
-              
-
-
-                  const norm = (list)=> (list||[]).map(x=>{
-                    const arrivalTimeRaw = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
-                    const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
-                    const arrivalDisplay = (fmtHHmm(arrivalTimeRaw) && arrivalPlaceRaw)
-                      ? `${fmtHHmm(arrivalTimeRaw)} ${arrivalPlaceRaw}` : '';
-
-                    const rawShift = (x.shiftName ?? x.shift ?? '').toString().trim().toUpperCase();
-                    const shiftLabel = rawShift==='AM' ? '早午' : rawShift==='PM' ? '午晚' : '一般';
-                    const shiftClass = rawShift==='AM' ? 'am' : rawShift==='PM' ? 'pm' : 'general';
-
-                    const deptRaw = (x.applicantDept ?? '').trim();
-                    let deptShort = deptRaw;
-                    if (deptShort) {
-                      const parts = deptShort.split('/');
-                      deptShort = parts[parts.length - 1].trim().replace(/科.*$/, '科');
+                    // === 更新 marker 顏色 ===
+                    const color = isOnDuty ? "#f97316" : "#94a3b8";
+                    if (mapObj.marker?.content) {
+                      mapObj.marker.content.innerHTML = carSVG(color);
                     }
 
-                    return {
-                      key: `${x.scheduleId ?? (x.driverId ?? 'X')}_${x.shift ?? ''}`,
-                      driverName: x.driverName ?? '-',
-                      hasDispatch: !!x.hasDispatch,
-                      applicantDept: x.applicantDept || '-',
-                      applicantName: x.applicantName ?? '-',
-                      passengerCount: x.passengerCount ?? '-',
-                      tripDistance: (x.tripDistance ?? '').toString().replace('公里',''),
-                      lat: toNumOrNull(x.lat), lng: toNumOrNull(x.lng),
-                      plateNo: x.plateNo ?? '-',
-                      useStart: x.useStart ?? x.UseStart ?? null,
-                      useEnd: x.useEnd ?? x.UseEnd ?? null,
-                      updatedAt: x.updatedAt,
-                      shiftLabel, shiftClass, arrivalDisplay
-                    };
+                    // === 平滑移動 ===
+                    if (isOnDuty) {
+                      animateMarkerTo(mapObj, newPos);
+                    }
+
+                    // === 🔥 同步更新小卡狀態 ===
+                    const card = driverCards.value.find(c => Number(c.vehicleId) === id);
+                    if (card) {
+                      card.statusText = isOnDuty ? "執勤中" : "待命中";
+                      card.statusType = isOnDuty ? "on" : "idle";
+                    }
                   });
-                schedules.value  = norm(s);
-                unfinished.value = u || [];
-                driverStatus.value = (ds || []).map(scheduleToDriverRow);
-                        plateByVehicleId.value = new Map();
-        statusByVehicleId.value = new Map();
-
-        for (const d of driverStatus.value) {
-          const vid = Number(d.vehicleId);  // ← 確保 today-status 有回 VehicleId
-          if (!Number.isFinite(vid)) continue;
-
-          if (d.plateNo) plateByVehicleId.value.set(vid, d.plateNo);
-
-          let t = 'idle';
-          if (d.stateText === '執勤中') t = 'on';
-          else if (d.stateText === '休息中') t = 'break';
-          statusByVehicleId.value.set(vid, t);
-        }
-                // 1) 先把各種可能的欄位統一成 .status（處理大小寫與空白）
-               const cleaned = (p || []).map(x => {
-               const rawStatus =
-                 (x.status ?? x.Status ?? x.dispatchStatus ?? x.DispatchStatus ?? "")
-                   .toString()
-                   .trim();
-               return {
-                 ...x,
-                 applyId: x.applyId ?? x.ApplyId ?? null,
-                 status: rawStatus
-               };
-             });
-             // 直接放進 pending，畫面用 pendingFiltered 顯示未審核
-             pending.value = cleaned;
-                      } catch (err) {
-            console.error('載入失敗：', err);
-          }
-        }
-
-        function scheduleToDriverRow(x){
-          // 時間
-          // 解析用車時間欄位（後端大小寫不一致都包進來）
-          const rawStart = x?.startTime ?? x?.useStart ?? x?.UseStart ?? null;
-          const rawEnd   = x?.endTime   ?? x?.useEnd   ?? x?.UseEnd   ?? null;
-
-          // 統一轉成 Date 物件
-          const st = rawStart ? new Date(rawStart) : null;
-          const et = rawEnd   ? new Date(rawEnd)   : null;          
-          const etDate = et ? new Date(et) : null;
-          // 後端提供的休息資訊與請假單
-          const restRemainMinutes = Number(x?.restRemainMinutes ?? 0);
-          const restUntil         = x?.restUntil ? new Date(x.restUntil) : null;
-          const leave             = (x?.leaveNote || '').trim();
-
-          // 狀態（執勤中 > 休息中 > 待命中）
-          let stateText;
-            if ((x?.stateText || '').trim() === '執勤中') {
-              stateText = '執勤中';
-            } else {
-              stateText = (restRemainMinutes > 0) ? '休息中' : '待命中';
+                } catch (err) {
+                  console.warn("🚘 更新全部車輛位置失敗", err);
+                }
+              }, 3000);
             }
-         
+            }
 
 
-          // 燈號
-          let stateDotClass = 'status-green';
-          if (stateText === '執勤中') stateDotClass = 'status-red';
-          else if (stateText === '休息中') stateDotClass = 'status-gray';
-          else if (stateText === '請假') stateDotClass = 'status-orange';
-
-          // 小工具
-          const pad = (n) => n.toString().padStart(2,'0');
-          const fmtHHmm = (d) => {
-            if (!d) return '';
-            const dt = d instanceof Date ? new Date(d) : new Date(d);
-            if (isNaN(dt)) return '';
-            return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-          };
-
-          // 顯示用途
-          const arrivalTimeRaw  = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
-          const tailDestFromRoute = (route) => {
-            if (!route) return '';
-            const parts = String(route).split('-').map(s=>s.trim()).filter(Boolean);
-            return parts.length ? parts[parts.length-1] : '';
-          };
-          const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
-
-          // 班別
-          const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();
-          let label='一般', cls='general';
-          if(rawShift==='AM'){ label='早午'; cls='am'; }
-          else if(rawShift==='PM'){ label='午晚'; cls='pm'; }
-          else if(['G1','G2','G3'].includes(rawShift)){ label='一般'; cls='general'; }
-
-          // 時窗/回來時間/最早可出車
-          const taskWindow = (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '';
-          const useEnd = etDate ? fmtHHmm(etDate) : '-';
-          const earliestOut =
-             stateText === '執勤中' ? (et ? fmtHHmm(new Date(et.getTime() + 60*60000)) : '-')
-            : stateText === '休息中' ? (restUntil ? fmtHHmm(restUntil) : '-')
-            : '即時可用';
-          // 出勤狀況
-        const attendance = (typeof x.attendance === 'string' && x.attendance.trim())
-          ? x.attendance.trim()   
-          : ( (x?.leaveNote || '').trim() ? '請假' : '正常' );
-
-          return {
-            key: `${x?.driverId || 'D'}_${rawShift}`,
-            driverId: x?.driverId ?? null,
-            driverName: x?.driverName ?? '-',
-            shiftLabel: label,
-            shiftClass: cls,
-            plateNo: x.plateNo ?? '-',
-            stateText,
-            stateDotClass,
-            restRemainMinutes,                 
-            taskWindow,
-            useEnd,
-            earliestOut,
-            attendance,
-            applicantDept: arrivalPlaceRaw || '-',
-            applicantName: x?.applicantName ?? '-',
-            passengerCount: x?.passengerCount ?? '-',
             
-          };
-        }
-                
 
-
-
-              function openFleetStatus(){
-                // window.location.href = '/Vehicle/Status';
-                console.log('open fleet status');
+            //平滑移動
+            function animateMarkerTo(mapObj, newPos) {
+              if (!mapObj.lastPos) {
+                mapObj.marker.position = newPos;
+                mapObj.lastPos = newPos;
+                if (mapObj.map) mapObj.map.panTo(newPos);
+                return;
               }
+                 // 動畫中就先記住下一個目標，結束後立刻接上
+                 if (mapObj.animating) { mapObj.queuedPos = newPos; return; }
 
-                      onMounted(() => {
-                  loadAll();
-                  setInterval(() => {
-                    loadAll();  // 每分鐘重抓一次資料，確保狀態更新
-                  }, 60 * 1000);
+              const steps = 40;   // 60 小步
+              const delay = 40;   // 每步 50ms = 約 3 秒完成
+              const old = mapObj.lastPos;
+              const dLat = (newPos.lat - old.lat) / steps;
+              const dLng = (newPos.lng - old.lng) / steps;
+              let i = 0;
+              mapObj.animating = true;
+
+              function tick() {
+                i++;
+                const lat = old.lat + dLat * i;
+                const lng = old.lng + dLng * i;
+                const pos = { lat, lng };
+                mapObj.marker.position = { lat, lng };
+                mapObj.marker.position = pos;
+                if (mapObj.map) mapObj.map.panTo(pos);
+                if (i < steps) {
+                  setTimeout(tick, delay);
+                } else {
+                  mapObj.lastPos = newPos;
+                  mapObj.animating = false;
+               // 如果期間有新座標排隊，馬上接續下一段
+                if (mapObj.queuedPos) {
+                  const q = mapObj.queuedPos;
+                  mapObj.queuedPos = null;
+                  animateMarkerTo(mapObj, q);
+                 }
+                }
+              }
+              tick();
+            }
+                 // ===== 進入「我的定位」視圖 =====
+                async function enterMyLocationView(){
+                  viewMode.value = 'mypos';
+                    // ⚠️ 清除舊地圖快取
+                    miniMapCache.clear();
+                  try {
+                    await getMyLocation().catch(()=>{});
+                  } catch(e) {
+                    console.warn("定位失敗，改用台北101");
+                  }
+
+                  await loadVehicleLocations(); //  抓車輛位置
+                  await nextTick();
+                  renderMyMaps(); //  中心點是自己位置
+                  console.log("目前中心：", myLoc.value);
+                }
+
+                   // ===== 離開「我的定位」視圖 =====
+            function exitMyLocationView(){ viewMode.value = 'schedule'; }
+
+                 watch(() => myLoc.value, (val) => {
+                   if (viewMode.value === 'mypos' && val && val.lat && val.lng) {
+                     console.log("🧭 定位更新，重新置中：", val);
+                     nextTick(() => {
+                       driverCards.value.forEach((_, i) => {
+                         const el = document.getElementById('gmap_' + i);
+                         if (!el) return;
+                         const mapObj = [...miniMapCache.values()][i];
+                         if (mapObj?.map) mapObj.map.setCenter({ lat: val.lat, lng: val.lng });
+                       });
+                     });
+                   }
+                 });             
+                 watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
+
+                  // ===== 生成地圖卡片資料（五張） =====
+                       const driverCards = computed(() => {
+              const allIds = Array.from(new Set([
+                ...statusByVehicleId.value.keys(),
+                ...plateByVehicleId.value.keys(),
+                ...Array.from(miniMapCache.keys())
+              ])).sort((a, b) => a - b);
+
+              return allIds.slice(0, 5).map(vid => {
+                const plate = plateByVehicleId.value.get(vid) ?? '—';
+                const statusType = statusByVehicleId.value.get(vid) ?? 'idle';
+                const driver = driverNameByVehicleId.value.get(vid) ?? ''; // ← 關鍵
+
+                return {
+                  key: `veh_${vid}`,
+                  vehicleId: vid,
+                  plate,
+                  driver,
+                  // UI 顯示文字直接合併車牌與司機名
+                  plateWithDriver: `${plate}${driver ? ' ' + driver : ''}`,
+                  statusText:
+                    statusType === 'on' ? '執勤中' :
+                    statusType === 'break' ? '休息中' : '待命中',
+                  statusType
+                };
+              });
+            });
+
+
+            // --- 審核操作（✅/✕） ---
+            const approve = async (p) => {
+              if (!confirm(`確定要將申請單 #${p.applyId} 審核通過並派車嗎？`)) return;
+
+              try {
+                console.log(" approve", p);
+
+              
+                const { data } = await axios.post(
+                  `/api/carapplications/${p.applyId}/approve-assign`,
+                  null,
+                  { params: { passengerCount: p.passengerCount ?? 0 } }
+                );
+              
+
+                
+               location.reload();
+                alert(`已成功審核並派車`);
+
+                
+                p.status = "完成審核";
+                p.vehicleId = data.vehicleId ?? null;
+                p.plateNo = data.plateNo ?? null;
+
+               
+                pending.value = pending.value.filter(r => r.applyId !== p.applyId);
+
+
+              } catch (err) {
+                console.error(" approve error:", err);
+               
+                const msg = err?.response?.data?.message || err?.message || '審核派車失敗';
+                alert(msg);
+              }
+            };
+
+
+            const reject = async (p) => {
+              if (!confirm(`確定要將申請單 #${p.applyId} 駁回嗎？`)) return;
+
+              try {
+                console.log(" reject", p);
+                await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
+                  status: "駁回"
                 });
+                alert(" 已成功駁回");
+                p.status = "駁回";
+                pending.value = pending.value.filter(r => r.applyId !== p.applyId);
+              } catch (err) {
+                console.error(" reject error:", err);
+                alert("駁回失敗");
+              }
+            };
 
+                  // ===== 資料載入 =====
+                  async function get(url){ const res = await axios.get(url); return res.data.data; }
+                  async function loadAll(){
+                    try{
+                      const [s,u,p,ds] = await Promise.all([
+                        get('/api/dashboard/schedule/today'),
+                        get('/api/dashboard/dispatch/uncomplete'),
+                        get('/api/dashboard/applications/pending'),
+                        get('/api/dashboard/drivers/today-status'),
+                      ]);
+                  
+
+
+                      const norm = (list)=> (list||[]).map(x=>{
+                        const arrivalTimeRaw = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
+                        const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
+                        const arrivalDisplay = (fmtHHmm(arrivalTimeRaw) && arrivalPlaceRaw)
+                          ? `${fmtHHmm(arrivalTimeRaw)} ${arrivalPlaceRaw}` : '';
+
+                        const rawShift = (x.shiftName ?? x.shift ?? '').toString().trim().toUpperCase();
+                        const shiftLabel = rawShift==='AM' ? '早午' : rawShift==='PM' ? '午晚' : '一般';
+                        const shiftClass = rawShift==='AM' ? 'am' : rawShift==='PM' ? 'pm' : 'general';
+
+                        const deptRaw = (x.applicantDept ?? '').trim();
+                        let deptShort = deptRaw;
+                        if (deptShort) {
+                          const parts = deptShort.split('/');
+                          deptShort = parts[parts.length - 1].trim().replace(/科.*$/, '科');
+                        }
+
+                        return {
+                          key: `${x.scheduleId ?? (x.driverId ?? 'X')}_${x.shift ?? ''}`,
+                          driverName: x.driverName ?? '-',
+                          hasDispatch: !!x.hasDispatch,
+                          applicantDept: x.applicantDept || '-',
+                          applicantName: x.applicantName ?? '-',
+                          passengerCount: x.passengerCount ?? '-',
+                          tripDistance: (x.tripDistance ?? '').toString().replace('公里',''),
+                          lat: toNumOrNull(x.lat), lng: toNumOrNull(x.lng),
+                          plateNo: x.plateNo ?? '-',
+                          useStart: x.useStart ?? x.UseStart ?? null,
+                          useEnd: x.useEnd ?? x.UseEnd ?? null,
+                          updatedAt: x.updatedAt,
+                          shiftLabel, shiftClass, arrivalDisplay
+                        };
+                      });
+                    schedules.value  = norm(s);
+                    unfinished.value = u || [];
+                    driverStatus.value = (ds || []).map(scheduleToDriverRow);
+                            plateByVehicleId.value = new Map();
+            statusByVehicleId.value = new Map();
+
+            for (const d of driverStatus.value) {
+              const vid = Number(d.vehicleId);  // ← 確保 today-status 有回 VehicleId
+              if (!Number.isFinite(vid)) continue;
+
+              if (d.plateNo) plateByVehicleId.value.set(vid, d.plateNo);
+
+              let t = 'idle';
+              if (d.stateText === '執勤中') t = 'on';
+              else if (d.stateText === '休息中') t = 'break';
+              statusByVehicleId.value.set(vid, t);
+            }
+                    // 1) 先把各種可能的欄位統一成 .status（處理大小寫與空白）
+                   const cleaned = (p || []).map(x => {
+                   const rawStatus =
+                     (x.status ?? x.Status ?? x.dispatchStatus ?? x.DispatchStatus ?? "")
+                       .toString()
+                       .trim();
+                   return {
+                     ...x,
+                     applyId: x.applyId ?? x.ApplyId ?? null,
+                     status: rawStatus
+                   };
+                 });
+                 // 直接放進 pending，畫面用 pendingFiltered 顯示未審核
+                 pending.value = cleaned;
+                          } catch (err) {
+                console.error('載入失敗：', err);
+              }
+            }
+
+            function scheduleToDriverRow(x){
+              // 時間
+              // 解析用車時間欄位（後端大小寫不一致都包進來）
+              const rawStart = x?.startTime ?? x?.useStart ?? x?.UseStart ?? null;
+              const rawEnd   = x?.endTime   ?? x?.useEnd   ?? x?.UseEnd   ?? null;
+
+              // 統一轉成 Date 物件
+              const st = rawStart ? new Date(rawStart) : null;
+              const et = rawEnd   ? new Date(rawEnd)   : null;          
+              const etDate = et ? new Date(et) : null;
+              // 後端提供的休息資訊與請假單
+              const restRemainMinutes = Number(x?.restRemainMinutes ?? 0);
+              const restUntil         = x?.restUntil ? new Date(x.restUntil) : null;
+              const leave             = (x?.leaveNote || '').trim();
+
+              // 狀態（執勤中 > 休息中 > 待命中）
+              let stateText;
+                if ((x?.stateText || '').trim() === '執勤中') {
+                  stateText = '執勤中';
+                } else {
+                  stateText = (restRemainMinutes > 0) ? '休息中' : '待命中';
+                }
+             
+
+
+              // 燈號
+              let stateDotClass = 'status-green';
+              if (stateText === '執勤中') stateDotClass = 'status-red';
+              else if (stateText === '休息中') stateDotClass = 'status-gray';
+              else if (stateText === '請假') stateDotClass = 'status-orange';
+
+              // 小工具
+              const pad = (n) => n.toString().padStart(2,'0');
+              const fmtHHmm = (d) => {
+                if (!d) return '';
+                const dt = d instanceof Date ? new Date(d) : new Date(d);
+                if (isNaN(dt)) return '';
+                return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+              };
+
+              // 顯示用途
+              const arrivalTimeRaw  = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
+              const tailDestFromRoute = (route) => {
+                if (!route) return '';
+                const parts = String(route).split('-').map(s=>s.trim()).filter(Boolean);
+                return parts.length ? parts[parts.length-1] : '';
+              };
+              const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
+
+              // 班別
+              const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();
+              let label='一般', cls='general';
+              if(rawShift==='AM'){ label='早午'; cls='am'; }
+              else if(rawShift==='PM'){ label='午晚'; cls='pm'; }
+              else if(['G1','G2','G3'].includes(rawShift)){ label='一般'; cls='general'; }
+
+              // 時窗/回來時間/最早可出車
+              const taskWindow = (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '';
+              const useEnd = etDate ? fmtHHmm(etDate) : '-';
+              const earliestOut =
+                 stateText === '執勤中' ? (et ? fmtHHmm(new Date(et.getTime() + 60*60000)) : '-')
+                : stateText === '休息中' ? (restUntil ? fmtHHmm(restUntil) : '-')
+                : '即時可用';
+              // 出勤狀況
+            const attendance = (typeof x.attendance === 'string' && x.attendance.trim())
+              ? x.attendance.trim()   
+              : ( (x?.leaveNote || '').trim() ? '請假' : '正常' );
 
               return {
-                // 視圖
-                viewMode, enterMyLocationView, exitMyLocationView,fmtHHmm,
-                // 列表/審核
-                schedules,scheduleTable, unfinished, pending, approve, reject,pendingFiltered,
-                // 單一地圖開新頁
-                openMap,
-                // 我的定位
-                hasMapsKey, myLoc, locating, locError,
-                // 地圖卡片
-                driverCards,
-                // 左下角：駕駛狀態
-                driverStatus, openFleetStatus
+                key: `${x?.driverId || 'D'}_${rawShift}`,
+                driverId: x?.driverId ?? null,
+                driverName: x?.driverName ?? '-',
+                shiftLabel: label,
+                shiftClass: cls,
+                plateNo: x.plateNo ?? '-',
+                stateText,
+                stateDotClass,
+                restRemainMinutes,                 
+                taskWindow,
+                useEnd,
+                earliestOut,
+                attendance,
+                applicantDept: arrivalPlaceRaw || '-',
+                applicantName: x?.applicantName ?? '-',
+                passengerCount: x?.passengerCount ?? '-',
+                
               };
             }
-          }).mount('#dashboard');
-        });
+                    
+
+
+
+                  function openFleetStatus(){
+                    // window.location.href = '/Vehicle/Status';
+                    console.log('open fleet status');
+                  }
+
+                          onMounted(() => {
+                      loadAll();
+                      setInterval(() => {
+                        loadAll();  // 每分鐘重抓一次資料，確保狀態更新
+                      }, 60 * 1000);
+                    });
+
+
+                  return {
+                    // 視圖
+                    viewMode, enterMyLocationView, exitMyLocationView,fmtHHmm,
+                    // 列表/審核
+                    schedules,scheduleTable, unfinished, pending, approve, reject,pendingFiltered,
+                    // 單一地圖開新頁
+                    openMap,
+                    // 我的定位
+                    hasMapsKey, myLoc, locating, locError,
+                    // 地圖卡片
+                    driverCards,
+                    // 左下角：駕駛狀態
+                    driverStatus, openFleetStatus
+                  };
+                }
+              }).mount('#dashboard');
+            });
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=@(ViewBag.GoogleMapsKey)&v=quarterly&libraries=marker" async defer></script>
 

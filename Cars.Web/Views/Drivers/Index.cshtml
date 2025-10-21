@@ -138,14 +138,14 @@
         createApp({
           setup(){
             const drivers = ref([])
-
+            // 民國日期格式化
             function rocDate(d){
               if(!d) return ''
               const dt = new Date(d)
               if(isNaN(dt)) return ''
               return `${dt.getFullYear()-1911}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`
             }
-
+            // 載入駕駛員資料
             async function load(){
               try{
                 const res = await axios.get('/api/Drivers/Records')
@@ -156,10 +156,10 @@
             }
         const viewModalOpen = ref(false)
         const currentDriver = ref({})
-
+        // 檢視駕駛員詳細資料
         async function viewDriver(id){
           try{
-            const res = await axios.get(`/api/Drivers/Details/${id}`)  // API 回傳 JSON
+            const res = await axios.get(`/api/Drivers/Details/${id}`) 
             currentDriver.value = res.data
             viewModalOpen.value = true
           }catch(e){
@@ -167,6 +167,7 @@
             alert("讀取失敗")
           }
         }
+        // 切換今日出勤狀態
         async function toggleAttendance(d) {
           const present = !!d.isPresentToday;
           try {

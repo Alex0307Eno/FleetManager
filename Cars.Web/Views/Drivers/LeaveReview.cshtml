@@ -130,7 +130,7 @@
             const statusClass = s =>
               s === "核准" ? "s-approved" :
               s === "駁回" ? "s-reject" : "s-wait";
-     
+            // 載入請假紀錄
             async function loadLeaves() {
               loading.value = true;
               try {
@@ -143,7 +143,7 @@
                 loading.value = false;
               }
             }
-
+            // 更新請假狀態
             async function updateStatus(id, status, agentDriverId = null) {
               try {
                 const res = await axios.post(`/api/Leaves/${id}/status`, { status, agentDriverId });
@@ -156,7 +156,7 @@
                 alert(err.response?.data?.message || "❌ 更新失敗");
               }
             }
-
+            // 載入可用代理人名單
             async function loadDrivers(leave) {
               try {
                 const res = await axios.get(`/api/Drivers/Agents?leaveId=${leave.leaveId}`);
@@ -168,25 +168,35 @@
             }
 
          
+            // 載入受影響行程清單
+            async function loadAffectedList() {
+              try {
+                const res = await axios.get("/api/CarApplications/Affected");
+                affectedList.value = res.data || [];
+                showAffected.value = affectedList.value.length > 0;
+              } catch (err) {
+                console.error("讀取受影響行程失敗", err);
+              }
+            }
 
-        async function loadAffectedList() {
-          try {
-            const res = await axios.get("/api/CarApplications/Affected");
-            affectedList.value = res.data || [];
-            showAffected.value = affectedList.value.length > 0;
-          } catch (err) {
-            console.error("讀取受影響行程失敗", err);
-          }
-        }
-
-        onMounted(() => {
-          loadLeaves();
-          loadAffectedList(); 
-        });
+            onMounted(() => {
+              loadLeaves();
+              loadAffectedList(); 
+            });
 
 
 
-            return { leaves, loading, fmt, statusClass, updateStatus, loadDrivers, affectedList, showAffected, loadAffectedList };
+           return {
+            //  資料與狀態
+            leaves, loading, affectedList, showAffected,
+
+            //  顯示與格式
+            fmt, statusClass,
+
+            // ⚙ 操作與事件
+            updateStatus, loadDrivers, loadAffectedList
+          };
+
           }
         }).mount("#review-app");
     </script>

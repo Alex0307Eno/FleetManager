@@ -193,7 +193,7 @@ createApp({
       while(arr.length<42) arr.push({d:'',isToday:false,dateKey:''});
       return arr;
     });
-
+        // ====== 某日的班表事件列表 ======
     function dayEvents(k) {
       const d = new Date(k);
       const dow = d.getDay(); // 0=週日, 6=週六
@@ -248,6 +248,7 @@ createApp({
         await fetchMonth();
       }
     }
+        // ====== 下一頁 ======
     async function gotoNext(){
       if (viewMode.value === 'week'){
         anchor.value = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate()+7);

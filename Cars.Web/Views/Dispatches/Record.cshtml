@@ -471,14 +471,14 @@
                 };
               }
             //轉換日期工具
-          function formatDateTime(v){
-            if(!v) return '';
-            // 後端可能回 "2025-03-05T13:20:00" 或 "2025-03-05 13:20:00"
-            const s = String(v).replace(' ', 'T');
-            const d = new Date(s);
-            if(isNaN(d)) return String(v);
-            return d.toLocaleString();
-            }
+              function formatDateTime(v){
+                if(!v) return '';
+                // 後端可能回 "2025-03-05T13:20:00" 或 "2025-03-05 13:20:00"
+                const s = String(v).replace(' ', 'T');
+                const d = new Date(s);
+                if(isNaN(d)) return String(v);
+                return d.toLocaleString();
+                }
               
 
               //有子單的話母單才顯示箭頭
@@ -518,61 +518,61 @@
               const odometer = ref(null);
 
               let startModal, endModal;
-
-           async function openStartModal(r){
-          currentRecord.value = r;
-          odometerStart.value = null;
-          odometer.value = null;
-                 try {
-        const res = await axios.get(`/api/dispatch/vehicles/${r.vehicleId}/odometer`)
-            odometer.value = res.data.odometer || 0;
-        } catch (err) {
-          console.warn("⚠️ 無法讀取車輛里程", err);
-        }
-          startModal = startModal || new bootstrap.Modal(document.getElementById('startModal'));
-          startModal.show();
-        }
-        async function startTrip(){
-          if (odometerStart.value == null || odometerStart.value < 0) {
-            alert('請輸入起始里程數'); return;
-          }
-              if (this.odometerStart < this.odometer) {
-        alert(`⚠️ 起始里程不可小於當前里程 (${this.odometer})`);
-        return;
+              // 開始行程
+              async function openStartModal(r){
+                currentRecord.value = r;
+                odometerStart.value = null;
+                odometer.value = null;
+                       try {
+              const res = await axios.get(`/api/dispatch/vehicles/${r.vehicleId}/odometer`)
+                  odometer.value = res.data.odometer || 0;
+              } catch (err) {
+                console.warn("⚠️ 無法讀取車輛里程", err);
               }
-          try{
-            await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/start`, {
-              OdometerStart: odometerStart.value
-            });
-            alert('✅ 已開始行程');
-            startModal?.hide();
-            await reload();
-          }catch(err){
-            alert(err?.response?.data?.message || '開始行程失敗');
-          }
-        }
-
-        function openEndModal(r){
-          currentRecord.value = r;
-          odometerEnd.value = null;
-          endModal = endModal || new bootstrap.Modal(document.getElementById('endModal'));
-          endModal.show();
-        }
-        async function endTrip(){
-          if (odometerEnd.value == null || odometerEnd.value < 0) {
-            alert('請輸入結束里程數'); return;
-          }
-          try{
-            await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/end`, {
-              OdometerEnd: odometerEnd.value
-            });
-            alert('✅ 行程已結束');
-            endModal?.hide();
-            await reload();
-          }catch(err){
-            alert(err?.response?.data?.message || '結束行程失敗');
-          }
-        }
+                startModal = startModal || new bootstrap.Modal(document.getElementById('startModal'));
+                startModal.show();
+              }
+              async function startTrip(){
+                if (odometerStart.value == null || odometerStart.value < 0) {
+                  alert('請輸入起始里程數'); return;
+                }
+                    if (this.odometerStart < this.odometer) {
+              alert(`⚠️ 起始里程不可小於當前里程 (${this.odometer})`);
+              return;
+                    }
+                try{
+                  await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/start`, {
+                    OdometerStart: odometerStart.value
+                  });
+                  alert('✅ 已開始行程');
+                  startModal?.hide();
+                  await reload();
+                }catch(err){
+                  alert(err?.response?.data?.message || '開始行程失敗');
+                }
+              }
+              // 結束行程
+              function openEndModal(r){
+                currentRecord.value = r;
+                odometerEnd.value = null;
+                endModal = endModal || new bootstrap.Modal(document.getElementById('endModal'));
+                endModal.show();
+              }
+              async function endTrip(){
+                if (odometerEnd.value == null || odometerEnd.value < 0) {
+                  alert('請輸入結束里程數'); return;
+                }
+                try{
+                  await axios.post(`/api/dispatch/${currentRecord.value.dispatchId}/end`, {
+                    OdometerEnd: odometerEnd.value
+                  });
+                  alert('✅ 行程已結束');
+                  endModal?.hide();
+                  await reload();
+                }catch(err){
+                  alert(err?.response?.data?.message || '結束行程失敗');
+                }
+              }
         
               // === 共乘併單相關 state ===
               const showMergeModal = ref(false);
@@ -708,7 +708,7 @@
                   loadDispatchOptions();
                 }
               }
-
+              // 載入已併入清單
               async function loadLinks() {
                 console.groupCollapsed("🟩 loadLinks");
                 if (!currentDispatchId.value) {
@@ -731,7 +731,7 @@
                   console.groupEnd();
                 }
               }
-
+              // 當切換母單時觸發
               async function openMergeFor(row) {
                 console.groupCollapsed(" openMergeFor");
                 console.log("row keys=", Object.keys(row));
@@ -746,46 +746,46 @@
                   console.warn("⚠ 無法設定 currentDispatchId，停止載入");
                 }
               }
+              // 載入可併入清單
+            async function loadDispatchOptions() {
+                if (!currentDispatchId.value) {
+                  applicantOptions.value = [];
+                  remainingSeats.value = 0;
+                  return;
+                }
+            const url = `/api/dispatch/${currentDispatchId.value}/available-apps`;
+              try {
+                const res = await axios.get(url);
+                const payload = res.data || {};
+                remainingSeats.value = payload.remainingSeats ?? 0;
 
-                      async function loadDispatchOptions() {
-          if (!currentDispatchId.value) {
-            applicantOptions.value = [];
-            remainingSeats.value = 0;
-            return;
-          }
-          const url = `/api/dispatch/${currentDispatchId.value}/available-apps`;
-          try {
-            const res = await axios.get(url);
-            const payload = res.data || {};
-            remainingSeats.value = payload.remainingSeats ?? 0;
-
-            const list = payload.apps ?? [];
-            applicantOptions.value = list.map(a => ({
-              dispatchId: a.dispatchId,
-              applyId: a.applyId,
-              origin: a.origin,
-              destination: a.destination,
-              useStart: a.useStart,
-              useEnd: a.useEnd,
-              seats: a.seats,
-              text: `${rocDate(a.useStart)} ${timeSpan(a.useStart, a.useEnd)}｜${a.origin || ''}-${a.destination || ''}｜${a.seats ?? 0} 人`
-            }));
-          } catch (err) {
-            applicantOptions.value = [];
-            remainingSeats.value = 0;
-          }
-        }
+                const list = payload.apps ?? [];
+                applicantOptions.value = list.map(a => ({
+                  dispatchId: a.dispatchId,
+                  applyId: a.applyId,
+                  origin: a.origin,
+                  destination: a.destination,
+                  useStart: a.useStart,
+                  useEnd: a.useEnd,
+                  seats: a.seats,
+                  text: `${rocDate(a.useStart)} ${timeSpan(a.useStart, a.useEnd)}｜${a.origin || ''}-${a.destination || ''}｜${a.seats ?? 0} 人`
+                }));
+              } catch (err) {
+                applicantOptions.value = [];
+                remainingSeats.value = 0;
+              }
+            }
 
 
-
-        async function addLink() {
-          if (!currentDispatchId.value || !newChildDispatchId.value) { alert('請先選好母單與子單'); return; }
-          const url = `/api/dispatch/${currentDispatchId.value}/links`;
-          await axios.post(url, newChildDispatchId.value, { headers: { 'Content-Type': 'application/json' } });
-          await Promise.all([loadLinks(), loadDispatchOptions(), reload()]);
-          newChildDispatchId.value = null;
-        }
-
+             // 新增併單
+             async function addLink() {
+               if (!currentDispatchId.value || !newChildDispatchId.value) { alert('請先選好母單與子單'); return; }
+               const url = `/api/dispatch/${currentDispatchId.value}/links`;
+               await axios.post(url, newChildDispatchId.value, { headers: { 'Content-Type': 'application/json' } });
+               await Promise.all([loadLinks(), loadDispatchOptions(), reload()]);
+               newChildDispatchId.value = null;
+             }
+             // 取消併單
               async function removeLink(dispatchId, applyId) {
                 console.groupCollapsed("🟪 removeLink");
                 console.log("dispatchId=", dispatchId, "applyId=", applyId);
@@ -1046,52 +1046,52 @@
                   odometerEnd:   x.odometerEnd   ?? x.OdometerEnd   ?? null,
                 }
               }
+                  // 狀態文字與樣式
+                  const statusText = (s) => {
+                  const k = String(s || "").trim().toLowerCase();
 
-                     const statusText = (s) => {
-          const k = String(s || "").trim().toLowerCase();
+                  if (k === "已派車" || k === "approved") return "已派車";
+                  if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "行程中";
+                  if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "已完成";
 
-          if (k === "已派車" || k === "approved") return "已派車";
-          if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "行程中";
-          if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "已完成";
+                  return "待指派";
+                };
+                // 狀態樣式
+                const statusClass = (s) => {
+                  const k = String(s || "").trim().toLowerCase();
 
-          return "待指派";
-        };
+                  if (k === "已派車" || k === "approved") return "s-approved";
+                  if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "s-progress";
+                  if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "s-done";
 
-        const statusClass = (s) => {
-          const k = String(s || "").trim().toLowerCase();
-
-          if (k === "已派車" || k === "approved") return "s-approved";
-          if (k === "行程中" || k === "執行中" || k === "in progress" || k === "ongoing") return "s-progress";
-          if (k === "已完成" || k === "完成" || k === "done" || k === "completed") return "s-done";
-
-          return "s-wait";
-        };
+                  return "s-wait";
+                };
 
 
-              watch(currentDispatchId, async (id, old) => {
-                console.groupCollapsed("🟧 currentDispatchId changed");
-                console.log("old =>", old, "new =>", id);
-                if (!id) {
-                  mergedApps.value = [];
-                  applicantOptions.value = [];
-                  console.warn("清空子清單（未選主派車單）");
-                  console.groupEnd();
-                  return;
+                      watch(currentDispatchId, async (id, old) => {
+                        console.groupCollapsed("🟧 currentDispatchId changed");
+                        console.log("old =>", old, "new =>", id);
+                        if (!id) {
+                          mergedApps.value = [];
+                          applicantOptions.value = [];
+                          console.warn("清空子清單（未選主派車單）");
+                          console.groupEnd();
+                          return;
+                        }
+                        await Promise.all([loadLinks(), loadDispatchOptions()]);
+                        console.groupEnd();
+                      });
+                 //異動紀錄
+                async function openHistory(id){
+                  console.log("🔎 openHistory called with id =", id);
+                  try {
+                    const res = await axios.get(`/api/dispatch/${id}/history`, { withCredentials:true });
+                    historyRows.value = res.data || [];
+                    showHistory.value = true;
+                  }catch(err){
+                    console.error("載入異動紀錄失敗", err);
+                  }
                 }
-                await Promise.all([loadLinks(), loadDispatchOptions()]);
-                console.groupEnd();
-              });
-              //異動紀錄
-                         async function openHistory(id){
-          console.log("🔎 openHistory called with id =", id);
-          try {
-            const res = await axios.get(`/api/dispatch/${id}/history`, { withCredentials:true });
-            historyRows.value = res.data || [];
-            showHistory.value = true;
-          }catch(err){
-            console.error("載入異動紀錄失敗", err);
-          }
-        }
 
 
 

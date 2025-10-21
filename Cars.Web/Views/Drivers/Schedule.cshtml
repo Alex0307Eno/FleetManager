@@ -488,13 +488,14 @@
     }
 
 
-
+        // 載入代理人
         async function loadAgents() {
           try {
             const res = await axios.get('/api/Agents/profiles');
             agents.value = res.data || [];
           } catch { agents.value = []; }
         }
+            // 載入班表
         async function loadSchedules() {
           try {
             const res = await axios.get('/api/Drivers/Schedule/Events', { params: { year: yearAD.value, month: month.value }});
@@ -517,12 +518,12 @@
         ? { lineCode: hit.lineCode, driverId: hit.driverId, driverName: hit.driverName }
         : null;
     }
-
+        // ==== 依日期/班別 取 LineCode / DriverName ====
     function getLineCodeByDateShift(date, shift) {
       const hit = findSchedule(date, shift);
       return hit ? hit.lineCode : '—';
     }
-
+        // ==== 依日期/班別 取 DriverName ====
     function getDriverNameByDateShift(date, shift) {
       const hit = findSchedule(date, shift);
       if (!hit) return '—';
@@ -530,20 +531,8 @@
       const drv = (drivers.value || []).find(p => p.driverId === hit.driverId);
       return drv ? drv.driverName : '—';
     }
-     function getDriverNameByDateShift(date, shift) {
-      const hit = findSchedule(date, shift);
-      if (!hit) return '—';
-      return hit.driverName || '—';
-    }
 
-       function getLineCodeByDateShift(date, shift) {
-      const hit = findSchedule(date, shift);
-      return hit ? hit.lineCode : '？';
-    }
-
-
-
-        function getDriverNameByLine(date, lineCode) {
+      function getDriverNameByLine(date, lineCode) {
           const dY = date.getFullYear(), dM = date.getMonth(), dD = date.getDate();
           // 優先找 AM，找不到就任一筆
           const candidates = schedules.value.filter(s => {
@@ -1179,26 +1168,34 @@
         });
 
 
-        return {
-          // base
-          today, rocYear,monthText,year,month,day, yearAD, viewMode,weekStart,weekEnd,currentLabel,currentWeekday,
-          // lists
-          drivers, schedules, agents, agentModalOpen,
-          // ui
-          optionList, selectedOption, weeksOfMonth, weekDays, hours,syncSelection,dayRows,
-          // month grid
-          daysInMonth, firstWeekday, isToday, monthGrid,
-          // refs
-          weekGrid, timeCol,dayDispatches, weekDispatches,headerText,
-          // funcs
-          prev, next, openAgentModal, loadSchedules, loadDayDispatches,
-          linesFor, getDisp, hhmm, toYMD,isFirstWeek,isLastWeek,
-          getDriverNameByDateShift, getLineCodeByDateShift,
-          // right panel
-          assign, allCandidates, applyAssignments, loadDriversAvailable,
-          // helpers
-          isSameDay,exportCSV
-        };
+      return {
+        // 基本資料
+        today, rocYear, monthText, year, month, day, yearAD, viewMode, weekStart, weekEnd, currentLabel, currentWeekday,      
+
+        // 資料清單
+        drivers, schedules, agents, agentModalOpen,       
+
+        // 介面控制
+        optionList, selectedOption, weeksOfMonth, weekDays, hours, syncSelection, dayRows,        
+
+        // 月曆格線
+        daysInMonth, firstWeekday, isToday, monthGrid,        
+
+        // 參考元素
+        weekGrid, timeCol, dayDispatches, weekDispatches, headerText,     
+
+        // 功能方法
+        prev, next, openAgentModal, loadSchedules, loadDayDispatches,
+        linesFor, getDisp, hhmm, toYMD, isFirstWeek, isLastWeek,
+        getDriverNameByDateShift, getLineCodeByDateShift,     
+
+        // 右側面板
+        assign, allCandidates, applyAssignments, loadDriversAvailable,        
+
+        // 工具輔助
+        isSameDay, exportCSV
+      };
+
       }
     }).mount('#app');
 </script>

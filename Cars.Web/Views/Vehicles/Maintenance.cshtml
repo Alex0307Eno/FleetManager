@@ -396,689 +396,707 @@
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-    const { createApp, ref, computed, onMounted } = Vue;
-    createApp({
-      setup(){
-        // 工具
-    const toISODate = (val) => {
-      if (!val) return '';
-      // API 多半回字串；字串直接切 'T' 最穩，不涉入時區
-      if (typeof val === 'string') return val.split('T')[0].slice(0, 10);
-      // 其餘（Date 或數值時間戳）
-      const d = new Date(val);
-      if (isNaN(d)) return '';
-      // 把本地時間挪回「本地日」零點，避免 UTC 造成跨日
-      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-      return d.toISOString().slice(0, 10);
-    };
-       const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
-      const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
-     function isDueSoon(d){
-      const today = new Date();
-      const due = new Date(toISODate(d) || today);
-      const diff = (due - today) / (1000*60*60*24);
-      return diff >= 0 &&  diff <= 30; // 30天內到期
-    }
+     const { createApp, ref, computed, onMounted } = Vue;
+     createApp({
+       setup(){
+         // 工具
+     const toISODate = (val) => {
+       if (!val) return '';
+       // API 多半回字串；字串直接切 'T' 最穩，不涉入時區
+       if (typeof val === 'string') return val.split('T')[0].slice(0, 10);
+       // 其餘（Date 或數值時間戳）
+       const d = new Date(val);
+       if (isNaN(d)) return '';
+       // 把本地時間挪回「本地日」零點，避免 UTC 造成跨日
+       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+       return d.toISOString().slice(0, 10);
+     };
+        const fmtNum = v => (v==null || v==='') ? '' : Number(v).toString();
+       const fmtMoney = v => (v==null || v==='') ? '' : Number(v).toLocaleString('zh-TW', {minimumFractionDigits:0});
+      function isDueSoon(d){
+       const today = new Date();
+       const due = new Date(toISODate(d) || today);
+       const diff = (due - today) / (1000*60*60*24);
+       return diff >= 0 &&  diff <= 30; // 30天內到期
+     }
 
-        // 狀態
-        const vehicles = ref([]);
-        const selectedVehicleId = ref(0);
-        const vehicleDetail = ref({});
-        const tab = ref('record');
+         // 狀態
+         const vehicles = ref([]);
+         const selectedVehicleId = ref(0);
+         const vehicleDetail = ref({});
+         const tab = ref('record');
 
-        //車輛歷程登記卡
-        const editVehicle = ref(false);
-        const vehicleForm = ref({});
-
-
-            // 進入編輯：用當前 vehicleDetail 填表
-    function startEditVehicle(){
-      if(!selectedVehicleId.value) return;
-      const d = vehicleDetail.value || {};
-      vehicleForm.value = {
-        source: d.source || '',
-        approvalNo: d.approvalNo || '',
-        purchaseDate: (d.purchaseDate||'').slice(0,10) || '',
-        value: d.value ?? null,
-        odometer: d.odometer ?? null,
-        licenseDate: (d.licenseDate||'').slice(0,10) || '',
-        startUseDate: (d.startUseDate||'').slice(0,10) || '',
-        inspectionDate: (d.inspectionDate||'').slice(0,10) || '',
-        engineCC: d.engineCC ?? null,
-        engineNo: d.engineNo || '',
-        brand: d.brand || '',
-        year: d.year ?? null,
-        model: d.model || '',
-        type: d.type || '',
-        retiredDate:(d.retiredDate||'').slice(0,10) || ''
-      };
-      editVehicle.value = true;
-    }
-
-    function cancelEditVehicle(){ editVehicle.value = false; }
-
-    // 儲存：呼叫後端 PUT /api/maintenance/vehicle/{id}
-    async function saveVehicle(){
-      if(!selectedVehicleId.value) return;
-
-      const payload = {
-        Source: vehicleForm.value.source || null,
-        ApprovalNo: vehicleForm.value.approvalNo || null,
-        PurchaseDate: vehicleForm.value.purchaseDate || null,
-        Value: vehicleForm.value.value ?? null,
-        Odometer: vehicleForm.value.odometer ?? null,
-        LicenseDate: vehicleForm.value.licenseDate || null,
-        StartUseDate: vehicleForm.value.startUseDate || null,
-        InspectionDate: vehicleForm.value.inspectionDate || null,
-        EngineCC: vehicleForm.value.engineCC ?? null,
-        EngineNo: vehicleForm.value.engineNo || null,
-        Brand: vehicleForm.value.brand || null,
-        Year: vehicleForm.value.year ?? null,
-        Model: vehicleForm.value.model || null,
-        Type: vehicleForm.value.type || null,
-        RetiredDate: vehicleForm.value.retiredDate || null
-      };
-
-      try{
-        await axios.put(
-          `/api/maintenance/vehicle/${selectedVehicleId.value}`,
-          payload,
-          { withCredentials:true, headers:{'Content-Type':'application/json'} }
-        ); // ← 後端新增的更新端點，見下方
-        await loadVehicleDetail(); // 重新取資料
-        editVehicle.value = false;
-        alert('已儲存');
-      }catch(err){
-        console.error(err);
-        alert('儲存失敗');
-      }
-    }
-        // 保養
-        const maintenance = ref([]);
-        const showMaintAdd = ref(false);
-        const editingMaintId = ref(null);
-        const maintForm = ref({ 
-            date: toISODate(new Date()), 
-            odometer:null, 
-            item:'', 
-            unit:'', 
-            qty:null,
-            amount:null, 
-            vendor:'',
-            note:'', 
-            nextDueDate:''
-        });
-        //累計金額
-       const maintenanceRows = computed(() => {
-      const src = Array.isArray(maintenance.value) ? maintenance.value : [];
-
-      // 1) 先依日期「由小到大」(舊→新) 排序，用來正確計算累計
-      const asc = [...src].sort((a, b) => {
-        const da = a?.date ? new Date(a.date) : null;
-        const db = b?.date ? new Date(b.date) : null;
-        if (!da && !db) return 0;
-        if (!da) return -1;   // 沒日期的排前或排後都可以；這裡排前
-        if (!db) return 1;
-        return da - db;       // 小到大
-      });
-
-      // 2) 在「小→大」序列裡跑累加，確保「日期越大，累計越多」
-      let running = 0;
-      const withCum = asc.map(m => {
-        const qty = Number(m.qty) || 0;
-        const amt = Number(m.amount) || 0;
-        const subtotal = qty * amt;
-        running += subtotal;
-        return {
-          ...m,
-          subtotal,        // 單筆金額
-          totalCost: running // 累計金額（到該日期為止）
-        };
-      });
-
-      // 3) 最後依你想要的顯示順序輸出（通常是「新→舊」）
-      const desc = withCum.sort((a, b) => {
-        const da = a?.date ? new Date(a.date) : null;
-        const db = b?.date ? new Date(b.date) : null;
-        if (!da && !db) return 0;
-        if (!da) return 1;    // 沒日期的放後面
-        if (!db) return -1;
-        return db - da;       // 大到小（新→舊）
-      });
-
-      return desc;
-    });
+         //車輛歷程登記卡
+         const editVehicle = ref(false);
+         const vehicleForm = ref({});
 
 
-        function toggleMaintForm(){
-          if(!showMaintAdd.value){ // 打開時重置
-            editingMaintId.value = null;
-            maintForm.value = { 
-                date: toISODate(new Date()), 
-                odometer:null, 
-                item:'', 
-                unit:'', 
-                qty:null, 
-                amount:null, 
-                vendor:'', 
-                note:'',
-                nextDueDate:'' 
-            };
-          }
-          showMaintAdd.value = !showMaintAdd.value;
-        }
-        function startEditMaint(r){
-          editingMaintId.value = r.id;
-          showMaintAdd.value = true;
-          maintForm.value = {
-            date: (r.date||'').slice(0,10), 
-            odometer:r.odometer??null, 
-            item:r.item, 
-            unit:r.unit||'', 
-            qty:r.qty??null,
-            amount:r.amount??null, 
-            vendor:r.vendor||'', 
-            note:r.note||'',
-            nextDueDate: toISODate(r.nextDueDate
-            )
-          };
-        }
-        function cancelMaint(){ showMaintAdd.value=false; editingMaintId.value=null; }
-        async function saveMaint(){
-          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
-          if(!maintForm.value.item?.trim()){ alert('請輸入保養項目'); return; }
-          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-          const payload = { 
-              vehicleId:selectedVehicleId.value, 
-              vehiclePlate:plate, 
-              date:maintForm.value.date,
-            odometer:maintForm.value.odometer, 
-            item:maintForm.value.item.trim(), 
-            unit:maintForm.value.unit||null,
-            qty:maintForm.value.qty, 
-            amount:maintForm.value.amount, 
-            vendor:maintForm.value.vendor||null,
-            note:(maintForm.value.note||'').trim()||null,
-            nextDueDate: maintForm.value.nextDueDate 
-        };
-          if(editingMaintId.value)
-          { 
-              await axios.put(`/api/maintenance/${editingMaintId.value}`, 
-              payload, 
-              { 
-                  withCredentials:true 
-              }); 
-          }else{ 
-              await axios.post('/api/maintenance', 
-              payload, { 
-                  withCredentials:true 
-              }); 
-          }
-          editingMaintId.value=null; showMaintAdd.value=false; await loadMaintenance();
-        }
-        async function removeMaint(r){ if(!confirm('確定刪除這筆保養紀錄？')) return; await axios.delete(`/api/maintenance/${r.id}`, { withCredentials:true }); await loadMaintenance(); }
+        // 進入編輯：用當前 vehicleDetail 填表
+     function startEditVehicle(){
+       if(!selectedVehicleId.value) return;
+       const d = vehicleDetail.value || {};
+       vehicleForm.value = {
+         source: d.source || '',
+         approvalNo: d.approvalNo || '',
+         purchaseDate: (d.purchaseDate||'').slice(0,10) || '',
+         value: d.value ?? null,
+         odometer: d.odometer ?? null,
+         licenseDate: (d.licenseDate||'').slice(0,10) || '',
+         startUseDate: (d.startUseDate||'').slice(0,10) || '',
+         inspectionDate: (d.inspectionDate||'').slice(0,10) || '',
+         engineCC: d.engineCC ?? null,
+         engineNo: d.engineNo || '',
+         brand: d.brand || '',
+         year: d.year ?? null,
+         model: d.model || '',
+         type: d.type || '',
+         retiredDate:(d.retiredDate||'').slice(0,10) || ''
+       };
+       editVehicle.value = true;
+     }
+     // 取消編輯
+     function cancelEditVehicle(){ editVehicle.value = false; }
 
-        // 維修
-        const repairs = ref([]);
-        const showRepairAdd = ref(false);
-        const editingRepairId = ref(null);
-        const repairForm = ref({ 
-            date: toISODate(new Date()),
-            place:'', 
-            issue:'', 
-            costEstimate:null, 
-            vendor:'',
-            note:'', 
-            odometer:null 
-        });
+     // 儲存車籍卡
+     async function saveVehicle(){
+       if(!selectedVehicleId.value) return;
 
-        function toggleRepairForm(){
-          if(!showRepairAdd.value){ // 打開時重置
-            editingRepairId.value = null;
-            repairForm.value = { 
-                date: toISODate(new Date()),
-                place:'', 
-                issue:'', 
-                costEstimate:null, 
-                vendor:'', 
-                note:'', 
-                odometer:null 
-            };
-          }
-          showRepairAdd.value = !showRepairAdd.value;
-        }
-        function startEditRepair(r){
-          editingRepairId.value = r.id;
-          showRepairAdd.value = true;
-          repairForm.value = { 
-              date:r.date||toISODate(new Date()),
-              place:r.place||'', 
-              issue:r.issue||'', 
-              costEstimate:r.costEstimate??null,
-              vendor:r.vendor||'',
-              note:r.note||'', 
-              odometer:null };
-        }
-        function cancelRepair(){ showRepairAdd.value=false; editingRepairId.value=null; }
-        async function saveRepair(){
-          if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
-          if(!repairForm.value.issue?.trim()){ alert('請輸入故障描述'); return; }
-          const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
-          const payload = { 
-              vehicleId:selectedVehicleId.value, 
-              plateNo:plate, 
-              date:repairForm.value.date, 
-              place:repairForm.value.place||null,
-              odometer:repairForm.value.odometer??null,
-              issue:repairForm.value.issue.trim(), 
-              vendor:repairForm.value.vendor||null,
-              costEstimate:repairForm.value.costEstimate??null, 
-              note:(repairForm.value.note||'').trim()||null 
-          };
-          if(editingRepairId.value)
-          { 
-              await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, 
-          payload,
-          { 
-              withCredentials:true 
-          }); 
-          }else{
-            await axios.post('/api/maintenance/repair', 
-            payload, { 
-                withCredentials:true 
-            });
-            // 新報修 → 狀態調為維修中
-            await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify('維修中'), 
-            { 
-                withCredentials:true, headers:{'Content-Type':'application/json'} 
-            });
-            const idx = vehicles.value.findIndex(v=>v.vehicleId===selectedVehicleId.value); 
-            if(idx>=0) vehicles.value[idx].status='維修中';
-          }
-          editingRepairId.value=null; 
-          showRepairAdd.value=false; 
-          await loadVehicleDetail();
-          await loadRepairs();
-        }
-        async function removeRepair(id){ 
-            if(!confirm('確定刪除此筆報修紀錄？')) 
-            return; await axios.delete(`/api/maintenance/repair/${id}`, 
-            { withCredentials:true }); 
-            await loadRepairs(); }
+       const payload = {
+         Source: vehicleForm.value.source || null,
+         ApprovalNo: vehicleForm.value.approvalNo || null,
+         PurchaseDate: vehicleForm.value.purchaseDate || null,
+         Value: vehicleForm.value.value ?? null,
+         Odometer: vehicleForm.value.odometer ?? null,
+         LicenseDate: vehicleForm.value.licenseDate || null,
+         StartUseDate: vehicleForm.value.startUseDate || null,
+         InspectionDate: vehicleForm.value.inspectionDate || null,
+         EngineCC: vehicleForm.value.engineCC ?? null,
+         EngineNo: vehicleForm.value.engineNo || null,
+         Brand: vehicleForm.value.brand || null,
+         Year: vehicleForm.value.year ?? null,
+         Model: vehicleForm.value.model || null,
+         Type: vehicleForm.value.type || null,
+         RetiredDate: vehicleForm.value.retiredDate || null
+       };
 
-        // 驗車
-        const inspections = ref([]);
-        const showInspectionAdd = ref(false);
-        const inspectionEditId = ref(null);
-        const inspectionForm = ref({ date: toISODate(new Date()), station:"", result:"合格", nextDueDate:"", odometerKm:null, notes:"" });
-        //違規
-        const violations = ref([]);
-        const showViolationAdd = ref(false);
-        const violationEditId = ref(null);
-        const violationForm = ref({ date: toISODate(new Date()), location:"", category:"", points:null, fineAmount:null, status:"未繳", dueDate:"", paidDate:"", notes:"" });
+       try{
+         await axios.put(
+           `/api/maintenance/vehicle/${selectedVehicleId.value}`,
+           payload,
+           { withCredentials:true, headers:{'Content-Type':'application/json'} }
+         ); // ← 後端新增的更新端點，見下方
+         await loadVehicleDetail(); // 重新取資料
+         editVehicle.value = false;
+         alert('已儲存');
+       }catch(err){
+         console.error(err);
+         alert('儲存失敗');
+       }
+     }
+         // 保養
+         const maintenance = ref([]);
+         const showMaintAdd = ref(false);
+         const editingMaintId = ref(null);
+         const maintForm = ref({ 
+             date: toISODate(new Date()), 
+             odometer:null, 
+             item:'', 
+             unit:'', 
+             qty:null,
+             amount:null, 
+             vendor:'',
+             note:'', 
+             nextDueDate:''
+         });
+         //累計金額
+        const maintenanceRows = computed(() => {
+       const src = Array.isArray(maintenance.value) ? maintenance.value : [];
 
-        // 計算欄位
-            const repairRows = computed(() => {
-      const list = Array.isArray(repairs.value) ? repairs.value : [];
+       // 1) 先依日期「由小到大」(舊→新) 排序，用來正確計算累計
+       const asc = [...src].sort((a, b) => {
+         const da = a?.date ? new Date(a.date) : null;
+         const db = b?.date ? new Date(b.date) : null;
+         if (!da && !db) return 0;
+         if (!da) return -1;   // 沒日期的排前或排後都可以；這裡排前
+         if (!db) return 1;
+         return da - db;       // 小到大
+       });
 
-      let running = 0;
-      return list.map((x, i) => {
-        const cost = Number(x.costEstimate) || 0;
-        running += cost;
-        return {
-          id: x.repairRequestId ?? x.id ?? i,
-          date: x.date || '',
-          place: x.place || '',
-          issue: x.issue || '',
-          status: x.status || '',
-          vendor: x.vendor || '',
-          note: x.note || '',
-          // 單筆費用
-          costEstimate: cost,
-          // ✅ 累計金額
-          totalCost: running
-        };
-      });
-    });
+       // 2) 在「小→大」序列裡跑累加，確保「日期越大，累計越多」
+       let running = 0;
+       const withCum = asc.map(m => {
+         const qty = Number(m.qty) || 0;
+         const amt = Number(m.amount) || 0;
+         const subtotal = qty * amt;
+         running += subtotal;
+         return {
+           ...m,
+           subtotal,        // 單筆金額
+           totalCost: running // 累計金額（到該日期為止）
+         };
+       });
 
-        const inspectionRows = computed(()=> (Array.isArray(inspections.value)?inspections.value:[]).map(x=>({
-          id: x.inspectionId ?? x.id,
-          date: (x.inspectionDate ?? x.date) || '',
-          station: x.station || '', 
-          result: x.result || '',
-          nextDueDate: (x.nextDueDate||'') && (x.nextDueDate||'').slice(0,10), 
-          odometerKm: x.odometerKm ?? x.odometer ?? null, 
-          notes: x.notes || ''
-        })));
-        const violationRows = computed(()=> (Array.isArray(violations.value)?violations.value:[]).map(x=>({
-          id: x.violationId ?? x.id,
-          date: (x.violationDate ?? x.date) || '', 
-          location: x.location || '', 
-          category: x.category || '',
-          points: x.points ?? null, 
-          fineAmount: x.fineAmount ?? null, 
-          status: x.status || '',
-          dueDate: (x.dueDate||'') && (x.dueDate||'').slice(0,10),
-          paidDate: (x.paidDate||'') && (x.paidDate||'').slice(0,10), 
-          notes: x.notes || ''
-        })));
-        //紀錄總覽
-        const recordRows = computed(() => {
-      if (!selectedVehicleId.value) return [];
+       // 3) 最後依你想要的顯示順序輸出（通常是「新→舊」）
+       const desc = withCum.sort((a, b) => {
+         const da = a?.date ? new Date(a.date) : null;
+         const db = b?.date ? new Date(b.date) : null;
+         if (!da && !db) return 0;
+         if (!da) return 1;    // 沒日期的放後面
+         if (!db) return -1;
+         return db - da;       // 大到小（新→舊）
+       });
 
-      const vid = selectedVehicleId.value;
-      const rows = [
-            ...(maintenance.value || [])
-      .filter(m => m.vehicleId === vid)
-      .map(m => ({
-        id: `M-${m.vehicleMaintenanceId ?? m.id}`,  // 確保保養唯一
-        date: normalizeDate(m.date),
-        type: '保養',
-        title: m.item,
-        detail: m.note || ''
-      })),
+       return desc;
+     });
 
-    ...(repairs.value || [])
-      .filter(r => r.vehicleId === vid)
-      .map(r => ({
-        id: `R-${r.repairRequestId ?? r.id}`,       // 確保維修唯一
-        date: normalizeDate(r.date),
-        type: '維修',
-        title: r.issue,
-        detail: r.note || ''
-      })),
+     // 切換表單顯示
+         function toggleMaintForm(){
+           if(!showMaintAdd.value){ // 打開時重置
+             editingMaintId.value = null;
+             maintForm.value = { 
+                 date: toISODate(new Date()), 
+                 odometer:null, 
+                 item:'', 
+                 unit:'', 
+                 qty:null, 
+                 amount:null, 
+                 vendor:'', 
+                 note:'',
+                 nextDueDate:'' 
+             };
+           }
+           showMaintAdd.value = !showMaintAdd.value;
+         }
+         // 編輯保養
+         function startEditMaint(r){
+           editingMaintId.value = r.id;
+           showMaintAdd.value = true;
+           maintForm.value = {
+             date: (r.date||'').slice(0,10), 
+             odometer:r.odometer??null, 
+             item:r.item, 
+             unit:r.unit||'', 
+             qty:r.qty??null,
+             amount:r.amount??null, 
+             vendor:r.vendor||'', 
+             note:r.note||'',
+             nextDueDate: toISODate(r.nextDueDate
+             )
+           };
+         }
+         // 取消保養
+         function cancelMaint(){ showMaintAdd.value=false; editingMaintId.value=null; }
+         async function saveMaint(){
+           if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+           if(!maintForm.value.item?.trim()){ alert('請輸入保養項目'); return; }
+           const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+           const payload = { 
+               vehicleId:selectedVehicleId.value, 
+               vehiclePlate:plate, 
+               date:maintForm.value.date,
+             odometer:maintForm.value.odometer, 
+             item:maintForm.value.item.trim(), 
+             unit:maintForm.value.unit||null,
+             qty:maintForm.value.qty, 
+             amount:maintForm.value.amount, 
+             vendor:maintForm.value.vendor||null,
+             note:(maintForm.value.note||'').trim()||null,
+             nextDueDate: maintForm.value.nextDueDate 
+         };
+           if(editingMaintId.value)
+           { 
+               await axios.put(`/api/maintenance/${editingMaintId.value}`, 
+               payload, 
+               { 
+                   withCredentials:true 
+               }); 
+           }else{ 
+               await axios.post('/api/maintenance', 
+               payload, { 
+                   withCredentials:true 
+               }); 
+           }
+           editingMaintId.value=null; showMaintAdd.value=false; await loadMaintenance();
+         }
+         async function removeMaint(r){ if(!confirm('確定刪除這筆保養紀錄？')) return; await axios.delete(`/api/maintenance/${r.id}`, { withCredentials:true }); await loadMaintenance(); }
 
-    ...(inspections.value || [])
-      .filter(i => i.vehicleId === vid)
-      .map(i => ({
-        id: `I-${i.inspectionId ?? i.id}`,          // 確保驗車唯一
-        date: normalizeDate(i.date),
-        type: '驗車',
-        title: i.station,
-        detail: i.notes || ''
-      })),
+         // 維修
+         const repairs = ref([]);
+         const showRepairAdd = ref(false);
+         const editingRepairId = ref(null);
+         const repairForm = ref({ 
+             date: toISODate(new Date()),
+             place:'', 
+             issue:'', 
+             costEstimate:null, 
+             vendor:'',
+             note:'', 
+             odometer:null 
+         });
+         // 切換表單顯示
+         function toggleRepairForm(){
+           if(!showRepairAdd.value){ // 打開時重置
+             editingRepairId.value = null;
+             repairForm.value = { 
+                 date: toISODate(new Date()),
+                 place:'', 
+                 issue:'', 
+                 costEstimate:null, 
+                 vendor:'', 
+                 note:'', 
+                 odometer:null 
+             };
+           }
+           showRepairAdd.value = !showRepairAdd.value;
+         }
+         // 編輯維修
+         function startEditRepair(r){
+           editingRepairId.value = r.id;
+           showRepairAdd.value = true;
+           repairForm.value = { 
+               date:r.date||toISODate(new Date()),
+               place:r.place||'', 
+               issue:r.issue||'', 
+               costEstimate:r.costEstimate??null,
+               vendor:r.vendor||'',
+               note:r.note||'', 
+               odometer:null };
+         }
+         // 取消維修
+         function cancelRepair(){ showRepairAdd.value=false; editingRepairId.value=null; }
+         async function saveRepair(){
+           if(!selectedVehicleId.value){ alert('請先選擇車輛'); return; }
+           if(!repairForm.value.issue?.trim()){ alert('請輸入故障描述'); return; }
+           const plate = (vehicles.value.find(v=>v.vehicleId===selectedVehicleId.value)||{}).plate || null;
+           const payload = { 
+               vehicleId:selectedVehicleId.value, 
+               plateNo:plate, 
+               date:repairForm.value.date, 
+               place:repairForm.value.place||null,
+               odometer:repairForm.value.odometer??null,
+               issue:repairForm.value.issue.trim(), 
+               vendor:repairForm.value.vendor||null,
+               costEstimate:repairForm.value.costEstimate??null, 
+               note:(repairForm.value.note||'').trim()||null 
+           };
+           if(editingRepairId.value)
+           { 
+               await axios.put(`/api/maintenance/repair/${editingRepairId.value}`, 
+           payload,
+           { 
+               withCredentials:true 
+           }); 
+           }else{
+             await axios.post('/api/maintenance/repair', 
+             payload, { 
+                 withCredentials:true 
+             });
+             // 新報修 → 狀態調為維修中
+             await axios.put(`/api/maintenance/vehicle/${selectedVehicleId.value}/status`, JSON.stringify('維修中'), 
+             { 
+                 withCredentials:true, headers:{'Content-Type':'application/json'} 
+             });
+             const idx = vehicles.value.findIndex(v=>v.vehicleId===selectedVehicleId.value); 
+             if(idx>=0) vehicles.value[idx].status='維修中';
+           }
+           editingRepairId.value=null; 
+           showRepairAdd.value=false; 
+           await loadVehicleDetail();
+           await loadRepairs();
+         }
+         // 刪除維修
+         async function removeRepair(id){ 
+             if(!confirm('確定刪除此筆報修紀錄？')) 
+             return; await axios.delete(`/api/maintenance/repair/${id}`, 
+             { withCredentials:true }); 
+             await loadRepairs(); }
 
-    ...(violations.value || [])
-      .filter(v => v.vehicleId === vid)
-      .map(v => ({
-        id: `V-${v.violationId ?? v.id}`,           // 確保違規唯一
-        date: normalizeDate(v.date),
-        type: '違規',
-        title: v.category,
-        detail: v.notes || ''
-      }))
+         // 驗車
+         const inspections = ref([]);
+         const showInspectionAdd = ref(false);
+         const inspectionEditId = ref(null);
+         const inspectionForm = ref({ date: toISODate(new Date()), station:"", result:"合格", nextDueDate:"", odometerKm:null, notes:"" });
+         //違規
+         const violations = ref([]);
+         const showViolationAdd = ref(false);
+         const violationEditId = ref(null);
+         const violationForm = ref({ date: toISODate(new Date()), location:"", category:"", points:null, fineAmount:null, status:"未繳", dueDate:"", paidDate:"", notes:"" });
 
-      ];
+         // 計算欄位
+             const repairRows = computed(() => {
+       const list = Array.isArray(repairs.value) ? repairs.value : [];
 
-      // ✅ 去重 (根據唯一 id)
-      const seen = new Set();
-      const unique = rows.filter(r => !seen.has(r.id) && seen.add(r.id));
+       let running = 0;
+       return list.map((x, i) => {
+         const cost = Number(x.costEstimate) || 0;
+         running += cost;
+         return {
+           id: x.repairRequestId ?? x.id ?? i,
+           date: x.date || '',
+           place: x.place || '',
+           issue: x.issue || '',
+           status: x.status || '',
+           vendor: x.vendor || '',
+           note: x.note || '',
+           // 單筆費用
+           costEstimate: cost,
+           // ✅ 累計金額
+           totalCost: running
+         };
+       });
+     });
+         // 驗車紀錄
+         const inspectionRows = computed(()=> (Array.isArray(inspections.value)?inspections.value:[]).map(x=>({
+           id: x.inspectionId ?? x.id,
+           date: (x.inspectionDate ?? x.date) || '',
+           station: x.station || '', 
+           result: x.result || '',
+           nextDueDate: (x.nextDueDate||'') && (x.nextDueDate||'').slice(0,10), 
+           odometerKm: x.odometerKm ?? x.odometer ?? null, 
+           notes: x.notes || ''
+         })));
+         // 違規紀錄
+         const violationRows = computed(()=> (Array.isArray(violations.value)?violations.value:[]).map(x=>({
+           id: x.violationId ?? x.id,
+           date: (x.violationDate ?? x.date) || '', 
+           location: x.location || '', 
+           category: x.category || '',
+           points: x.points ?? null, 
+           fineAmount: x.fineAmount ?? null, 
+           status: x.status || '',
+           dueDate: (x.dueDate||'') && (x.dueDate||'').slice(0,10),
+           paidDate: (x.paidDate||'') && (x.paidDate||'').slice(0,10), 
+           notes: x.notes || ''
+         })));
+         //紀錄總覽
+         const recordRows = computed(() => {
+       if (!selectedVehicleId.value) return [];
 
-      return unique.sort((a,b) => new Date(b.date) - new Date(a.date));
-    });
+       const vid = selectedVehicleId.value;
+       const rows = [
+             ...(maintenance.value || [])
+       .filter(m => m.vehicleId === vid)
+       .map(m => ({
+         id: `M-${m.vehicleMaintenanceId ?? m.id}`,  // 確保保養唯一
+         date: normalizeDate(m.date),
+         type: '保養',
+         title: m.item,
+         detail: m.note || ''
+       })),
 
+     ...(repairs.value || [])
+       .filter(r => r.vehicleId === vid)
+       .map(r => ({
+         id: `R-${r.repairRequestId ?? r.id}`,       // 確保維修唯一
+         date: normalizeDate(r.date),
+         type: '維修',
+         title: r.issue,
+         detail: r.note || ''
+       })),
 
+     ...(inspections.value || [])
+       .filter(i => i.vehicleId === vid)
+       .map(i => ({
+         id: `I-${i.inspectionId ?? i.id}`,          // 確保驗車唯一
+         date: normalizeDate(i.date),
+         type: '驗車',
+         title: i.station,
+         detail: i.notes || ''
+       })),
 
+     ...(violations.value || [])
+       .filter(v => v.vehicleId === vid)
+       .map(v => ({
+         id: `V-${v.violationId ?? v.id}`,           // 確保違規唯一
+         date: normalizeDate(v.date),
+         type: '違規',
+         title: v.category,
+         detail: v.notes || ''
+       }))
 
-        const normalizeDate = d => {
-      if (!d) return null;
-      if (typeof d === 'string') return d.slice(0, 10); // "2025-02-02T00:00:00" → "2025-02-02"
-      return new Date(d).toISOString().slice(0, 10);
-    };
+       ];
 
-        // 請求
-        async function loadVehicles(){ 
-            const res = await axios.get('/api/maintenance/vehicles', { withCredentials:true }); 
-            vehicles.value = res.data || []; 
-            if(vehicles.value.length && !selectedVehicleId.value){ 
-                selectedVehicleId.value = vehicles.value[0].vehicleId; 
-            } }
-        async function loadVehicleDetail(){ 
-            if(!selectedVehicleId.value){ 
-            vehicleDetail.value={}; return;} 
-        const res = await axios.get(`/api/maintenance/vehicle/${selectedVehicleId.value}`, { withCredentials:true });
-        vehicleDetail.value = res.data || {}; }
-    async function setAvailable() {
-      if (!selectedVehicleId.value) return;
+       //  去重 (根據唯一 id)
+       const seen = new Set();
+       const unique = rows.filter(r => !seen.has(r.id) && seen.add(r.id));
 
-      try {
-        // 1) 取出目前清單中最新一筆「待處理」維修
-        const latest = (repairs.value || [])
-          .filter(r => r.status === "待處理")
-          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-        // 2) 若有找到待處理，就把那一筆狀態改「完成」
-        if (latest) {
-          const id = latest.repairRequestId ?? latest.id; // 後端回的是 repairRequestId
-          await axios.put(
-            `/api/maintenance/repair/${id}/status`,
-            JSON.stringify("完成"),
-            { withCredentials: true, headers: { "Content-Type": "application/json" } }
-          );
-        }
-
-        // 3) 車輛狀態改「可用」
-        await axios.put(
-          `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
-          JSON.stringify("可用"),
-          { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
-        );
-
-
-        // 4) 重新載入資料
-        await loadRepairs();
-        await loadVehicleDetail();
-        await loadVehicles();
-
-        alert(latest ? " 已將最新一筆維修改為完成，車輛已可用" : " 車輛已可用（沒有待處理維修）");
-      } catch (err) {
-        console.error("更新失敗", err?.response?.data || err);
-        alert(" 更新失敗");
-      }
-    }
-    //更新車輛狀態
-        async function updateVehicleStatus(){
-      if (!selectedVehicleId.value) return;
-
-      try {
-        await axios.put(
-          `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
-          JSON.stringify(vehicleDetail.value.status),
-          { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
-        );
-
-        // 同步更新 vehicles 清單裡的狀態
-        const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
-        if (idx >= 0) vehicles.value[idx].status = vehicleDetail.value.status;
-
-      } catch (err) {
-        console.error(err);
-        alert('狀態更新失敗');
-      }
-    }
-
-    //載入個別資料        
-        async function loadMaintenance(){ 
-            if(!selectedVehicleId.value){
-                maintenance.value=[]; 
-                return;
-            }
-            const res = await axios.get('/api/maintenance', 
-            { params:{ vehicleId:selectedVehicleId.value },
-            withCredentials:true });
-            maintenance.value = Array.isArray(res.data)? res.data: [];
-        }
-        async function loadRepairs(){ 
-            if(!selectedVehicleId.value){ 
-                repairs.value=[]; 
-                return;
-            } 
-            const res = await axios.get('/api/maintenance/repairs', 
-            { params:{ vehicleId:selectedVehicleId.value }, 
-            withCredentials:true }); 
-            repairs.value = Array.isArray(res.data)? res.data: []; 
-        }
-        async function loadInspections(){ 
-            if(!selectedVehicleId.value){ 
-                inspections.value=[]; 
-                return;
-            } 
-            const res = await axios.get('/api/maintenance/inspections', 
-            { params:{ vehicleId:selectedVehicleId.value }, 
-            withCredentials:true }); 
-            inspections.value = Array.isArray(res.data)? res.data: []; 
-        }
-        async function loadViolations(){ 
-            if(!selectedVehicleId.value){ 
-                violations.value=[]; 
-                return;
-            } 
-            const res = await axios.get('/api/maintenance/violations', 
-            { params:{ vehicleId:selectedVehicleId.value },
-            withCredentials:true }); 
-            violations.value = Array.isArray(res.data)? res.data: []; }
-
-            function onVehicleChanged(){
-                  maintenance.value = [];
-                  repairs.value = [];
-                  inspections.value = [];
-                  violations.value = [];
-
-                  loadMaintenance();
-                  loadVehicleDetail();
-                  loadRepairs();
-                  loadInspections();
-                  loadViolations();
-                }
+       return unique.sort((a,b) => new Date(b.date) - new Date(a.date));
+     });
 
 
-        // 驗車/違規：
-        function toggleInspectionForm(){ 
-            if(!showInspectionAdd.value){ inspectionEditId.value=null; 
-                inspectionForm.value={ date:toISODate(
-                    new Date()), 
-                    station:"", 
-                    result:"合格", 
-                    nextDueDate:"", 
-                    odometerKm:null, 
-                    notes:"" 
-                }; } showInspectionAdd.value=!showInspectionAdd.value; }
-        function cancelInspection(){ 
-            showInspectionAdd.value=false; inspectionEditId.value=null; 
-        }
-        function startEditInspection(r){ 
-            inspectionEditId.value=r.id; showInspectionAdd.value=true; 
-            inspectionForm.value={ date:r.date||toISODate(
-                new Date()), 
-                station:r.station||"", 
-                result:r.result||"合格", 
-                nextDueDate:r.nextDueDate||"",
-                odometerKm:r.odometerKm??null, 
-                notes:r.notes||"" }; 
-        }
-        async function saveInspection(){ 
-            if(!selectedVehicleId.value){ alert('請先選擇車輛'); return;} 
-            const payload={ 
-                vehicleId:selectedVehicleId.value, 
-                inspectionDate:inspectionForm.value.date, 
-                station:inspectionForm.value.station||null, 
-                result:inspectionForm.value.result||'合格', 
-                nextDueDate:inspectionForm.value.nextDueDate||null, 
-                odometerKm:inspectionForm.value.odometerKm??null, 
-                notes:inspectionForm.value.notes||null }; 
-                if(!inspectionEditId.value){ await axios.post('/api/maintenance/inspections', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); 
-                } else { 
-                    await axios.put(`/api/maintenance/inspections/${inspectionEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } showInspectionAdd.value=false; inspectionEditId.value=null; await loadInspections(); }
-        async function removeInspection(id){ 
-            if(!confirm('確定刪除此筆驗車紀錄？')) return; 
-            await axios.delete(`/api/maintenance/inspections/${id}`, { withCredentials:true }); 
-            await loadInspections(); }
-        //違規：
-        function toggleViolationForm(){ 
-            if(!showViolationAdd.value){ 
-                violationEditId.value=null; 
-                violationForm.value={ date:toISODate
-                    (new Date()), 
-                    location:"",
-                    category:"", 
-                    points:null, 
-                    fineAmount:null, 
-                    status:"未繳", 
-                    dueDate:"", 
-                    paidDate:"", 
-                    notes:"" }; } 
-                    showViolationAdd.value=!showViolationAdd.value; }
-        function cancelViolation(){ 
-            showViolationAdd.value=false; 
-            violationEditId.value=null; 
-        }
-        function startEditViolation(r){ 
-            violationEditId.value=r.id; 
-            showViolationAdd.value=true; 
-            violationForm.value={ 
-                date:r.date||toISODate(
-                    new Date()), 
-                    location:r.location||"", 
-                    category:r.category||"", 
-                    points:r.points??null, 
-                    fineAmount:r.fineAmount??null, 
-                    status:r.status||"未繳", 
-                    dueDate:r.dueDate||"", 
-                    paidDate:r.paidDate||"", 
-                    notes:r.notes||"" }; 
-                }
-        async function saveViolation(){
-            if(!selectedVehicleId.value){ 
-                alert('請先選擇車輛'); return;} 
-                const payload={ 
-                    vehicleId:selectedVehicleId.value, 
-                    violationDate:violationForm.value.date, 
-                    location:violationForm.value.location||null, 
-                    category:violationForm.value.category||null, 
-                    points:violationForm.value.points??null, 
-                    fineAmount:violationForm.value.fineAmount??null, 
-                    status:violationForm.value.status||'未繳', 
-                    dueDate:violationForm.value.dueDate||null, 
-                    paidDate:violationForm.value.paidDate||null, 
-                    notes:violationForm.value.notes||null }; 
-                    if(!violationEditId.value){ 
-                        await axios.post('/api/maintenance/violations', payload, { 
-                            withCredentials:true, 
-                            headers:{'Content-Type':'application/json'} }); 
-                    } else { await axios.put(`/api/maintenance/violations/${violationEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } 
-                    showViolationAdd.value=false; violationEditId.value=null; await loadViolations(); 
-                }
-        async function removeViolation(id){ 
+
+     // 日期正規化函式
+         const normalizeDate = d => {
+       if (!d) return null;
+       if (typeof d === 'string') return d.slice(0, 10); // "2025-02-02T00:00:00" → "2025-02-02"
+       return new Date(d).toISOString().slice(0, 10);
+     };
+
+         // 請求
+         async function loadVehicles(){ 
+             const res = await axios.get('/api/maintenance/vehicles', { withCredentials:true }); 
+             vehicles.value = res.data || []; 
+             if(vehicles.value.length && !selectedVehicleId.value){ 
+                 selectedVehicleId.value = vehicles.value[0].vehicleId; 
+             } }
+         async function loadVehicleDetail(){ 
+             if(!selectedVehicleId.value){ 
+             vehicleDetail.value={}; return;} 
+         const res = await axios.get(`/api/maintenance/vehicle/${selectedVehicleId.value}`, { withCredentials:true });
+         vehicleDetail.value = res.data || {}; }
+     async function setAvailable() {
+       if (!selectedVehicleId.value) return;
+
+       try {
+         // 1) 取出目前清單中最新一筆「待處理」維修
+         const latest = (repairs.value || [])
+           .filter(r => r.status === "待處理")
+           .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+         // 2) 若有找到待處理，就把那一筆狀態改「完成」
+         if (latest) {
+           const id = latest.repairRequestId ?? latest.id; // 後端回的是 repairRequestId
+           await axios.put(
+             `/api/maintenance/repair/${id}/status`,
+             JSON.stringify("完成"),
+             { withCredentials: true, headers: { "Content-Type": "application/json" } }
+           );
+         }
+
+         // 3) 車輛狀態改「可用」
+         await axios.put(
+           `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
+           JSON.stringify("可用"),
+           { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
+         );
+
+
+         // 4) 重新載入資料
+         await loadRepairs();
+         await loadVehicleDetail();
+         await loadVehicles();
+
+         alert(latest ? " 已將最新一筆維修改為完成，車輛已可用" : " 車輛已可用（沒有待處理維修）");
+       } catch (err) {
+         console.error("更新失敗", err?.response?.data || err);
+         alert(" 更新失敗");
+       }
+     }
+     //更新車輛狀態
+         async function updateVehicleStatus(){
+       if (!selectedVehicleId.value) return;
+
+       try {
+         await axios.put(
+           `/api/maintenance/vehicle/${selectedVehicleId.value}/status`,
+           JSON.stringify(vehicleDetail.value.status),
+           { withCredentials:true, headers:{ 'Content-Type':'application/json' } }
+         );
+
+         // 同步更新 vehicles 清單裡的狀態
+         const idx = vehicles.value.findIndex(v => v.vehicleId === selectedVehicleId.value);
+         if (idx >= 0) vehicles.value[idx].status = vehicleDetail.value.status;
+
+       } catch (err) {
+         console.error(err);
+         alert('狀態更新失敗');
+       }
+     }
+
+     //載入個別資料     
+         // 保養資料
+         async function loadMaintenance(){ 
+             if(!selectedVehicleId.value){
+                 maintenance.value=[]; 
+                 return;
+             }
+             const res = await axios.get('/api/maintenance', 
+             { params:{ vehicleId:selectedVehicleId.value },
+             withCredentials:true });
+             maintenance.value = Array.isArray(res.data)? res.data: [];
+         }
+         // 載入維修資料
+         async function loadRepairs(){ 
+             if(!selectedVehicleId.value){ 
+                 repairs.value=[]; 
+                 return;
+             } 
+             const res = await axios.get('/api/maintenance/repairs', 
+             { params:{ vehicleId:selectedVehicleId.value }, 
+             withCredentials:true }); 
+             repairs.value = Array.isArray(res.data)? res.data: []; 
+         }
+         // 載入驗車資料
+         async function loadInspections(){ 
+             if(!selectedVehicleId.value){ 
+                 inspections.value=[]; 
+                 return;
+             } 
+             const res = await axios.get('/api/maintenance/inspections', 
+             { params:{ vehicleId:selectedVehicleId.value }, 
+             withCredentials:true }); 
+             inspections.value = Array.isArray(res.data)? res.data: []; 
+         }
+         // 載入違規資料
+         async function loadViolations(){ 
+             if(!selectedVehicleId.value){ 
+                 violations.value=[]; 
+                 return;
+             } 
+             const res = await axios.get('/api/maintenance/violations', 
+             { params:{ vehicleId:selectedVehicleId.value },
+             withCredentials:true }); 
+             violations.value = Array.isArray(res.data)? res.data: []; }
+             // 車輛改變時
+             function onVehicleChanged(){
+                   maintenance.value = [];
+                   repairs.value = [];
+                   inspections.value = [];
+                   violations.value = [];
+
+                   loadMaintenance();
+                   loadVehicleDetail();
+                   loadRepairs();
+                   loadInspections();
+                   loadViolations();
+                 }
+
+         // 驗車/違規：
+         function toggleInspectionForm(){ 
+             if(!showInspectionAdd.value){ inspectionEditId.value=null; 
+                 inspectionForm.value={ date:toISODate(
+                     new Date()), 
+                     station:"", 
+                     result:"合格", 
+                     nextDueDate:"", 
+                     odometerKm:null, 
+                     notes:"" 
+                 }; } showInspectionAdd.value=!showInspectionAdd.value; }
+                // 取消驗車
+         function cancelInspection(){ 
+             showInspectionAdd.value=false; inspectionEditId.value=null; 
+         }
+         // 編輯驗車
+         function startEditInspection(r){ 
+             inspectionEditId.value=r.id; showInspectionAdd.value=true; 
+             inspectionForm.value={ date:r.date||toISODate(
+                 new Date()), 
+                 station:r.station||"", 
+                 result:r.result||"合格", 
+                 nextDueDate:r.nextDueDate||"",
+                 odometerKm:r.odometerKm??null, 
+                 notes:r.notes||"" }; 
+         }
+         // 儲存驗車
+         async function saveInspection(){ 
+             if(!selectedVehicleId.value){ alert('請先選擇車輛'); return;} 
+             const payload={ 
+                 vehicleId:selectedVehicleId.value, 
+                 inspectionDate:inspectionForm.value.date, 
+                 station:inspectionForm.value.station||null, 
+                 result:inspectionForm.value.result||'合格', 
+                 nextDueDate:inspectionForm.value.nextDueDate||null, 
+                 odometerKm:inspectionForm.value.odometerKm??null, 
+                 notes:inspectionForm.value.notes||null }; 
+                 if(!inspectionEditId.value){ await axios.post('/api/maintenance/inspections', payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); 
+                 } else { 
+                     await axios.put(`/api/maintenance/inspections/${inspectionEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } showInspectionAdd.value=false; inspectionEditId.value=null; await loadInspections(); }
+         // 刪除驗車
+                     async function removeInspection(id){ 
+             if(!confirm('確定刪除此筆驗車紀錄？')) return; 
+             await axios.delete(`/api/maintenance/inspections/${id}`, { withCredentials:true }); 
+             await loadInspections(); }
+         //違規：
+         function toggleViolationForm(){ 
+             if(!showViolationAdd.value){ 
+                 violationEditId.value=null; 
+                 violationForm.value={ date:toISODate
+                     (new Date()), 
+                     location:"",
+                     category:"", 
+                     points:null, 
+                     fineAmount:null, 
+                     status:"未繳", 
+                     dueDate:"", 
+                     paidDate:"", 
+                     notes:"" }; } 
+                     showViolationAdd.value=!showViolationAdd.value; }
+                     // 取消違規
+         function cancelViolation(){ 
+             showViolationAdd.value=false; 
+             violationEditId.value=null; 
+         }
+         // 編輯違規
+         function startEditViolation(r){ 
+             violationEditId.value=r.id; 
+             showViolationAdd.value=true; 
+             violationForm.value={ 
+                 date:r.date||toISODate(
+                     new Date()), 
+                     location:r.location||"", 
+                     category:r.category||"", 
+                     points:r.points??null, 
+                     fineAmount:r.fineAmount??null, 
+                     status:r.status||"未繳", 
+                     dueDate:r.dueDate||"", 
+                     paidDate:r.paidDate||"", 
+                     notes:r.notes||"" }; 
+                 }
+      // 儲存違規
+       async function saveViolation(){
+         if(!selectedVehicleId.value){ 
+             alert('請先選擇車輛'); return;} 
+             const payload={ 
+                   vehicleId:selectedVehicleId.value, 
+                   violationDate:violationForm.value.date, 
+                   location:violationForm.value.location||null, 
+                   category:violationForm.value.category||null, 
+                   points:violationForm.value.points??null, 
+                   fineAmount:violationForm.value.fineAmount??null, 
+                   status:violationForm.value.status||'未繳', 
+                   dueDate:violationForm.value.dueDate||null, 
+                   paidDate:violationForm.value.paidDate||null, 
+                   notes:violationForm.value.notes||null }; 
+                   if(!violationEditId.value){ 
+                       await axios.post('/api/maintenance/violations', payload, { 
+                           withCredentials:true, 
+                           headers:{'Content-Type':'application/json'} }); 
+                   } else { await axios.put(`/api/maintenance/violations/${violationEditId.value}`, payload, { withCredentials:true, headers:{'Content-Type':'application/json'} }); } 
+                   showViolationAdd.value=false; violationEditId.value=null; await loadViolations(); 
+             }
+         // 刪除違規
+       async function removeViolation(id){ 
             if(!confirm('確定刪除此筆違規紀錄？')) return; 
             await axios.delete(`/api/maintenance/violations/${id}`, { withCredentials:true }); 
             await loadViolations(); }
 
-            onMounted(async()=>{
-              await loadVehicles();
-              if (vehicles.value.length > 0) {
-                selectedVehicleId.value = vehicles.value[0].vehicleId;
-                await onVehicleChanged();
-              }
-            });
+         onMounted(async()=>{
+           await loadVehicles();
+           if (vehicles.value.length > 0) {
+             selectedVehicleId.value = vehicles.value[0].vehicleId;
+             await onVehicleChanged();
+           }
+         });
 
 
-       
+        
 
-        return { 
-          vehicles, selectedVehicleId, vehicleDetail, tab, fmtNum, fmtMoney,recordRows,toISODate,
-          // 車況
-          setAvailable, onVehicleChanged,updateVehicleStatus,
-          // 車輛歷程登記卡
-            editVehicle, vehicleForm, startEditVehicle, cancelEditVehicle, saveVehicle,
-          // 保養
-          maintenance, showMaintAdd, editingMaintId, maintForm, toggleMaintForm, startEditMaint, cancelMaint, saveMaint, removeMaint,isDueSoon,maintenanceRows,
-          // 維修
-          repairs, repairRows, showRepairAdd, editingRepairId, repairForm, toggleRepairForm, startEditRepair, cancelRepair, saveRepair, removeRepair,
-          // 驗車
-          inspections, inspectionRows, showInspectionAdd, inspectionEditId, inspectionForm, toggleInspectionForm, cancelInspection, startEditInspection, saveInspection, removeInspection,
-          // 違規
-          violations, violationRows, showViolationAdd, violationEditId, violationForm, toggleViolationForm, cancelViolation, startEditViolation, saveViolation, removeViolation
-        };
-      }
-    }).mount('#app');
+         return { 
+           // 狀態
+           vehicles, selectedVehicleId, vehicleDetail, tab, fmtNum, fmtMoney,recordRows,toISODate,
+           // 車況
+           setAvailable, onVehicleChanged,updateVehicleStatus,
+           // 車輛歷程登記卡
+             editVehicle, vehicleForm, startEditVehicle, cancelEditVehicle, saveVehicle,
+           // 保養
+           maintenance, showMaintAdd, editingMaintId, maintForm, toggleMaintForm, startEditMaint, cancelMaint, saveMaint, removeMaint,isDueSoon,maintenanceRows,
+           // 維修
+           repairs, repairRows, showRepairAdd, editingRepairId, repairForm, toggleRepairForm, startEditRepair, cancelRepair, saveRepair, removeRepair,
+           // 驗車
+           inspections, inspectionRows, showInspectionAdd, inspectionEditId, inspectionForm, toggleInspectionForm, cancelInspection, startEditInspection, saveInspection, removeInspection,
+           // 違規
+           violations, violationRows, showViolationAdd, violationEditId, violationForm, toggleViolationForm, cancelViolation, startEditViolation, saveViolation, removeViolation
+         };
+       }
+     }).mount('#app');
 </script>

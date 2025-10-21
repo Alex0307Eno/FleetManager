@@ -271,8 +271,8 @@
           driverName: x.driverName || "",
           plateNo: x.plateNo || ""
         });
-
-                function normalizeDate(d) {
+         // 正規化日期（yyyy-MM-dd）
+        function normalizeDate(d) {
           if (!d) return null;
           const dt = new Date(d);
           if (isNaN(dt)) return null;

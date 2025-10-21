@@ -20,8 +20,6 @@ ViewData["Title"] = "用車申請";
                     <div>用車申請</div>
                 </div>
             </div>
-
-
                 <div>
                     <!-- 用車申請（申請人 + 車輛卡） -->
                     <div class="section-bd">
@@ -243,7 +241,8 @@ ViewData["Title"] = "用車申請";
           if (window.crypto?.randomUUID) return crypto.randomUUID();
           return Date.now().toString(36) + Math.random().toString(36).slice(2);
         }
-                const placeSessionTokens = { orig: null, dest: null };
+      const placeSessionTokens = { orig: null, dest: null };
+        // 取得或建立 token
         function getOrCreateToken(which){
           // 需要現代瀏覽器；若要兼容可換簡單 GUID 產生器
           if (!placeSessionTokens[which]) placeSessionTokens[which] = crypto.randomUUID();
@@ -270,7 +269,7 @@ ViewData["Title"] = "用車申請";
               if (!input || !drop) return;
 
               document.body.appendChild(drop);
-
+             
               function moveActive(dir){
                 const items = Array.from(drop.querySelectorAll('.ac-item'));
                 if (!items.length) return;
@@ -294,7 +293,7 @@ ViewData["Title"] = "用車申請";
           console.log(`[${inputId}] sessionToken 結束:`, sessionToken);
           sessionToken = null;
         };
-
+        
          function positionDropdown() {
                 const rect = input.getBoundingClientRect();
                 drop.style.position = "absolute";
@@ -307,7 +306,7 @@ ViewData["Title"] = "用車申請";
               function showLoading(){ drop.innerHTML = '<div class="ac-empty">搜尋中…</div>'; drop.style.display='block'; positionDropdown(); }
               function showEmpty(msg='找不到建議'){ drop.innerHTML = `<div class="ac-empty">${msg}</div>`; drop.style.display='block'; positionDropdown(); }
               function hide(){ drop.style.display='none'; drop.innerHTML=''; }
-
+              // 渲染建議清單
               function render(items, onPick){
                 drop.innerHTML = '';
                 if (!items || !items.length){ showEmpty(); return; }
@@ -322,8 +321,8 @@ ViewData["Title"] = "用車申請";
                 drop.style.display = 'block';
                 positionDropdown();
               }
-
-                    async function pick(item){
+              
+        async function pick(item){
           try{
             if (item.id) {
               const token = ensureToken();
@@ -355,7 +354,7 @@ ViewData["Title"] = "用車申請";
             input.dispatchEvent(new Event('change', { bubbles:true }));
           }
         }
-
+        // 選取目前 active 項目
                function pickActive(){ const el = drop.querySelector('.ac-item.active'); if (!el) return; pick({ id: el.dataset.id || '', text: el.textContent }); }
 
         input.addEventListener('focus', ()=>{ ensureToken(); positionDropdown(); });
@@ -402,6 +401,7 @@ ViewData["Title"] = "用車申請";
           else if (e.key==='ArrowUp'){ e.preventDefault(); moveActive(-1); }
           else if (e.key==='Escape'){ hide(); }
         });
+        // 產生新 session token
             function newSessionToken() {
               sessionToken = crypto.randomUUID(); // 產生唯一 token
             }
@@ -414,23 +414,23 @@ ViewData["Title"] = "用車申請";
               window.addEventListener('scroll', positionDropdown);
             }
 
-                    let singleDurationSec = 0;       // 單程秒數
-                    let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
+            let singleDurationSec = 0;       // 單程秒數
+            let roundTripDurationSec = 0;    // 來回秒數 ＝ 單程 * 2
 
-                    function toLocalDateTimeString(date) {
+          function toLocalDateTimeString(date) {
               const pad = n => String(n).padStart(2, "0");
               return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
             }
 
             //日期正規化
-                    function fmtDateTimeLocal(dtStr) {
+          function fmtDateTimeLocal(dtStr) {
               if (!dtStr) return "—";
               const d = new Date(dtStr);
               if (isNaN(d.getTime())) return "—";
               const pad = n => String(n).padStart(2, "0");
               return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
             }
-
+            // 重新計算抵達時間
             function recalcArrival() {
               const startInput = document.getElementById("UseStart").value;
               if (!startInput) return;
@@ -455,11 +455,7 @@ ViewData["Title"] = "用車申請";
               safeAttach('dest','ac-dest', (p)=>{ if (typeof bindings.onDestination==='function') bindings.onDestination(p); else { const el=document.getElementById('dest'); if (el) el.value=p.text; window.destination=p.text; } });
             }
     </script>
-    <script>
-        console.log("✅ JS 載入測試：檔案已執行");
-        window.addEventListener('error', e => console.error('🌋 WindowError:', e.message, e.error));
-        window.addEventListener('unhandledrejection', e => console.error('🌋 UnhandledRejection:', e.reason));
-    </script>
+    
 
     <script>
         const { createApp, ref, reactive, onMounted, computed, watch } = Vue;
@@ -468,7 +464,7 @@ ViewData["Title"] = "用車申請";
           setup() {
             // ----- 小工具 -----
             const pad = n => String(n).padStart(2, "0");
-            function toLocalDateTimeString(date) {                    // ← 補上你原本呼叫但沒定義的工具
+            function toLocalDateTimeString(date) {                    
               return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
             }
             function toLocalISOString(date) {
@@ -578,7 +574,7 @@ ViewData["Title"] = "用車申請";
               syncPassengerCount();
               await checkCapacity();
             }
-
+                // 刪除乘客
             async function removePassenger(i) {
               passengers.value.splice(i, 1);
               syncPassengerCount();
@@ -653,11 +649,7 @@ ViewData["Title"] = "用車申請";
                   busy:      false
                 }));
 
-                // if (purposeType.value === '公務車(可選車)') {
-                //   assign.vehicleId = vehicles.value[0]?.vehicleId ?? null;
-                // } else {
-                //   assign.vehicleId = null;
-                // }
+                
               } catch (err) {
                 vehicles.value = [];
               }
