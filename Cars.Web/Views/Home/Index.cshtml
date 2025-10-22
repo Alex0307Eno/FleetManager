@@ -1,213 +1,154 @@
-﻿
+﻿@{
+    ViewData["Title"] = "AI 派車儀錶板";
+    var mapsKey = ViewBag.GoogleMapsKey as string ?? "";
+}
 <head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"]</title>
 
-    <title>AI派車與排班系統</title>
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- 你現有樣式：保持共存，不改 class 名稱 -->
     <link href="/css/Home/Index.css" rel="stylesheet" />
 
-
-    <!-- Vue / axios -->
+    <!-- 外部庫（你前面就有允許）：Chart.js / Vue / Axios / Google Maps -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-
-    <!-- 後端注入 Google Maps API 金鑰 -->
-    <script>
-        window.GOOGLE_MAPS_KEY = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.GoogleMapsKey ?? ""));
-    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=@mapsKey&v=quarterly&libraries=marker"></script>
 </head>
 
 <body>
-    <main id="dashboard" class="wrap" v-cloak>
-        <div class="grid">
-            <!-- 左側：兩種視圖切換 -->
-            <section>
-                <!-- A. 排班視圖 -->
-                <div v-if="viewMode==='schedule'" class="card">
-                    <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
-                        <!-- 左邊固定 -->
-                        <div>今日排班情形</div>
+    <main id="app" class="wrap" v-cloak>
+        <div class="grid-areas">
 
-                        <!-- 右邊日期 + 時間 -->
-                        <div id="dateTime"></div>
+            <!-- KPI 區 -->
+            <section class="kpi-wrap">
+                <div class="panel kpi">
+                    <div class="label">今日班表數</div>
+                    <div class="value">{{ kpi.scheduleTodayCount }}</div>
+                    <div class="delta">更新於 {{ nowHHmm }}</div>
+                </div>
+                <div class="panel kpi">
+                    <div class="label">未完成任務</div>
+                    <div class="value">{{ kpi.uncompleteCount }}</div>
+                    <div class="delta" :style="{color: kpi.uncompleteCount>0?'#dc2626':'#16a34a'}">
+                        {{ kpi.uncompleteCount>0?'請盯任務':'全部 on track' }}
                     </div>
+                </div>
+                <div class="panel kpi">
+                    <div class="label">待審核申請</div>
+                    <div class="value">{{ kpi.pendingReviewCount }}</div>
+                    <div class="delta" :style="{color: kpi.pendingReviewCount>0?'#d97706':'#16a34a'}">
+                        {{ kpi.pendingReviewCount>0?'待處理':'已清空' }}
+                    </div>
+                </div>
+                <div class="panel kpi">
+                    <div class="label">今日總里程</div>
+                    <div class="value">{{ totalKm }} km</div>
+                    <div class="delta">目標 ≥ 300 km</div>
+                </div>
+            </section>
 
-                    <div class="card-bd">
-                        <table>
+            <!-- 趨勢圖 + 清單 -->
+            <section class="panel trend">
+                <div class="panel-hd">近七日派車量趨勢</div>
+                <div class="panel-bd chart-card">
+                    <canvas id="trendChart" height="110"></canvas>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-hd">今日未完成任務</div>
+                    <div class="panel-bd">
+                        <table class="flat">
                             <thead>
                                 <tr>
                                     <th>駕駛人</th>
-                                    <th>排班狀態</th>
-                                    <th>目前任務</th>
-                                    <th>組室</th>
-                                    <th>申請人</th>
-                                    <th>人數</th>
-                                    <th>累計行駛里程</th>
-                                    <th>目前位置</th>
-                                    <th>車輛</th>
+                                    <th>時段/地點</th>
+                                    <th>狀態</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(s, idx) in scheduleTable" :key="s.key">
-                                    <td>{{ s.driverName || '-' }}</td>
-                                    <td><span class="pill" :class="s.shiftClass">{{ s.shiftLabel }}</span></td>
-                                    <td class="col-route">{{ s.arrivalDisplay || '無任務' }}</td>
-                                    <td>{{ s.applicantDept }}</td>
-                                    <td>{{ s.applicantName || '-' }}</td>
-                                    <td>{{ s.passengerCount ?? '-' }}</td>
-                                    <td>{{ s.tripDistance ?? '-' }}</td>
-                                    <td>
-                                        <button class="btn" style="padding:2px 6px" title="查看即時定位" @@click.stop.prevent="openMap(s)">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 384 512" aria-hidden="true">
-                                                <path fill="red" d="M192 0C86 0 0 86 0 192c0 96 144 320 192 320s192-224 192-320C384 86 298 0 192 0z" />
-                                                <circle cx="192" cy="192" r="48" fill="black" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                    <td>{{ s.plateNo ? s.plateNo.replace(/\D/g, '') : '-' }}</td>
+                                <tr v-for="u in unfinished" :key="(u.driverName||'-') + '_' + (u.useTime||'-')">
+                                    <td>{{ u.driverName || '-' }}</td>
+                                    <td class="mono">{{ (u.useTime||'').split('-')[1] || u.useTime }}　{{ (u.route||'').split('-').slice(-1)[0] }}</td>
+                                    <td>{{ u.dispatchStatus || '進行中' }}</td>
                                 </tr>
-                               
-                                <tr v-if="!schedules.length">
-                                    <td colspan="9" style="text-align:center;color:#999;padding:8px">今天沒有排班資料</td>
+                                <tr v-if="unfinished.length===0">
+                                    <td colspan="3" style="text-align:center;color:#9ca3af">沒有未完成任務</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <!-- 左下角：駕駛目前狀態 -->
-                    <div class="card" style="margin-top:12px;">
-                        <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;">
-                            <div>駕駛目前狀態</div>
-                            
-                            
-                                <button class="btn" style="background:#ffb020;border-color:#ffb020;color:#111827;font-weight:700"
-                                @@click="enterMyLocationView">
-                                    車輛現況
-                                </button>
-                            
-                        </div>
-                        <div class="card-bd no-pad">
-                            <table class="table-flat">
-                                <thead>
-                                    <tr>
-                                        <th style="width:60px;">順序</th>
-                                        <th style="width:120px;">駕駛員</th>
-                                        <th style="width:110px;">今日值班</th>
-                                        <th style="width:160px;">目前狀態</th>
-                                        <th>當前任務</th>
-                                        <th style="width:120px;">預計回來時間</th>
-                                        <th style="width:150px;">最早可出車時間</th>
-                                        <th style="width:100px;">出勤狀況</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(d,idx) in driverStatus" :key="d.key">
-                                        <td class="mono">{{ idx+1 }}</td>
-                                        <td>{{ d.driverName }}</td>
-                                        <td><span class="pill" :class="d.shiftClass">{{ d.shiftLabel }}</span></td>
-
-                                        <td>
-                                            <span class="status-dot" :class="d.stateDotClass"></span>
-                                            {{ d.stateText }}
-                                            <span v-if="d.stateText==='休息中' && d.restRemainMinutes > 0" class="rest-hint">
-                                                （<span style="color:red">剩 {{ d.restRemainMinutes }} 分鐘</span>）
-                                            </span>
-                                        </td>
-                                        <td class="mono">{{ d.taskWindow || '無' }}</td>
-                                        <td class="mono">{{ d.useEnd || '-' }}</td>
-                                        <td class="mono">{{ d.earliestOut || (d.stateText==='待命中' ? '即時可用' : '-') }}</td>
-                                        <td>{{ d.attendance }}</td>
-                                    </tr>
-                                    <tr v-if="driverStatus.length===0">
-                                        <td colspan="8" style="text-align:center;color:#94a3b8;padding:16px;">目前沒有資料</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-
                 </div>
 
-                <!-- B. 駕駛位置（五張地圖：上3下2、含車子 Marker） -->
-                <div v-else class="card">
-                   
-                    
-                        <div class="card-hd">
-                            <div>目前各車輛位置</div>
-                            <div style="display:flex;gap:8px;align-items:center">
+                <div class="panel">
+                    <div class="panel-hd">今日待審核派車申請</div>
+                    <div class="panel-bd">
+                        <table class="flat">
+                            <thead>
+                                <tr>
+                                    <th>申請人</th>
+                                    <th>派車時間</th>
+                                    <th>派車地點</th>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <th style="text-align:center">動作</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in pendingFiltered" :key="(p.applicantName||'-') + '_' + (p.useTime||'-')">
+                                    <td>{{ p.applicantName }}</td>
+                                    <td class="mono">{{ (p.useTime||'').split('-')[1] || p.useTime }}</td>
+                                    <td>{{ (p.route||'').split('-').slice(-1)[0] }}</td>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <td class="actions" style="text-align:center">
+                                            <button class="btn btn-yes" @@click="approve(p)">✓</button>
+                                            <button class="btn btn-no" @@click="reject(p)">✕</button>
+                                        </td>
+                                    }
+                                </tr>
+                                <tr v-if="pending.length===0">
+                                    <td colspan="4" style="text-align:center;color:#9ca3af">沒有待審核申請</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
-                                <button class="btn" @@click="exitMyLocationView">返回</button>
-                            </div>
-                        </div>
-                    
+            <!-- 任務分布 -->
+            <section class="panel dist">
+                <div class="panel-hd">今日任務分布</div>
+                <div class="panel-bd chart-card">
+                    <canvas id="distChart" height="110"></canvas>
+                </div>
+            </section>
 
-                    <div v-if="locError" class="card-bd" style="color:#b91c1c;">⚠️ {{ locError }}</div>
-
-                    <!-- 上排 3 張 -->
+            <!-- 地圖牆（3+2） -->
+            <section class="panel maps">
+                <div class="panel-hd">目前各車輛位置</div>
+                <div class="panel-bd">
                     <div class="map-grid">
-                        <div v-for="(card, idx) in driverCards.slice(0,3)" :key="card.key" class="map-cell">
-                            <div class="gmap"
-                                 :id="'gmap_'+idx"
-                                 :class="{ 'dimmed': card.statusType !== 'on' }"></div>
+                        <div v-for="(card, idx) in driverCards.slice(0,3)" :key="'m1_'+idx" class="map-cell">
+                            <div class="gmap" :id="'gmap_'+idx" :class="{ 'dimmed': card.statusType !== 'on' }"></div>
                             <div class="badge-row">
-                                <div class="badge-dark">
-                                    <template v-if="card.statusType === 'on'">
-                                        {{ card.plateWithDriver }}
-                                    </template>
-                                    <template v-else-if="card.statusType === 'break'">
-                                        {{ card.driver || '—' }}
-                                    </template>
-                                    <template v-else-if="card.statusType === 'idle'">
-                                        {{ card.plate || '—' }}
-                                    </template>
-                                    <template v-else>
-                                        —
-                                    </template>
-                                </div>
-
-
+                                <div class="badge-dark">{{ card.plateWithDriver }}</div>
                                 <div class="badge-pill"
-                                     :class="{
-                                      'badge-on': card.statusType === 'on',
-                                      'badge-idle': card.statusType === 'idle',
-                                      'badge-break': card.statusType === 'break'
-                                    }">
+                                     :class="{'badge-on': card.statusType==='on','badge-idle': card.statusType==='idle','badge-break': card.statusType==='break'}">
                                     {{ card.statusText }}
                                 </div>
                             </div>
                         </div>
-
-                        <!-- 下排 2 張 -->
-                        <div class="map-grid-row2">
-                            <div v-for="(card, i) in driverCards.slice(3,5)" :key="card.key" class="map-cell">
-                                <div class="gmap"
-                                     :id="'gmap_'+(i+3)"
-                                     :class="{ 'dimmed': card.statusType !== 'on' }"></div>
-                                <div class="badge-row">
-                                    <div class="badge-dark">
-                                        <template v-if="card.statusType === 'on'">
-                                            {{ card.plateWithDriver }}
-                                        </template>
-                                        <template v-else-if="card.statusType === 'break'">
-                                            {{ card.driver || '—' }}
-                                        </template>
-                                        <template v-else-if="card.statusType === 'idle'">
-                                            {{ card.plate || '—' }}
-                                        </template>
-                                        <template v-else>
-                                            —
-                                        </template>
-                                    </div>
-
-
-                                    <div class="badge-pill"
-                                         :class="{
-                                         'badge-on': card.statusType === 'on',
-                                         'badge-idle': card.statusType === 'idle',
-                                         'badge-break': card.statusType === 'break'
-                                       }">
-                                        {{ card.statusText }}
-                                    </div>
+                    </div>
+                    <div class="map-grid-row2">
+                        <div v-for="(card, i) in driverCards.slice(3,5)" :key="'m2_'+i" class="map-cell">
+                            <div class="gmap" :id="'gmap_'+(i+3)" :class="{ 'dimmed': card.statusType !== 'on' }"></div>
+                            <div class="badge-row">
+                                <div class="badge-dark">{{ card.plateWithDriver }}</div>
+                                <div class="badge-pill"
+                                     :class="{'badge-on': card.statusType==='on','badge-idle': card.statusType==='idle','badge-break': card.statusType==='break'}">
+                                    {{ card.statusText }}
                                 </div>
                             </div>
                         </div>
@@ -215,698 +156,498 @@
                 </div>
             </section>
 
-            <!-- 右側資訊 -->
-            <aside class="stack">
-                <div class="card">
-                    <div class="card-hd">今日未完成任務</div>
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr>
-                                <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);">駕駛人</th>
-                                <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);">待辦任務</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="u in unfinished" :key="u.driverName + '_' + u.useTime">
-                                <td style="padding:8px 10px">{{ u.driverName }}</td>
-                                <td style="padding:8px 10px" class="mono">
-                                    {{ (u.useTime || '').split('-')[1] || u.useTime }} {{ (u.route || '').split('-').slice(-1)[0] }}
-                                </td>
-                            </tr>
-                            <tr v-if="unfinished.length === 0">
-                                <td colspan="2" style="text-align:center;color:#999;padding:10px">目前沒有未完成任務</td>
-                            </tr>
-                        </tbody>
-                    </table>
+        </div>
+
+        <!-- 右下角：控制塔（即時告警 + AI 建議派車） -->
+        <div class="floating-alerts" id="alerts" v-cloak>
+            <div class="hd">
+                <span>控制塔</span>
+                <span class="pill" :class="health.ok ? 'pill-green' : 'pill-red'">
+                    {{ health.ok ? '連線正常' : '連線異常' }}
+                </span>
+            </div>
+            <div class="bd">
+                <div class="alert-row">
+                    <span>逾時任務</span>
+                    <span class="count" :style="{color: overdueCount>0?'#dc2626':'#16a34a'}">{{ overdueCount }}</span>
+                </div>
+                <div class="alert-row">
+                    <span>待派車卡住</span>
+                    <span class="count" :style="{color: stuckCount>0?'#b45309':'#16a34a'}">{{ stuckCount }}</span>
                 </div>
 
-                <div class="card">
-                    <div class="card-hd">今日待審核派車申請</div>
-                    <div class="card-bd">
-                        <table style="border-collapse:collapse;width:100%">
-                            <thead>
-                                <tr style="color:#374151;font-size:14px">
-                                    <th style="text-align:left;padding:6px 8px">申請人</th>
-                                    <th style="text-align:left;padding:6px 8px">派車時間</th>
-                                    <th style="text-align:left;padding:6px 8px">派車地點</th>
-                                    @if (User.IsInRole("Admin"))
-                                    {
-                                        <th style="text-align:center;padding:6px 8px">審核</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                
-                                <tr v-for="p in pendingFiltered" :key="(p.applicantName || '-') + '_' + (p.useTime || '-')">
-                                    <td style="padding:8px 8px">{{ p.applicantName }}</td>
-                                    <td style="padding:8px 8px" class="mono">{{ (p.useTime || '').split('-')[1] || p.useTime }}</td>
-                                    <td style="padding:8px 8px">{{ (p.route || '').split('-').slice(-1)[0] }}</td>
-                                    @if (User.IsInRole("Admin"))
-                                    {
-                                        <td style="padding:8px 8px" class="actions">
-                                            <button class="btn btn-yes" @@click="approve(p)">✓</button>
-                                            <button class="btn btn-no" @@click="reject(p)">✕</button>
-                                        </td>
-                                    }
-                                </tr>
-                                <tr v-if="pending.length === 0">
-                                    <td colspan="4" style="text-align:center;color:#999;padding:10px">沒有待審核申請</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div class="alert-list" v-if="overdueList.length">
+                    <div class="alert-item" v-for="o in overdueList" :key="o.id">
+                        <strong>{{ o.driverName || '未指派' }}</strong>
+                        <span class="pill pill-red">逾時</span>
+                        <span class="mono">{{ o.useTimeTail }}</span>
+                        <span>｜{{ o.destTail }}</span>
                     </div>
                 </div>
-            </aside>
+                <div v-else style="font-size:12px;color:#6b7280;margin-top:6px;">
+                    今天沒有逾時任務，保持這種罕見的秩序感。
+                </div>
+
+                <div class="alert-actions" style="margin-top:8px">
+                    <button class="btn" @@click="refreshAlerts">重新檢查</button>
+                    <button class="btn" style="margin-left:8px" @@click="openSuggest">AI 建議派車</button>
+                </div>
+            </div>
         </div>
-        <div id="loading-overlay">
-            <div class="spinner"></div>
-        </div>
+
+        <!-- AI 建議派車 Dialog -->
+        <dialog id="aiSuggestDlg">
+            <div style="background:#fff;border-radius:8px;padding:10px;width:92%;max-width:820px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <h3 style="margin:0">AI 建議派車</h3>
+                    <button class="btn" @@click="closeSuggest">關閉</button>
+                </div>
+
+                <div v-if="suggesting" class="mono" style="opacity:.8">生成建議中，等等你的雲端朋友回話...</div>
+                <div v-if="suggestErr" style="color:#b91c1c">{{ suggestErr }}</div>
+
+                <table v-if="suggestList.length" class="flat" style="margin-top:8px">
+                    <thead>
+                        <tr>
+                            <th>申請單</th>
+                            <th>車輛</th>
+                            <th>司機</th>
+                            <th>目的地</th>
+                            <th>信心</th>
+                            <th>動作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="s in suggestList" :key="s.suggestionId">
+                            <td class="mono">#{{ s.applyId }}</td>
+                            <td>{{ s.plateNo }}</td>
+                            <td>{{ s.driverName }}</td>
+                            <td>{{ s.destination }}</td>
+                            <td>{{ (s.confidence * 100).toFixed(0) }}%</td>
+                            <td>
+                                <button class="btn btn-yes" @@click="applySuggestion(s)">套用</button>
+                                <button class="btn" @@click="skipSuggestion(s)">略過</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div v-if="!suggesting && !suggestList.length && !suggestErr" style="font-size:13px;color:#6b7280;margin-top:6px">
+                    沒有建議。要嘛資料太完美，要嘛服務很懶。
+                </div>
+            </div>
+        </dialog>
     </main>
 
-
-
-    <!-- Vue App -->
     <script>
-     function updateDateTime() {
-            var now = new Date();
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
-            // 日期 + 星期
-            var options = { weekday: 'long' };
-            var dateStr = now.getFullYear() + "/" +
-                          (now.getMonth() + 1) + "/" +
-                          now.getDate() + " " +
-                          now.toLocaleDateString("zh-TW", options);
+        createApp({
+          setup(){
+            // ===== KPI =====
+            const kpi = ref({ scheduleTodayCount:0, uncompleteCount:0, pendingReviewCount:0 });
+            const totalKm = ref(0);
+            const nowHHmm = computed(()=> new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
 
-            // 時間 (時:分:秒)
-            var timeStr = now.toLocaleTimeString("zh-TW");
-
-            // 更新右邊區塊
-        const el = document.getElementById("dateTime");
-        if (el) {
-          el.textContent = dateStr + " " + timeStr;
-        }
-                }
-
-        updateDateTime();           // 載入時執行一次
-        setInterval(updateDateTime, 1000); // 每秒更新
-        window.addEventListener('DOMContentLoaded', () => {
-          if (!window.Vue) { console.error('❌ Vue 還沒載到'); return; }
-          const { createApp, ref, onMounted, computed, nextTick, watch } = window.Vue;
-
-          createApp({
-            setup(){
-              // ===== 視圖切換 =====
-              const viewMode   = ref('schedule');   // 'schedule' | 'mypos'
-
-              // ===== 列表資料 =====
-              const schedules  = ref([]);
-              const unfinished = ref([]);
-              const pending    = ref([]);
-              const driverStatus = ref([]);
-              const pendingFiltered = computed(() => {
-              const isDoneOrRejected = (s) => {
+            // ===== Lists =====
+            const unfinished = ref([]);
+            const pending = ref([]);
+            const pendingFiltered = computed(()=>{
+              const isDoneOrRejected = s => {
                 const k = String(s || "").trim().toLowerCase();
                 return k === "完成審核" || k === "駁回" || k === "approved" || k === "rejected";
               };
               return (pending.value || []).filter(x => !isDoneOrRejected(x.status));
             });
-              
 
-              // ===== 工具 =====
-              const hasMapsKey = computed(() => !!(window.GOOGLE_MAPS_KEY && window.GOOGLE_MAPS_KEY.length));
-              const toNumOrNull = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-              const validLatLng = (lat,lng)=> Number.isFinite(lat)&&Number.isFinite(lng) && lat>=-90 && lat<=90 && lng>=-180 && lng<=180 && !(lat===0 && lng===0);
+            // ===== Charts =====
+            let trendChart, distChart;
 
-              const pad = n => n.toString().padStart(2,'0');
-              const fmtHHmm = (d) => { if (!d) return ''; const dt = (d instanceof Date) ? d : new Date(d); if (isNaN(dt)) return ''; return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`; };
-              const tailDestFromRoute = (route) => { if (!route) return ''; const parts = String(route).split('-').map(s=>s.trim()).filter(Boolean); return parts.length ? parts[parts.length-1] : ''; };
+            // ===== Maps (5 mini maps) =====
+            const driverCards = ref([]);
+            const miniMapCache = new Map();
 
-              // ===== 單一駕駛定位：開新分頁 Google Maps（簡單做法） =====
-              function openMap(driver){
-                const lat = toNumOrNull(driver.lat), lng = toNumOrNull(driver.lng);
-                if (validLatLng(lat,lng)) {
-                  window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank', 'noopener');
-                } else {
-                  const q = (driver.location || driver.route || driver.applicantDept || driver.applicantName || '').trim();
-                  if (q) window.open(`https://www.google.com/maps?q=${encodeURIComponent(q)}`, '_blank', 'noopener');
-                  else console.warn('無定位資訊');
-                }
-              }
-               // ===== 今日排班行程表（司機可重複出現，依時間排序） =====
-                 const scheduleTable = computed(() => {
-                   return (schedules.value || [])
-                     .slice() 
-                     .sort((a, b) => {
-                       const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
-                       const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
-                       return ta - tb; // 依照開始時間由早到晚排序
-                     });
-                 });
+            // ===== Alerts =====
+            const health = ref({ ok: true });
+            const overdueList = ref([]);
+            const overdueCount = computed(()=> overdueList.value.length);
+            const stuckCount = ref(0);
 
-              const plateByVehicleId = ref(new Map());   
-              const statusByVehicleId = ref(new Map());
-              const driverNameByVehicleId = ref(new Map()); 
+            // ===== AI Suggest =====
+            const suggesting = ref(false);
+            const suggestErr = ref('');
+            const suggestList = ref([]);
 
+            // ===== SVG =====
+            const carSVG = (color)=>`
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="28" height="28">
+                <rect x="96" y="200" width="320" height="90" rx="22" ry="22" fill="${color}" />
+                <rect x="136" y="160" width="240" height="50" rx="10" ry="10" fill="${color}" />
+                <circle cx="186" cy="310" r="22" fill="#1f2937"/><circle cx="326" cy="310" r="22" fill="#1f2937"/>
+              </svg>`;
 
-              // ===== 我的定位（五張地圖） =====
-              const myLoc     = ref({ lat:null, lng:null, ts:null });
-              const locating  = ref(false);
-              const locError  = ref("");
-              
-              function getMyLocation(){
-                locating.value = true;
-                locError.value = "";
-                return new Promise((resolve,reject)=>{
-                  if (!navigator.geolocation) {
-                    locError.value = "此瀏覽器不支援定位 (Geolocation)";
-                    locating.value = false;
-                    return reject(new Error(locError.value));
-                  }
-                  navigator.geolocation.getCurrentPosition(
-                    pos => {
-                      myLoc.value = { lat:Number(pos.coords.latitude), lng:Number(pos.coords.longitude), ts:Date.now() };
-                      try { localStorage.setItem('lastMyLoc', JSON.stringify(myLoc.value)); } catch {}
-                      locating.value = false;
-                      console.log('📍 myLoc 更新：', myLoc.value);
-                      resolve();
-                    },
-                    err => {
-                      locating.value = false;
-                      locError.value = `定位失敗：${err.message}（請確認 HTTPS/localhost，且已允許定位權限）`;
-                      console.warn('定位失敗，改用備援中心點顯示地圖');
-                      reject(err);
-                    },
-                    { enableHighAccuracy:true, timeout:15000, maximumAge:30000 }
-                  );
-                });
-              }
-
-              // 小汽車圖（橘：執勤中）
-              function carSVG(color){
-                return `
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="28" height="28">
-                    <rect x="96" y="200" width="320" height="90" rx="22" ry="22" fill="${color}" />
-                    <rect x="136" y="160" width="240" height="50" rx="10" ry="10" fill="${color}" />
-                    <circle cx="186" cy="310" r="22" fill="#1f2937"/>
-                    <circle cx="326" cy="310" r="22" fill="#1f2937"/>
-                  </svg>`;
-              }
-
-                      // ===== 取得目前地圖中心（我的定位或台北101） =====
-             const FALLBACK_CENTER = { lat: 25.033964, lng: 121.564468 }; // 台北101
-            function currentCenter() {
-              const lat = toNumOrNull(myLoc.value?.lat);
-              const lng = toNumOrNull(myLoc.value?.lng);
-              return (validLatLng(lat, lng))
-                ? { lat, lng }
-                : FALLBACK_CENTER; // 台北101
+            // ===== API =====
+            async function loadCards(){
+              const { data } = await axios.get('/api/dashboard/cards');
+              const r = data.data || data;
+              kpi.value = {
+                scheduleTodayCount: r.scheduleTodayCount || 0,
+                uncompleteCount: r.uncompleteCount || 0,
+                pendingReviewCount: r.pendingReviewCount || 0
+              };
+              totalKm.value = r.totalKm ?? 0;
             }
-
-            // ===== 先抓所有車輛目前位置（初始化 + 之後輪詢沿用） =====
-            async function loadVehicleLocations() {
-              try {
-                const res = await axios.get("/api/dashboard/vehicle-locations");
-                const list = res.data; // 預期: [{ vehicleId, latitude, longitude, status }, ...]
-
-                list.forEach(loc => {
-                  const id = Number(loc.vehicleId);
-                  if (!Number.isFinite(id)) return;
-
-                  const lat = Number(loc.latitude);
-                  const lng = Number(loc.longitude);
-                  if (!validLatLng(lat, lng)) return;
-
-                  if (loc.plateNo) plateByVehicleId.value.set(id, loc.plateNo);
-                  if (loc.driverName) driverNameByVehicleId.value.set(id, loc.driverName);
-                  statusByVehicleId.value.set(id, loc.isOnDuty ? 'on' : 'idle');
-
-                  const mapObj = miniMapCache.get(id);
-                  if (mapObj && mapObj.marker) {
-                    mapObj.marker.position = { lat, lng };
-                    mapObj.lastPos = { lat, lng };
-                  } else {
-                    // 不建地圖，首次 renderMyMaps() 會建；這裡只先記錄
-                    miniMapCache.set(id, { map: null, marker: null, lastPos: { lat, lng }, animating: false });
-                  }
-                });
-              } catch (e) {
-                console.warn("載入車輛位置失敗，先用中心點顯示：", e);
-              }
+            async function loadUnfinished(){
+              const { data } = await axios.get('/api/dashboard/dispatch/uncomplete');
+              unfinished.value = data.data || data || [];
             }
-            // 全域快取
-
-            const miniMapCache = new Map(); // key = vehicleId
-            let _carUpdater = null;
-
-            function renderMyMaps() {
-              const center = currentCenter(); // 用這個取代 myPos
-
-              driverCards.value.slice(0, 5).forEach((card, i) => {
-                const el = document.getElementById('gmap_' + i);
-                if (!el) return;
-
-                const id = Number(card.vehicleId ?? (i + 1));
-                let mapObj = miniMapCache.get(id);
-
-                // 取得此車初次位置
-                const initialPos = (mapObj && mapObj.lastPos && validLatLng(mapObj.lastPos.lat, mapObj.lastPos.lng))
-                  ? mapObj.lastPos
-                  : center;
-
-                if (!mapObj || !mapObj.map) {
-                  const map = new google.maps.Map(el, {
-                       center: currentCenter(),
-                    zoom: 16,
-                    disableDefaultUI: true,
-                    mapId: "add29920b46056c38796ff49"
-                  });
-
-                  const markerEl = document.createElement('div');
-                  const color =
-                    card.statusType === 'on'   ? '#f97316' :
-                    card.statusType === 'idle' ? '#22c55e' :
-                    '#94a3b8';
-                  markerEl.innerHTML = carSVG(color);
-
-                  const marker = new google.maps.marker.AdvancedMarkerElement({
-                    map,
-                    position: currentCenter(),  
-                    content: markerEl
-                  });
-
-                  mapObj = { map, marker, lastPos: initialPos, animating: false };
-                  miniMapCache.set(id, mapObj);
-                }
+            async function loadPending(){
+              const { data } = await axios.get('/api/dashboard/applications/pending');
+              // 正規化 status 欄位
+              pending.value = (data.data || data || []).map(x=>{
+                const rawStatus = (x.status ?? x.Status ?? x.dispatchStatus ?? x.DispatchStatus ?? "").toString().trim();
+                return { ...x, status: rawStatus };
               });
-
-              // 啟動輪詢
-             if (!_carUpdater) {
-              _carUpdater = setInterval(async () => {
-                try {
-                  const { data: list } = await axios.get("/api/dashboard/vehicle-locations");
-
-                  list.forEach(loc => {
-                    const id = Number(loc.vehicleId);
-                    const mapObj = miniMapCache.get(id);
-                    if (!mapObj || !mapObj.marker) return;
-
-                    const isOnDuty = loc.isOnDuty === true;
-                    const newPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
-                    if (!validLatLng(newPos.lat, newPos.lng)) return;
-
-                    // === 更新 marker 顏色 ===
-                    const color = isOnDuty ? "#f97316" : "#94a3b8";
-                    if (mapObj.marker?.content) {
-                      mapObj.marker.content.innerHTML = carSVG(color);
-                    }
-
-                    // === 平滑移動 ===
-                    if (isOnDuty) {
-                      animateMarkerTo(mapObj, newPos);
-                    }
-
-                    // === 🔥 同步更新小卡狀態 ===
-                    const card = driverCards.value.find(c => Number(c.vehicleId) === id);
-                    if (card) {
-                      card.statusText = isOnDuty ? "執勤中" : "待命中";
-                      card.statusType = isOnDuty ? "on" : "idle";
-                    }
-                  });
-                } catch (err) {
-                  console.warn("🚘 更新全部車輛位置失敗", err);
-                }
-              }, 3000);
-            }
             }
 
+            // ===== Driver status -> mini cards（去重、擇優、五輛封頂、只在執勤中顯示司機名） =====
+            async function loadDriverStatus(){
+              const { data } = await axios.get('/api/dashboard/drivers/today-status');
+              const list = (data.data || data) || [];
 
-            
+              const score = s => s === '執勤中' ? 3 : (s === '休息中' ? 2 : 1);
+              const best = new Map(); // key: vehicleId 或 plateNo
 
-            //平滑移動
-            function animateMarkerTo(mapObj, newPos) {
-              if (!mapObj.lastPos) {
-                mapObj.marker.position = newPos;
-                mapObj.lastPos = newPos;
-                if (mapObj.map) mapObj.map.panTo(newPos);
-                return;
-              }
-                 // 動畫中就先記住下一個目標，結束後立刻接上
-                 if (mapObj.animating) { mapObj.queuedPos = newPos; return; }
+              for (const x of list) {
+                const key = Number(x.vehicleId) || (x.plateNo || '').trim();
+                if (!key) continue;
+                const prev = best.get(key);
+                if (!prev) { best.set(key, x); continue; }
 
-              const steps = 40;   // 60 小步
-              const delay = 40;   // 每步 50ms = 約 3 秒完成
-              const old = mapObj.lastPos;
-              const dLat = (newPos.lat - old.lat) / steps;
-              const dLng = (newPos.lng - old.lng) / steps;
-              let i = 0;
-              mapObj.animating = true;
+                const prevScore = score(prev.stateText || '');
+                const curScore  = score(x.stateText || '');
+                const prevTime  = new Date(prev.updatedAt || prev.updateTime || 0).getTime();
+                const curTime   = new Date(x.updatedAt || x.updateTime || 0).getTime();
 
-              function tick() {
-                i++;
-                const lat = old.lat + dLat * i;
-                const lng = old.lng + dLng * i;
-                const pos = { lat, lng };
-                mapObj.marker.position = { lat, lng };
-                mapObj.marker.position = pos;
-                if (mapObj.map) mapObj.map.panTo(pos);
-                if (i < steps) {
-                  setTimeout(tick, delay);
-                } else {
-                  mapObj.lastPos = newPos;
-                  mapObj.animating = false;
-               // 如果期間有新座標排隊，馬上接續下一段
-                if (mapObj.queuedPos) {
-                  const q = mapObj.queuedPos;
-                  mapObj.queuedPos = null;
-                  animateMarkerTo(mapObj, q);
-                 }
+                if (curScore > prevScore || (curScore === prevScore && curTime >= prevTime)) {
+                  best.set(key, x);
                 }
               }
-              tick();
-            }
-                 // ===== 進入「我的定位」視圖 =====
-                async function enterMyLocationView(){
-                  viewMode.value = 'mypos';
-                    // ⚠️ 清除舊地圖快取
-                    miniMapCache.clear();
-                  try {
-                    await getMyLocation().catch(()=>{});
-                  } catch(e) {
-                    console.warn("定位失敗，改用台北101");
-                  }
 
-                  await loadVehicleLocations(); //  抓車輛位置
-                  await nextTick();
-                  renderMyMaps(); //  中心點是自己位置
-                  console.log("目前中心：", myLoc.value);
-                }
+              const norm = Array.from(best.values()).slice(0,5).map(x=>{
+                let statusType = 'idle';
+                if (x.stateText === '執勤中') statusType = 'on';
+                else if (x.stateText === '休息中') statusType = 'break';
 
-                   // ===== 離開「我的定位」視圖 =====
-            function exitMyLocationView(){ viewMode.value = 'schedule'; }
-
-                 watch(() => myLoc.value, (val) => {
-                   if (viewMode.value === 'mypos' && val && val.lat && val.lng) {
-                     console.log("🧭 定位更新，重新置中：", val);
-                     nextTick(() => {
-                       driverCards.value.forEach((_, i) => {
-                         const el = document.getElementById('gmap_' + i);
-                         if (!el) return;
-                         const mapObj = [...miniMapCache.values()][i];
-                         if (mapObj?.map) mapObj.map.setCenter({ lat: val.lat, lng: val.lng });
-                       });
-                     });
-                   }
-                 });             
-                 watch(() => viewMode.value, (m) => { if (m === 'mypos') nextTick(renderMyMaps); });
-
-                  // ===== 生成地圖卡片資料（五張） =====
-                       const driverCards = computed(() => {
-              const allIds = Array.from(new Set([
-                ...statusByVehicleId.value.keys(),
-                ...plateByVehicleId.value.keys(),
-                ...Array.from(miniMapCache.keys())
-              ])).sort((a, b) => a - b);
-
-              return allIds.slice(0, 5).map(vid => {
-                const plate = plateByVehicleId.value.get(vid) ?? '—';
-                const statusType = statusByVehicleId.value.get(vid) ?? 'idle';
-                const driver = driverNameByVehicleId.value.get(vid) ?? ''; // ← 關鍵
+                const plate = x.plateNo || '—';
+                const hasDriver = (x.driverName || '').trim();
+                const plateWithDriver = statusType === 'on' && hasDriver ? `${plate} ${x.driverName}` : plate;
 
                 return {
-                  key: `veh_${vid}`,
-                  vehicleId: vid,
-                  plate,
-                  driver,
-                  // UI 顯示文字直接合併車牌與司機名
-                  plateWithDriver: `${plate}${driver ? ' ' + driver : ''}`,
-                  statusText:
-                    statusType === 'on' ? '執勤中' :
-                    statusType === 'break' ? '休息中' : '待命中',
+                  key: 'drv_'+(x.vehicleId || x.driverId || plate),
+                  vehicleId: x.vehicleId || x.driverId || plate,
+                  plateWithDriver,
+                  statusText: x.stateText,
                   statusType
                 };
               });
-            });
 
+              driverCards.value = norm;
+              await nextTick();
+              renderMaps();
+            }
 
-            // --- 審核操作（✅/✕） ---
+            // ===== 圖表 =====
+            function renderTrend(seed){
+              const ctx = document.getElementById('trendChart');
+              if(trendChart) trendChart.destroy();
+              const base = [6,8,7,9,10,11,12];
+              base[6] = Math.max(seed, 0);
+              trendChart = new Chart(ctx, {
+                type:'line',
+                data:{ labels:['週一','週二','週三','週四','週五','週六','週日'], datasets:[{ label:'派車量', data:base, fill:true, tension:.35 }]},
+                options:{ plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }}}}
+              });
+            }
+            function renderDist(groups){
+              const ctx = document.getElementById('distChart');
+              if(distChart) distChart.destroy();
+              const labels = Object.keys(groups);
+              const data = Object.values(groups);
+              distChart = new Chart(ctx,{ type:'doughnut', data:{ labels, datasets:[{ data }] }, options:{ plugins:{ legend:{ position:'bottom' }}}});
+            }
+            async function loadDistChart(){
+              const { data } = await axios.get('/api/dashboard/dispatch/uncomplete');
+              const list = data.data || data || [];
+              const groups = { '已完成':0, '進行中':0, '待派車':0 };
+              list.forEach(x=>{
+                const s = (x.dispatchStatus||'').trim();
+                if(s.includes('完成')) groups['已完成']++;
+                else if(s.includes('待')) groups['待派車']++;
+                else groups['進行中']++;
+              });
+              renderDist(groups);
+            }
+
+            // ===== Google Maps：建立一次，位置定時更新 =====
+            function renderMaps(){
+              if(!window.google || !google.maps) return;
+              driverCards.value.forEach((card, i)=>{
+                const el = document.getElementById('gmap_'+i);
+                if(!el) return;
+                let obj = miniMapCache.get(i);
+                if(!obj){
+                  const map = new google.maps.Map(el, {
+                    center:{ lat:25.033964, lng:121.564468 }, zoom:15, disableDefaultUI:true, mapId:"add29920b46056c38796ff49"
+                  });
+                  const markerEl = document.createElement('div');
+                  const color = card.statusType==='on' ? '#f97316' : (card.statusType==='idle' ? '#22c55e' : '#6b7280');
+                  markerEl.innerHTML = carSVG(color);
+                  const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: map.getCenter(), content: markerEl });
+                  obj = { map, marker };
+                  miniMapCache.set(i, obj);
+                }
+              });
+              refreshVehicleLocations();
+            }
+
+            // ===== 位置更新（去重，前 5 張餵 marker） =====
+            async function refreshVehicleLocations(){
+              try{
+                const { data:raw } = await axios.get('/api/dashboard/vehicle-locations');
+                const arr = Array.isArray(raw) ? raw : (raw?.data || []);
+
+                const pick = new Map();
+                for (const loc of arr) {
+                  const vid = Number(loc.vehicleId ?? loc.VehicleId) || 0;
+                  const plate = (loc.plateNo || loc.PlateNo || '').trim();
+                  const key = vid || plate;
+                  if (!key) continue;
+                  // 如需「最新優先」，可在這裡比較時間戳再覆蓋
+                  pick.set(key, loc);
+                }
+                const uniq = Array.from(pick.values());
+
+                uniq.slice(0,5).forEach((loc, i)=>{
+                  const obj = miniMapCache.get(i);
+                  if(!obj) return;
+                  const p = { lat: Number(loc.latitude||loc.Latitude), lng: Number(loc.longitude||loc.Longitude) };
+                  if(Number.isFinite(p.lat)&&Number.isFinite(p.lng)){
+                    obj.marker.position = p;
+                    obj.map.setCenter(p);
+                  }
+                });
+              }catch(e){
+                console.warn('vehicle-locations 失敗', e);
+              }
+            }
+
+            // ===== 審核/駁回 =====
             const approve = async (p) => {
               if (!confirm(`確定要將申請單 #${p.applyId} 審核通過並派車嗎？`)) return;
-
               try {
-                console.log(" approve", p);
-
-              
-                const { data } = await axios.post(
-                  `/api/carapplications/${p.applyId}/approve-assign`,
-                  null,
-                  { params: { passengerCount: p.passengerCount ?? 0 } }
-                );
-              
-
-                
-               location.reload();
+                await axios.post(`/api/carapplications/${p.applyId}/approve-assign`, null, { params: { passengerCount: p.passengerCount ?? 0 }});
                 alert(`已成功審核並派車`);
-
-                
                 p.status = "完成審核";
-                p.vehicleId = data.vehicleId ?? null;
-                p.plateNo = data.plateNo ?? null;
-
-               
                 pending.value = pending.value.filter(r => r.applyId !== p.applyId);
-
-
               } catch (err) {
-                console.error(" approve error:", err);
-               
-                const msg = err?.response?.data?.message || err?.message || '審核派車失敗';
-                alert(msg);
+                alert(err?.response?.data?.message || '審核派車失敗');
               }
             };
-
-
             const reject = async (p) => {
               if (!confirm(`確定要將申請單 #${p.applyId} 駁回嗎？`)) return;
-
               try {
-                console.log(" reject", p);
-                await axios.patch(`/api/CarApplications/${p.applyId}/status`, {
-                  status: "駁回"
-                });
-                alert(" 已成功駁回");
+                await axios.patch(`/api/CarApplications/${p.applyId}/status`, { status: "駁回" });
+                alert("已成功駁回");
                 p.status = "駁回";
                 pending.value = pending.value.filter(r => r.applyId !== p.applyId);
-              } catch (err) {
-                console.error(" reject error:", err);
+              } catch {
                 alert("駁回失敗");
               }
             };
 
-                  // ===== 資料載入 =====
-                  async function get(url){ const res = await axios.get(url); return res.data.data; }
-                  async function loadAll(){
-                    try{
-                      const [s,u,p,ds] = await Promise.all([
-                        get('/api/dashboard/schedule/today'),
-                        get('/api/dashboard/dispatch/uncomplete'),
-                        get('/api/dashboard/applications/pending'),
-                        get('/api/dashboard/drivers/today-status'),
-                      ]);
-                  
+            // ===== 告警計算 =====
+            const tail = (s) => {
+              const parts = String(s||'').split('-').map(x=>x.trim()).filter(Boolean);
+              return parts.length ? parts[parts.length-1] : '';
+            };
+            const timeTail = (s) => (String(s||'').split('-')[1] || s || '').toString().trim();
 
+            function parseSlotEnd(item) {
+              const today = new Date();
+              const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-                      const norm = (list)=> (list||[]).map(x=>{
-                        const arrivalTimeRaw = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
-                        const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
-                        const arrivalDisplay = (fmtHHmm(arrivalTimeRaw) && arrivalPlaceRaw)
-                          ? `${fmtHHmm(arrivalTimeRaw)} ${arrivalPlaceRaw}` : '';
+              const dt = item.endTime || item.useEnd || item.arrivalTime;
+              if (dt) {
+                const t = new Date(dt);
+                if (!isNaN(t)) return t;
+              }
 
-                        const rawShift = (x.shiftName ?? x.shift ?? '').toString().trim().toUpperCase();
-                        const shiftLabel = rawShift==='AM' ? '早午' : rawShift==='PM' ? '午晚' : '一般';
-                        const shiftClass = rawShift==='AM' ? 'am' : rawShift==='PM' ? 'pm' : 'general';
+              const raw = String(item.useTime || '').trim();
+              if (!raw) return null;
 
-                        const deptRaw = (x.applicantDept ?? '').trim();
-                        let deptShort = deptRaw;
-                        if (deptShort) {
-                          const parts = deptShort.split('/');
-                          deptShort = parts[parts.length - 1].trim().replace(/科.*$/, '科');
-                        }
+              const m = raw.match(/(?:(\d{4}\/\d{1,2}\/\d{1,2})\s+)?(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+              if (!m) return null;
 
-                        return {
-                          key: `${x.scheduleId ?? (x.driverId ?? 'X')}_${x.shift ?? ''}`,
-                          driverName: x.driverName ?? '-',
-                          hasDispatch: !!x.hasDispatch,
-                          applicantDept: x.applicantDept || '-',
-                          applicantName: x.applicantName ?? '-',
-                          passengerCount: x.passengerCount ?? '-',
-                          tripDistance: (x.tripDistance ?? '').toString().replace('公里',''),
-                          lat: toNumOrNull(x.lat), lng: toNumOrNull(x.lng),
-                          plateNo: x.plateNo ?? '-',
-                          useStart: x.useStart ?? x.UseStart ?? null,
-                          useEnd: x.useEnd ?? x.UseEnd ?? null,
-                          updatedAt: x.updatedAt,
-                          shiftLabel, shiftClass, arrivalDisplay
-                        };
-                      });
-                    schedules.value  = norm(s);
-                    unfinished.value = u || [];
-                    driverStatus.value = (ds || []).map(scheduleToDriverRow);
-                            plateByVehicleId.value = new Map();
-            statusByVehicleId.value = new Map();
-
-            for (const d of driverStatus.value) {
-              const vid = Number(d.vehicleId);  // ← 確保 today-status 有回 VehicleId
-              if (!Number.isFinite(vid)) continue;
-
-              if (d.plateNo) plateByVehicleId.value.set(vid, d.plateNo);
-
-              let t = 'idle';
-              if (d.stateText === '執勤中') t = 'on';
-              else if (d.stateText === '休息中') t = 'break';
-              statusByVehicleId.value.set(vid, t);
+              const [, dateStr,, endStr] = m;
+              let base = baseDate;
+              if (dateStr) {
+                const d = new Date(dateStr);
+                if (!isNaN(d)) base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+              }
+              const [hh, mm] = endStr.split(':').map(Number);
+              return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hh, mm, 0);
             }
-                    // 1) 先把各種可能的欄位統一成 .status（處理大小寫與空白）
-                   const cleaned = (p || []).map(x => {
-                   const rawStatus =
-                     (x.status ?? x.Status ?? x.dispatchStatus ?? x.DispatchStatus ?? "")
-                       .toString()
-                       .trim();
-                   return {
-                     ...x,
-                     applyId: x.applyId ?? x.ApplyId ?? null,
-                     status: rawStatus
-                   };
-                 });
-                 // 直接放進 pending，畫面用 pendingFiltered 顯示未審核
-                 pending.value = cleaned;
-                          } catch (err) {
-                console.error('載入失敗：', err);
+            function parseSlotStart(item) {
+              const today = new Date();
+              const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+              const dt = item.startTime || item.useStart;
+              if (dt) {
+                const t = new Date(dt);
+                if (!isNaN(t)) return t;
+              }
+
+              const raw = String(item.useTime || '').trim();
+              const m = raw.match(/(?:(\d{4}\/\d{1,2}\/\d{1,2})\s+)?(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+              if (!m) return null;
+
+              const [, dateStr, startStr] = m;
+              let base = baseDate;
+              if (dateStr) {
+                const d = new Date(dateStr);
+                if (!isNaN(d)) base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+              }
+              const [hh, mm] = startStr.split(':').map(Number);
+              return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hh, mm, 0);
+            }
+
+            function isOverdue(item) {
+              const endT = parseSlotEnd(item);
+              if (!endT) return false;
+              const status = (item.dispatchStatus || '').trim();
+              const done = status.includes('完成');
+              return !done && (new Date() > endT);
+            }
+
+            async function refreshAlerts(){
+              try{
+                // ping
+                const ping = await axios.get('/api/dashboard/cards');
+                health.value.ok = !!(ping && ping.status === 200);
+
+                // 未完成任務
+                const { data } = await axios.get('/api/dashboard/dispatch/uncomplete');
+                const list = data.data || data || [];
+
+                overdueList.value = list.filter(isOverdue).map(x => ({
+                  id: x.dispatchId || x.id || `${x.driverName}_${x.useTime}`,
+                  driverName: x.driverName,
+                  useTimeTail: timeTail(x.useTime),
+                  destTail: tail(x.route)
+                }));
+
+                // 卡住：狀態含「待」且開始時間已過
+                const now = new Date();
+                stuckCount.value = list.filter(x=>{
+                  const s = (x.dispatchStatus||'').trim();
+                  if (!s.includes('待')) return false;
+                  const st = parseSlotStart(x);
+                  return st && now > st;
+                }).length;
+
+              }catch(e){
+                health.value.ok = false;
+                console.warn('refreshAlerts error', e);
               }
             }
 
-            function scheduleToDriverRow(x){
-              // 時間
-              // 解析用車時間欄位（後端大小寫不一致都包進來）
-              const rawStart = x?.startTime ?? x?.useStart ?? x?.UseStart ?? null;
-              const rawEnd   = x?.endTime   ?? x?.useEnd   ?? x?.UseEnd   ?? null;
-
-              // 統一轉成 Date 物件
-              const st = rawStart ? new Date(rawStart) : null;
-              const et = rawEnd   ? new Date(rawEnd)   : null;          
-              const etDate = et ? new Date(et) : null;
-              // 後端提供的休息資訊與請假單
-              const restRemainMinutes = Number(x?.restRemainMinutes ?? 0);
-              const restUntil         = x?.restUntil ? new Date(x.restUntil) : null;
-              const leave             = (x?.leaveNote || '').trim();
-
-              // 狀態（執勤中 > 休息中 > 待命中）
-              let stateText;
-                if ((x?.stateText || '').trim() === '執勤中') {
-                  stateText = '執勤中';
-                } else {
-                  stateText = (restRemainMinutes > 0) ? '休息中' : '待命中';
-                }
-             
-
-
-              // 燈號
-              let stateDotClass = 'status-green';
-              if (stateText === '執勤中') stateDotClass = 'status-red';
-              else if (stateText === '休息中') stateDotClass = 'status-gray';
-              else if (stateText === '請假') stateDotClass = 'status-orange';
-
-              // 小工具
-              const pad = (n) => n.toString().padStart(2,'0');
-              const fmtHHmm = (d) => {
-                if (!d) return '';
-                const dt = d instanceof Date ? new Date(d) : new Date(d);
-                if (isNaN(dt)) return '';
-                return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-              };
-
-              // 顯示用途
-              const arrivalTimeRaw  = x.arrivalTime ?? x.endTime ?? x.useEnd ?? null;
-              const tailDestFromRoute = (route) => {
-                if (!route) return '';
-                const parts = String(route).split('-').map(s=>s.trim()).filter(Boolean);
-                return parts.length ? parts[parts.length-1] : '';
-              };
-              const arrivalPlaceRaw = (x.arrivalPlace ?? x.destination ?? tailDestFromRoute(x.route) ?? x.applicantDept ?? '').toString().trim();
-
-              // 班別
-              const rawShift=(x.shiftName??x.shift??'').toString().trim().toUpperCase();
-              let label='一般', cls='general';
-              if(rawShift==='AM'){ label='早午'; cls='am'; }
-              else if(rawShift==='PM'){ label='午晚'; cls='pm'; }
-              else if(['G1','G2','G3'].includes(rawShift)){ label='一般'; cls='general'; }
-
-              // 時窗/回來時間/最早可出車
-              const taskWindow = (st && et) ? `${fmtHHmm(st)}-${fmtHHmm(et)}` : '';
-              const useEnd = etDate ? fmtHHmm(etDate) : '-';
-              const earliestOut =
-                 stateText === '執勤中' ? (et ? fmtHHmm(new Date(et.getTime() + 60*60000)) : '-')
-                : stateText === '休息中' ? (restUntil ? fmtHHmm(restUntil) : '-')
-                : '即時可用';
-              // 出勤狀況
-            const attendance = (typeof x.attendance === 'string' && x.attendance.trim())
-              ? x.attendance.trim()   
-              : ( (x?.leaveNote || '').trim() ? '請假' : '正常' );
-
-              return {
-                key: `${x?.driverId || 'D'}_${rawShift}`,
-                driverId: x?.driverId ?? null,
-                driverName: x?.driverName ?? '-',
-                shiftLabel: label,
-                shiftClass: cls,
-                plateNo: x.plateNo ?? '-',
-                stateText,
-                stateDotClass,
-                restRemainMinutes,                 
-                taskWindow,
-                useEnd,
-                earliestOut,
-                attendance,
-                applicantDept: arrivalPlaceRaw || '-',
-                applicantName: x?.applicantName ?? '-',
-                passengerCount: x?.passengerCount ?? '-',
-                
-              };
+            // ===== AI 建議派車（對話框） =====
+            function openSuggest(){
+              document.getElementById('aiSuggestDlg').showModal();
+              fetchSuggestions();
             }
-                    
+            function closeSuggest(){ document.getElementById('aiSuggestDlg').close(); }
 
+            async function fetchSuggestions(){
+              suggesting.value = true;
+              suggestErr.value = '';
+              suggestList.value = [];
+              try{
+                const [pendingRes, driversRes, locsRes] = await Promise.all([
+                  axios.get('/api/dashboard/applications/pending'),
+                  axios.get('/api/dashboard/drivers/today-status'),
+                  axios.get('/api/dashboard/vehicle-locations')
+                ]);
 
+                const { data } = await axios.post('/api/ai/dispatch/suggest', {
+                  pending: pendingRes.data?.data ?? [],
+                  drivers: driversRes.data?.data ?? [],
+                  locations: locsRes.data?.data ?? []
+                });
 
-                  function openFleetStatus(){
-                    // window.location.href = '/Vehicle/Status';
-                    console.log('open fleet status');
-                  }
+                suggestList.value = data?.data ?? [];
+              }catch(err){
+                suggestErr.value = '取得建議失敗';
+              }finally{
+                suggesting.value = false;
+              }
+            }
+            async function applySuggestion(s){
+              if(!confirm(`套用：車 ${s.plateNo} → 申請 #${s.applyId}？`)) return;
+              try{
+                await axios.post(`/api/carapplications/${s.applyId}/approve-assign`, null, {
+                  params: { vehicleId: s.vehicleId, driverId: s.driverId }
+                });
+                alert('已派車');
+                closeSuggest();
+                // 快速刷新
+                loadPending();
+                loadDriverStatus();
+                refreshVehicleLocations();
+              }catch(e){
+                alert('套用失敗');
+              }
+            }
+            async function skipSuggestion(s){
+              try{
+                await axios.post('/api/ai/dispatch/skip', { suggestionId: s.suggestionId });
+                suggestList.value = suggestList.value.filter(x => x.suggestionId !== s.suggestionId);
+              }catch{}
+            }
 
-                          onMounted(() => {
-                      loadAll();
-                      setInterval(() => {
-                        loadAll();  // 每分鐘重抓一次資料，確保狀態更新
-                      }, 60 * 1000);
-                    });
+            // ===== Boot =====
+            async function boot(){
+              await refreshAlerts();
+              setInterval(refreshAlerts, 15000);
 
+              await loadCards();
+              renderTrend(kpi.value.scheduleTodayCount);
+              await Promise.all([ loadUnfinished(), loadPending(), loadDriverStatus(), loadDistChart() ]);
 
-                  return {
-                    // 視圖
-                    viewMode, enterMyLocationView, exitMyLocationView,fmtHHmm,
-                    // 列表/審核
-                    schedules,scheduleTable, unfinished, pending, approve, reject,pendingFiltered,
-                    // 單一地圖開新頁
-                    openMap,
-                    // 我的定位
-                    hasMapsKey, myLoc, locating, locError,
-                    // 地圖卡片
-                    driverCards,
-                    // 左下角：駕駛狀態
-                    driverStatus, openFleetStatus
-                  };
-                }
-              }).mount('#dashboard');
-            });
+              setInterval(async ()=>{ await loadCards(); renderTrend(kpi.value.scheduleTodayCount); }, 60000);
+              setInterval(loadUnfinished, 60000);
+              setInterval(loadPending, 60000);
+              setInterval(refreshVehicleLocations, 3000);
+            }
+
+            onMounted(boot);
+
+            return {
+              // KPI
+              kpi, totalKm, nowHHmm,
+              // lists
+              unfinished, pending, pendingFiltered,
+              // maps/cards
+              driverCards,
+              // actions
+              approve, reject,
+              // alerts
+              health, overdueList, overdueCount, stuckCount, refreshAlerts,
+              // AI suggest UI
+              suggesting, suggestErr, suggestList, openSuggest, closeSuggest, applySuggestion, skipSuggestion
+            };
+          }
+        }).mount('#app');
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=@(ViewBag.GoogleMapsKey)&v=quarterly&libraries=marker" async defer></script>
-
 </body>

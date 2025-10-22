@@ -1,4 +1,6 @@
-﻿
+﻿/* =======================
+   基礎變數與 Reset
+   ======================= */
 :root {
     --bg: #f7f8fa;
     --card: #fff;
@@ -25,39 +27,70 @@ body {
     color: var(--text);
 }
 
+[v-cloak] {
+    display: none;
+}
+
+/* =======================
+   版心與版面布局
+   ======================= */
 .wrap {
-    max-width: 1200px;
+    max-width: 1320px;
     margin: 24px auto;
     padding: 0 16px;
 }
 
+/* 新儀錶板布局（grid-areas） */
+.grid-areas {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-areas:
+        "kpi   kpi"
+        "trend dist"
+        "maps  lists";
+    grid-gap: 16px;
+}
+
+@media (max-width:1100px) {
+    .grid-areas {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "kpi"
+            "trend"
+            "dist"
+            "maps"
+            "lists";
+    }
+}
+
+/* 舊版左右欄布局（若別頁仍有用，保留） */
 .grid {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 16px;
     align-items: stretch;
 }
-    /* 讓 section / aside 裡的 card 能夠等高 */
-    .grid > section,
-    .grid > aside {
+
+    .grid > section, .grid > aside {
         display: flex;
         flex-direction: column;
     }
 
-        .grid > section .card,
-        .grid > aside .card {
-            flex: 1; /* 填滿父層，保持等高 */
+        .grid > section .card, .grid > aside .card {
+            flex: 1;
             display: flex;
             flex-direction: column;
         }
 
-@@media (max-width:1000px) {
+@media (max-width:1000px) {
     .grid {
         grid-template-columns: 1fr;
     }
 }
 
-
+/* =======================
+   卡片與面板
+   ======================= */
 .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -78,6 +111,79 @@ body {
     padding: 12px 16px;
 }
 
+/* 面板（新版） */
+.panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.panel-hd {
+    padding: 12px 14px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-bd {
+    padding: 12px 14px;
+}
+
+/* =======================
+   KPI 區
+   ======================= */
+.kpi-wrap {
+    grid-area: kpi;
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 12px;
+}
+
+@media (max-width:900px) {
+    .kpi-wrap {
+        grid-template-columns: repeat(2,1fr);
+    }
+}
+
+.kpi {
+    padding: 14px 16px;
+}
+
+    .kpi .label {
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .kpi .value {
+        font-size: 28px;
+        font-weight: 800;
+        margin-top: 2px;
+    }
+
+    .kpi .delta {
+        font-size: 12px;
+        margin-top: 4px;
+        color: #16a34a;
+    }
+
+/* =======================
+   圖表卡
+   ======================= */
+.trend {
+    grid-area: trend;
+}
+
+.dist {
+    grid-area: dist;
+}
+
+.chart-card {
+    padding: 12px 16px;
+}
+
+/* =======================
+   表格（通用）
+   ======================= */
 table {
     width: 100%;
     border-collapse: separate;
@@ -103,10 +209,39 @@ tbody td {
     border-bottom: 1px solid var(--border);
 }
 
-.mono {
-    font-variant-numeric: tabular-nums;
+/* 平鋪表格（新版清單用） */
+table.flat {
+    width: 100%;
+    border-collapse: collapse;
 }
 
+    table.flat th, table.flat td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    table.flat th {
+        text-align: left;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+/* 表格文字處理 */
+table th, table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+td.col-route {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* =======================
+   按鈕與小元件
+   ======================= */
 .actions {
     display: flex;
     gap: 6px;
@@ -122,56 +257,44 @@ tbody td {
 }
 
 .btn-yes {
-    color: #0f766e;
-    border-color: #99f6e4;
-    background: #ecfeff;
+    background: #16a34a;
+    color: #111827;
+    border-color: #16a34a;
 }
 
 .btn-no {
-    color: #b91c1c;
-    border-color: #fecaca;
-    background: #fff1f2;
+    background: #ef4444;
+    color: #111827;
+    border-color: #ef4444;
 }
 
-
-
-#map {
-    width: 100%;
-    height: 100%;
+.chip {
+    font-size: 12px;
+    color: #6b7280;
 }
 
-.map {
-    height: 360px;
-    border-top: 1px solid var(--border);
-    border-bottom-left-radius: 10px;
-    border-bottom-right-radius: 10px;
-    background: linear-gradient(0deg,#e5e7eb 1px,transparent 1px),linear-gradient(90deg,#e5e7eb 1px,transparent 1px),#fafafa;
-    background-size: 24px 24px,24px 24px;
-    position: relative;
+.mono {
+    font-variant-numeric: tabular-nums;
 }
 
-    .map::after {
-        content: "地圖";
-        position: absolute;
-        right: 12px;
-        bottom: 10px;
-        color: #9ca3af;
-        font-size: 12px;
-    }
+/* =======================
+   地圖牆（3+2）
+   ======================= */
+.maps {
+    grid-area: maps;
+}
 
-/* 五張地圖排版：上3、下2（永遠五張） */
 .map-grid {
     display: grid;
     grid-template-columns: repeat(3,1fr);
     gap: 12px;
-    padding: 12px 16px;
 }
 
 .map-grid-row2 {
-    grid-column: 1 / -1;
     display: grid;
     grid-template-columns: repeat(2,1fr);
     gap: 12px;
+    margin-top: 12px;
 }
 
 .map-cell {
@@ -186,21 +309,22 @@ tbody td {
 .gmap {
     width: 100%;
     height: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
 }
-    /* 原本地圖樣式照舊 */
-
-    /* 加上遮罩模式 */
+    /* 待命遮罩 */
     .gmap.dimmed {
         position: relative;
-        filter: grayscale(1) brightness(0.9); /* 整張地圖灰暗 */
-        pointer-events: none; /* 禁止互動 */
+        filter: grayscale(1) brightness(.9);
+        pointer-events: none;
     }
 
         .gmap.dimmed::after {
             content: "待命中";
             position: absolute;
             inset: 0;
-            background: rgba(55, 65, 81, 0.15); /* 灰色半透明 */
+            background: rgba(55,65,81,.15);
             color: #fff;
             display: flex;
             align-items: center;
@@ -208,12 +332,11 @@ tbody td {
             font-weight: 600;
             font-size: 14px;
             letter-spacing: 1px;
-            text-shadow: 0 0 6px rgba(0,0,0,0.6);
+            text-shadow: 0 0 6px rgba(0,0,0,.6);
             backdrop-filter: blur(2px);
         }
 
-
-/* 左下角資訊列 */
+/* 左下角資訊徽章 */
 .badge-row {
     position: absolute;
     left: 8px;
@@ -224,9 +347,8 @@ tbody td {
     font-family: "Noto Sans TC","Microsoft JhengHei",sans-serif;
 }
 
-/* 車牌 + 駕駛 (深底白字) */
 .badge-dark {
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0,0,0,.75);
     color: #fff;
     border-radius: 6px;
     padding: 4px 10px;
@@ -236,7 +358,6 @@ tbody td {
     white-space: nowrap;
 }
 
-/* 狀態膠囊 (根據不同狀態改顏色) */
 .badge-pill {
     border-radius: 999px;
     padding: 4px 12px;
@@ -246,105 +367,22 @@ tbody td {
     white-space: nowrap;
 }
 
-/* 出勤中 → 紅色 */
 .badge-on {
-    background: #ef4444; /* tailwind red-500 */
-}
-
-/* 待命中 → 綠色 */
-.badge-idle {
-    background: #22c55e; /* tailwind green-500 */
-}
-
-/* 休息中 → 藍灰色 */
-.badge-break {
-    background: #6b7280;
-}
-
-.rest-hint {
-    color: #ef4444; 
-    font-weight: 500;
-}
-
-
-.chip {
-    font-size: 12px;
-    color: #6b7280;
-}
-
-/* 排班狀態膠囊 */
-.pill {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    border: 1px solid #e5e7eb;
-    line-height: 20px;
-}
-
-    .pill.am {
-        background: #dbeafe;
-        border-color: #93c5fd;
-        color: #1e40af;
-    }
-
-    .pill.pm {
-        background: #dcfce7;
-        border-color: #86efac;
-        color: #166534;
-    }
-
-    .pill.general {
-        background: #fee2e2;
-        border-color: #fecaca;
-        color: #b91c1c;
-    }
-
-/* Debug 面板 */
-#debug {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    max-height: 40vh;
-    overflow: auto;
-    background: #0b1020;
-    color: #d4e2ff;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.3);
-    z-index: 99999;
-    font-size: 12px;
-    white-space: pre-wrap;
-}
-/* === 駕駛目前狀態（左下角卡片） === */
-.table-compact thead th,
-.table-compact td {
-    padding: 10px 12px;
-}
-
-.status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: 1px;
-}
-
-.status-busy {
     background: #ef4444;
 }
 /* 執勤中：紅 */
-.status-idle {
+.badge-idle {
     background: #22c55e;
 }
 /* 待命中：綠 */
-.status-off {
-    background: #94a3b8;
+.badge-break {
+    background: #6b7280;
 }
-/* 休息/請假：灰 */
-/* --- 駕駛目前狀態（左下角）專用 --- */
+/* 休息中：灰藍 */
+
+/* =======================
+   駕駛狀態表（左下卡片）
+   ======================= */
 .no-pad {
     padding: 0;
 }
@@ -372,10 +410,10 @@ tbody td {
     }
 
     .table-flat tbody tr:nth-child(2n) {
-        background: #fff7ed1a; /* 很淡的條紋 */
+        background: #fff7ed1a;
     }
 
-/* 小圓點（狀態） */
+/* 小圓點狀態 */
 .status-dot {
     display: inline-block;
     width: 10px;
@@ -402,7 +440,9 @@ tbody td {
 }
 /* 其他 */
 
-/* 值班膠囊色已在頁面中，如需補上： */
+/* =======================
+   班別膠囊（AM/PM/一般）
+   ======================= */
 .pill {
     display: inline-block;
     padding: 2px 10px;
@@ -417,27 +457,167 @@ tbody td {
         border-color: #93c5fd;
         color: #1e40af;
     }
-    /* 早‧午 */
+    /* 早午 */
     .pill.pm {
         background: #dcfce7;
         border-color: #86efac;
         color: #166534;
     }
-    /* 午‧晚 */
+    /* 午晚 */
     .pill.general {
         background: #f3f4f6;
         border-color: #d1d5db;
         color: #374151;
     }
-/* 全欄位不換行 + 超出省略 */
-table th, table td {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+/* 一般 */
+
+/* 休息提示 */
+.rest-hint {
+    color: #ef4444;
+    font-weight: 500;
 }
-/* 只有路線可換行 */
-td.col-route {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
+
+/* =======================
+   任務與申請清單區
+   ======================= */
+.lists {
+    grid-area: lists;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width:900px) {
+    .lists {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =======================
+   右下角浮動告警卡
+   ======================= */
+.floating-alerts {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 320px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    z-index: 50;
+}
+
+    .floating-alerts .hd {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 700;
+    }
+
+    .floating-alerts .bd {
+        padding: 10px 12px;
+    }
+
+    .floating-alerts .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        font-size: 12px;
+        margin-right: 6px;
+    }
+
+.pill-red {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.pill-amber {
+    background: #fde68a;
+    color: #92400e;
+}
+
+.pill-green {
+    background: #bbf7d0;
+    color: #065f46;
+}
+
+.alert-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 6px 0;
+}
+
+    .alert-row .count {
+        font-weight: 800;
+    }
+
+.alert-list {
+    max-height: 180px;
+    overflow: auto;
+    margin-top: 6px;
+}
+
+.alert-item {
+    font-size: 13px;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--border);
+}
+
+    .alert-item:last-child {
+        border-bottom: 0;
+    }
+
+.alert-actions {
+    text-align: right;
+    margin-top: 8px;
+}
+
+    .alert-actions .btn {
+        padding: 4px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+    }
+
+/* =======================
+   除錯面板與 Skeleton
+   ======================= */
+#debug {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-height: 40vh;
+    overflow: auto;
+    background: #0b1020;
+    color: #d4e2ff;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.3);
+    z-index: 99999;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 37%, rgba(255,255,255,.04) 63%);
+    animation: shimmer 1.2s linear infinite;
+    background-size: 400% 100%;
+    border-radius: 8px;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
 }

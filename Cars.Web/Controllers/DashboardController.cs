@@ -33,15 +33,28 @@ namespace Cars.ApiControllers
             var pendingReviewCount = await _db.CarApplications.CountAsync(a =>
                 a.Status == "待審核" || a.Status == "審核中");
 
+            
+            var totalKm = await _db.Dispatches
+                .Join(_db.CarApplications,
+                      dis => dis.ApplyId,
+                      app => app.ApplyId,
+                      (dis, app) => new { dis, app })
+                .Where(x => x.app.UseStart.Date == today)
+                .SumAsync(x => x.app.TripType == "單程"
+                    ? (x.app.SingleDistance ?? 0)
+                    : (x.app.RoundTripDistance ?? 0));
+
             var result = new
             {
                 scheduleTodayCount,
                 uncompleteCount,
-                pendingReviewCount
+                pendingReviewCount,
+                totalKm = Math.Round(totalKm, 1)
             };
 
             return Ok(ApiResponse<object>.Ok(result, "儀表板卡片統計成功"));
         }
+
         #endregion
 
         #region 今日排班
