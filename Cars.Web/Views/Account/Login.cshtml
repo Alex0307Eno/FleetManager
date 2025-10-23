@@ -2,25 +2,101 @@
     ViewData["Title"] = "登入";
     Layout = "_Layout";
 }
-<div class="container" style="max-width:380px;margin:72px auto;">
-    <div class="card shadow-sm" style="padding:20px;">
-        <h1 class="h5 text-center mb-3">系統登入</h1>
 
-        <!-- 提示訊息 -->
-        <div id="msg" class="alert d-none" role="alert"></div>
+<style>
+    /* 整體背景（只會作用在登入畫面，不影響其他頁） */
+    body {
+        background: linear-gradient(135deg, #e8edf3 0%, #cfd9e9 100%);
+        font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+    }
 
-        <form id="loginForm" autocomplete="off" novalidate>
-            <div class="mb-3">
-                <label class="form-label">帳號</label>
-                <input id="username" class="form-control" required />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">密碼</label>
-                <input id="password" type="password" class="form-control" required />
-            </div>
-            <button id="btnLogin" type="submit" class="btn btn-primary w-100">登入</button>
-        </form>
-    </div>
+    /* 登入卡片外層 */
+    .login-container {
+        max-width: 420px;
+        margin: 80px auto;
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        padding: 36px 42px;
+    }
+
+        /* 標題 */
+        .login-container h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1e3a8a;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+    /* 表單與輸入框 */
+    .form-label {
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .form-control {
+        border-radius: 10px;
+        border: 1px solid #d1d5db;
+        transition: all 0.25s ease;
+    }
+
+        .form-control:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+        }
+
+    /* 登入按鈕 */
+    .btn-login {
+        width: 100%;
+        background: linear-gradient(90deg, #2563eb 0%, #1e40af 100%);
+        border: none;
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 0;
+        font-weight: 600;
+        margin-top: 4px;
+        transition: all 0.2s ease;
+    }
+
+        .btn-login:hover {
+            background: linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%);
+            box-shadow: 0 4px 10px rgba(37,99,235,0.4);
+        }
+
+    .alert {
+        border-radius: 10px;
+        font-size: 14px;
+        padding: 10px 12px;
+        margin-bottom: 16px;
+    }
+
+    .footer-text {
+        text-align: center;
+        margin-top: 22px;
+        font-size: 13px;
+        color: #6b7280;
+    }
+</style>
+
+<div class="login-container">
+    <h1>🚗 AI派車與排班系統</h1>
+
+    <div id="msg" class="alert d-none" role="alert"></div>
+
+    <form id="loginForm" autocomplete="off" novalidate>
+        <div class="mb-3">
+            <label class="form-label">帳號</label>
+            <input id="username" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">密碼</label>
+            <input id="password" type="password" class="form-control" required />
+        </div>
+        <button id="btnLogin" type="submit" class="btn btn-login">登入</button>
+    </form>
+
+    <div class="footer-text">© 2025 政府派車智慧系統</div>
 </div>
 
 @section Scripts {
@@ -51,23 +127,17 @@
             btn.textContent = '登入中…';
 
             try {
-              // 同網域會自帶 cookie；若跨網域，要加 { withCredentials:true }
               const { data } = await axios.post('/api/auth/login', { userName, password });
-
               show('success', data?.message || '登入成功，將跳轉…');
               const url = data?.redirectUrl || '/';
               setTimeout(() => location.href = url, 300);
-
             } catch (err) {
-              // 優先顯示伺服器傳回的訊息，其次顯示狀態碼
               const r = err?.response;
               const text =
                 r?.data?.message ||
-                r?.data?.error || // 你後端 500 會帶 error/stack
+                r?.data?.error ||
                 (r ? `登入失敗（${r.status}）` : '無法連線伺服器');
               show('danger', text);
-              console.error('LOGIN_ERROR', r?.status, r?.data || err);
-
             } finally {
               btn.disabled = false;
               btn.textContent = '登入';
